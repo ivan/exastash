@@ -26,10 +26,8 @@ fn round_up_to_nearest(n: u64, nearest: u64) -> u64 {
 /// For tiny files (< 2KB), return 16
 /// For non-tiny files, return (2^floor(log2(n)))/64
 fn get_concealment_size(n: u64) -> u64 {
-	let average_wasteage = 1/128; // ~= .78%
 	// Use an average wasteage of 1/128 (~.78%) and max wasteage of 1/64
-	// Note 2^6 == 64
-	let ret = 2u64.pow(floor_log2(n)) >> 6;
+	let ret = 2u64.pow(floor_log2(n)) / 64;
 	max(16, ret)
 }
 
@@ -48,7 +46,7 @@ fn test_get_concealment_size() {
 	assert_eq!(get_concealment_size(128), 16);
 	assert_eq!(get_concealment_size(256), 16);
 	assert_eq!(get_concealment_size(1024), 16);
-	assert_eq!(get_concealment_size(1.5*1024), 16);
+	assert_eq!(get_concealment_size(1536), 16);
 	assert_eq!(get_concealment_size(2*1024), 32);
 	assert_eq!(get_concealment_size(128*1024), 2048);
 
@@ -70,7 +68,7 @@ fn test_conceal_size() {
 	assert_eq!(conceal_size(256), 256);
 	assert_eq!(conceal_size(1024), 1024);
 	assert_eq!(conceal_size(1025), 1024 + 16);
-	assert_eq!(conceal_size(1.5*1024), 1.5*1024);
+	assert_eq!(conceal_size(1536), 1536);
 	assert_eq!(conceal_size(2*1024), 2*1024);
 	assert_eq!(conceal_size(2*1024+1), 2*1024 + 32);
 
