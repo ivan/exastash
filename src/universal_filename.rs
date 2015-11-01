@@ -1,53 +1,49 @@
 use std::collections::HashSet;
 
-struct BadFilenameError<'a> {
-	reason: &'a String
+#[derive(Display, Debug, Eq, PartialEq)]
+pub struct BadFilenameError {
+	message: String
 }
-
-static device_names: HashSet<&'static str> = vec!(
-	"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6",
-	"COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6",
-	"LPT7", "LPT8", "LPT9").into_iter().collect();
 
 /**
  * Checks that a unicode basename is legal on Windows, Linux, and OS X.
  * If it isn't, return `BadFilenameError`.
  */
-pub fn check(s: &String) -> Result((), String) {
+pub fn check(s: &String) -> Result<(), BadFilenameError> {
 	if regex!(r"\x00").is_match(s) {
-		return Err(BadFilenameError { reason: "Filename cannot contain NULL; got ${inspect(s)}" });
+		return Err(BadFilenameError { message: "Filename cannot contain NULL; got ${inspect(s)}".to_owned() });
 	}
 	if regex!(r"/").is_match(s) {
-		return Err(BadFilenameError { reason: "Filename cannot contain '/'; got ${inspect(s)}" });
+		return Err(BadFilenameError { message: "Filename cannot contain '/'; got ${inspect(s)}".to_owned() });
 	}
 	let trimmed = s.trim();
 	if trimmed == "" || trimmed == "." || trimmed == ".." {
-		return Err(BadFilenameError { reason: "Trimmed filename cannot be '', '.', or '..'; got ${inspect(trimmed)} from ${inspect(s)}" });
+		return Err(BadFilenameError { message: "Trimmed filename cannot be '', '.', or '..'; got ${inspect(trimmed)} from ${inspect(s)}".to_owned() });
 	}
 	if regex!(r"\.$").is_match(s) {
-		return Err(BadFilenameError { reason: "Windows shell does not support filenames that end with '.'; got ${inspect(s)}" });
+		return Err(BadFilenameError { message: "Windows shell does not support filenames that end with '.'; got ${inspect(s)}".to_owned() });
 	}
 	if regex!(r" $").is_match(s) {
-		return Err(BadFilenameError { reason: "Windows shell does not support filenames that end with space; got ${inspect(s)}" });
+		return Err(BadFilenameError { message: "Windows shell does not support filenames that end with space; got ${inspect(s)}".to_owned() });
 	}
-	let firstPart = s.split(".")[0].to_uppercase();
-	if device_names.contains(firstPart) {
-		return Err(BadFilenameError { reason: "Some Windows APIs do not support filenames ` +
-			`whose non-extension component is ${inspect(firstPart)}; got ${inspect(s)}" });
+	let first_part = s.split(".").next().unwrap().to_uppercase();
+	if regex!(r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$").is_match(s) {
+		return Err(BadFilenameError { message: "Some Windows APIs do not support filenames ` +
+			`whose non-extension component is ${inspect(first_part)}; got ${inspect(s)}".to_owned() });
 	}
 	// TODO \\  \?
 	/*if regex!(r"[\|<>:\"/\*\x00-\x1F]").is_match(s) {
-		return Err(BadFilenameError { reason: "Windows does not support filenames that contain " +
-			"\\x00-\\x1F or any of: | < > : " / \\ ? *; got ${inspect(s)}" });
+		return Err(BadFilenameError { message: "Windows does not support filenames that contain " +
+			"\\x00-\\x1F or any of: | < > : " / \\ ? *; got ${inspect(s)}".to_owned() });
 	}*/
 	if s.len() > 255 {
-		return Err(BadFilenameError { reason: "Windows does not support filenames with > 255 characters; ${inspect(s)} has ${s.length}" });
+		return Err(BadFilenameError { message: "Windows does not support filenames with > 255 characters; ${inspect(s)} has ${s.length}".to_owned() });
 	}
 	let bytes_len = s.into_bytes().len();
 	if bytes_len > 255 {
-		return Err(BadFilenameError { reason: "Linux does not support filenames with > 255 bytes; ${inspect(s)} has ${bytes_len}" });
+		return Err(BadFilenameError { message: "Linux does not support filenames with > 255 bytes; ${inspect(s)} has ${bytes_len}".to_owned() });
 	}
-	()
+	Ok(())
 }
 
 #[test]

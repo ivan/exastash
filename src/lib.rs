@@ -1,5 +1,6 @@
 #![feature(plugin)]
 #![plugin(regex_macros)]
+#![feature(custom_derive)]
 
 extern crate regex;
 
