@@ -46,9 +46,9 @@ pub fn check(s: &str) -> Result<(), BadFilenameError> {
 
 #[test]
 fn test_valid_filenames() {
-	assert!(check("hello") == Ok(()));
-	assert!(check("hello world") == Ok(()));
-	assert!(check("hello\u{cccc}world") == Ok(()));
+	assert_eq!(check("hello"), Ok(()));
+	assert_eq!(check("hello world"), Ok(()));
+	assert_eq!(check("hello\u{cccc}world"), Ok(()));
 	let long_string = String::from_utf8(vec![b'h'; 255]).unwrap();
-	assert!(check(&long_string) == Ok(()));
+	assert_eq!(check(&long_string), Ok(()));
 }
