@@ -6,3 +6,4 @@ authors = ["Ivan Kozik <ivan@ludios.org>"]
 [dependencies]
 regex = "*"
 regex_macros = "*"
+num = "*"
