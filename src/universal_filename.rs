@@ -29,11 +29,10 @@ pub fn check(s: &str) -> Result<(), BadFilenameError> {
 		return Err(BadFilenameError { message: "Some Windows APIs do not support filenames ` +
 			`whose non-extension component is ${inspect(first_part)}; got ${inspect(s)}".to_owned() });
 	}
-	// TODO \\  \?
-	/*if regex!(r"[\|<>:\"/\*\x00-\x1F]").is_match(s) {
-		return Err(BadFilenameError { message: "Windows does not support filenames that contain " +
-			"\\x00-\\x1F or any of: | < > : " / \\ ? *; got ${inspect(s)}".to_owned() });
-	}*/
+	if regex!(r#"[\|<>:"/\?\*\\\x00-\x1F]"#).is_match(s) {
+		return Err(BadFilenameError { message: "Windows does not support filenames that contain \
+			\\x00-\\x1F or any of: | < > : \" / \\ ? *; got ${inspect(s)}".to_owned() });
+	}
 	if s.len() > 255 {
 		return Err(BadFilenameError { message: "Windows does not support filenames with > 255 characters; ${inspect(s)} has ${s.length}".to_owned() });
 	}
