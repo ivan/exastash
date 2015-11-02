@@ -19,7 +19,7 @@ impl MyMul<u32> for Duration {
 impl MyMul<Ratio<u32>> for Duration {
 	type Output = Duration;
 	fn mymul(self, rhs: Ratio<u32>) -> Duration {
-		(self * rhs.numer) / rhs.denom
+		(self * rhs.numer()) / rhs.denom()
 	}
 }
 
@@ -37,7 +37,7 @@ impl MyMul<u64> for u64 {
 	}
 }
 
-pub struct Decayer<N: MyMul, M: MyMul> {
+pub struct Decayer<N: MyMul<M, Output=N> + Ord + Copy, M: Copy> {
 	/// initial number to return
 	initial: N,
 	/// multiply number by this value after each call to decay()
@@ -50,7 +50,7 @@ pub struct Decayer<N: MyMul, M: MyMul> {
 	first: bool
 }
 
-impl <N: MyMul + Ord, M: MyMul> Decayer<N, M> {
+impl <N: MyMul<M, Output=N> + Ord + Copy, M: Copy> Decayer<N, M> {
 	pub fn new(initial: N, multiplier: M, max: N) -> Decayer<N, M> {
 		let decayer = Decayer {
 			initial: initial,
