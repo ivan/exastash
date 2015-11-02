@@ -121,6 +121,7 @@ mod tests {
 		assert_eq!(decayer.decay(), Duration::new(2, 250000000));
 		assert_eq!(decayer.decay(), Duration::new(3, 375000000));
 		assert_eq!(decayer.decay(), Duration::new(4, 0));
+		assert_eq!(decayer.decay(), Duration::new(4, 0));
 		assert_eq!(decayer.reset(), Duration::new(1, 0));
 	}
 }
