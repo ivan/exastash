@@ -6,26 +6,33 @@ use num::rational::Ratio;
 // num::rational:Ratio, so we need our own Mul trait.
 trait MyMul<RHS=Self> {
 	type Output;
-	fn mul(self, rhs: RHS) -> Self::Output;
+	fn mymul(self, rhs: RHS) -> Self::Output;
 }
 
 impl MyMul<u32> for Duration {
 	type Output = Duration;
-	fn mul(self, rhs: u32) -> Duration {
+	fn mymul(self, rhs: u32) -> Duration {
 		self * rhs
 	}
 }
 
 impl MyMul<Ratio<u32>> for Duration {
 	type Output = Duration;
-	fn mul(self, rhs: Ratio<u32>) -> Duration {
+	fn mymul(self, rhs: Ratio<u32>) -> Duration {
 		(self * rhs.numer) / rhs.denom
 	}
 }
 
 impl MyMul<u32> for u32 {
 	type Output = u32;
-	fn mul(self, rhs: u32) -> u32 {
+	fn mymul(self, rhs: u32) -> u32 {
+		self * rhs
+	}
+}
+
+impl MyMul<u64> for u64 {
+	type Output = u64;
+	fn mymul(self, rhs: u64) -> u64 {
 		self * rhs
 	}
 }
@@ -39,6 +46,8 @@ pub struct Decayer<N, M> {
 	max: N,
 	/// current number
 	current: N,
+	/// still on first value?
+	first: bool
 }
 
 impl <N, M> Decayer<N, M> {
@@ -47,27 +56,25 @@ impl <N, M> Decayer<N, M> {
 			initial: initial,
 			multiplier: multiplier,
 			max: max,
+			first: true,
 			current: initial,
 		};
 		decayer.reset();
 		decayer
 	}
 
-	pub fn reset(&self) {
-		// First call to .decay() will multiply, but we want to get the `intitial`
-		// value on the first call to .decay(), so divide.
-		self.current = MyMul::mul(self.initial, 1 / self.multiplier);
+	pub fn reset(&self) -> N {
+		self.first = true;
+		self.current = self.initial;
 		self.current
 	}
 
-	// For use inside an errback where you want to tell the user how many
-	// seconds the delay will be.
-	pub fn get_next_delay(&self) {
-		min(MyMul::mul(self.current * self.multiplier), self.max)
-	}
-
-	pub fn decay(&self) {
-		self.current = self.get_next_delay();
+	pub fn decay(&self) -> N {
+		if self.first {
+			self.first = false;
+		} else {
+			self.current = min(self.current.mymul(self.multiplier), self.max);
+		}
 		self.current
 	}
 }
