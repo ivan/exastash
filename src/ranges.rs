@@ -1,7 +1,7 @@
 use std::cmp::{min, max};
 
 #[derive(Debug, Eq, PartialEq)]
-struct Range {
+pub struct Range {
 	start: u64,
 	end: u64
 }
@@ -13,7 +13,7 @@ impl Range {
 	}
 }
 
-fn intersect(range1: Range, range2: Range) -> Option<Range> {
+pub fn intersect(range1: Range, range2: Range) -> Option<Range> {
 	// Range is the max of the beginnings to the min of the ends
 	let start = max(range1.start, range2.start);
 	let end = min(range1.end, range2.end);
@@ -21,6 +21,18 @@ fn intersect(range1: Range, range2: Range) -> Option<Range> {
 		return None;
 	}
 	Some(Range::new(start, end))
+}
+
+#[test]
+#[should_panic(expected="start must be < end; got start=3, end=3")]
+fn test_bad_range_1() {
+	Range::new(3, 3);
+}
+
+#[test]
+#[should_panic(expected="start must be < end; got start=3, end=2")]
+fn test_bad_range_2() {
+	Range::new(3, 2);
 }
 
 #[test]
