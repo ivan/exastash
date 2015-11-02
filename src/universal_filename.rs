@@ -1,7 +1,7 @@
 use regex::Regex;
 use std::iter::repeat;
 
-#[derive(Display, Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct BadFilenameError {
 	message: String
 }
@@ -38,11 +38,9 @@ pub fn check(s: &str) -> CheckResult {
 		return Err(BadFilenameError { message: "Windows does not support filenames that contain \
 			\\x00-\\x1F or any of: | < > : \" / \\ ? *; got ${inspect(s)}".to_owned() });
 	}
+	// We don't need to check the character length of a filename, because if it
+	// has > 255 characters, it also has > 255 bytes.
 	if s.len() > 255 {
-		return Err(BadFilenameError { message: "Windows does not support filenames with > 255 characters; ${inspect(s)} has ${s.length}".to_owned() });
-	}
-	let bytes_len = s.as_bytes().len();
-	if bytes_len > 255 {
 		return Err(BadFilenameError { message: "Linux does not support filenames with > 255 bytes; ${inspect(s)} has ${bytes_len}".to_owned() });
 	}
 	Ok(())
@@ -53,7 +51,7 @@ fn assert_error_with_message(val: CheckResult, pat: Regex) {
 		Ok(_) => panic!("Expected Err, got Ok"),
 		Err(BadFilenameError { message }) => {
 			if !pat.is_match(&message) {
-				panic!(format!("Error did not match {:?}", pat));
+				panic!(format!("Error did not match '{:?}', was {:?}", pat, message));
 			}
 		}
 	}
@@ -64,40 +62,42 @@ fn test_invalid_filenames() {
 	// We avoid using regex! here to save on compile time.
 	// 38 regex! macros leads to +16 seconds compile and +3MB binary size
 	// (tested: Rust nightly 2015-10-29 on a 4790K)
-	assert_error_with_message(check("x/y"), Regex::new(r"^BadFilename:.*cannot contain '\/'").unwrap());
-	assert_error_with_message(check("x\x00y"), Regex::new(r"^BadFilename:.*cannot contain NULL").unwrap());
-	assert_error_with_message(check(""), Regex::new(r"^BadFilename:.*cannot be '', '\.', or '\.\.'").unwrap());
-	assert_error_with_message(check("."), Regex::new(r"^BadFilename:.*cannot be '', '\.', or '\.\.'").unwrap());
-	assert_error_with_message(check(".."), Regex::new(r"^BadFilename:.*cannot be '', '\.', or '\.\.'").unwrap());
-	assert_error_with_message(check(" "), Regex::new(r"^BadFilename:.*cannot be '', '\.', or '\.\.'").unwrap());
-	assert_error_with_message(check(" . "), Regex::new(r"^BadFilename:.*cannot be '', '\.', or '\.\.'").unwrap());
-	assert_error_with_message(check(" .. "), Regex::new(r"^BadFilename:.*cannot be '', '\.', or '\.\.'").unwrap());
-	assert_error_with_message(check("hello."), Regex::new(r"^BadFilename: Windows shell does not support filenames that end with '\.'").unwrap());
-	assert_error_with_message(check("hello "), Regex::new(r"^BadFilename: Windows shell does not support filenames that end with space").unwrap());
-	assert_error_with_message(check("con"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("con.c"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("con.c.last"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("COM7"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("COM7.c"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("COM7.c.last"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("lpt9"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("lpt9.c"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("lpt9.c.last"), Regex::new(r"^BadFilename: .*not support filenames whose non-extension component is ").unwrap());
-	assert_error_with_message(check("hello\\world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello:world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello?world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello>world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello<world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello|world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello\"world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello*world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello\x01world"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello\nworld"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
-	assert_error_with_message(check("hello\x1Fworld"), Regex::new(r"^BadFilename: .*not support filenames that contain ").unwrap());
+	assert_error_with_message(check("x/y"), Regex::new(r"cannot contain '/'").unwrap());
+	assert_error_with_message(check("x\x00y"), Regex::new(r"cannot contain NULL").unwrap());
+	assert_error_with_message(check(""), Regex::new(r"cannot be '', '\.', or '\.\.'").unwrap());
+	assert_error_with_message(check("."), Regex::new(r"cannot be '', '\.', or '\.\.'").unwrap());
+	assert_error_with_message(check(".."), Regex::new(r"cannot be '', '\.', or '\.\.'").unwrap());
+	assert_error_with_message(check(" "), Regex::new(r"cannot be '', '\.', or '\.\.'").unwrap());
+	assert_error_with_message(check(" . "), Regex::new(r"cannot be '', '\.', or '\.\.'").unwrap());
+	assert_error_with_message(check(" .. "), Regex::new(r"cannot be '', '\.', or '\.\.'").unwrap());
+	assert_error_with_message(check("hello."), Regex::new(r"^Windows shell does not support filenames that end with '\.'").unwrap());
+	assert_error_with_message(check("hello "), Regex::new(r"^Windows shell does not support filenames that end with space").unwrap());
+	assert_error_with_message(check("con"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("con.c"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("con.c.last"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("COM7"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("COM7.c"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("COM7.c.last"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("lpt9"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("lpt9.c"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("lpt9.c.last"), Regex::new(r"not support filenames whose non-extension component is ").unwrap());
+	assert_error_with_message(check("hello\\world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello:world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello?world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello>world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello<world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello|world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello\"world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello*world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello\x01world"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello\nworld"), Regex::new(r"not support filenames that contain ").unwrap());
+	assert_error_with_message(check("hello\x1Fworld"), Regex::new(r"not support filenames that contain ").unwrap());
 	let s_256 = repeat("\u{cccc}").take(256).collect::<String>();
-	assert_error_with_message(check(&s_256), Regex::new(r"^BadFilename: .*not support filenames with > 255 characters").unwrap());
+	assert_eq!(s_256.chars().count(), 256);
+	assert_error_with_message(check(&s_256), Regex::new(r"not support filenames with > 255 bytes").unwrap());
 	let s_128 = repeat("\u{cccc}").take(128).collect::<String>();
-	assert_error_with_message(check(&s_128), Regex::new(r"^BadFilename: .*not support filenames with > 255 bytes").unwrap());
+	assert_eq!(s_128.chars().count(), 128);
+	assert_error_with_message(check(&s_128), Regex::new(r"not support filenames with > 255 bytes").unwrap());
 }
 
 #[test]
