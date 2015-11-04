@@ -3,7 +3,17 @@ name = "terastash"
 version = "0.1.0"
 authors = ["Ivan Kozik <ivan@ludios.org>"]
 
+[[bin]]
+name = "ts"
+
 [dependencies]
 regex = "*"
 regex_macros = "*"
 num = "*"
+docopt = "*"
+rustc-serialize = "*"
+
+[dependencies.mysql]
+mysql = "*"
+default-features = false
+features = ["socket"]
