@@ -12,6 +12,7 @@ regex_macros = "*"
 num = "*"
 docopt = "*"
 rustc-serialize = "*"
+toml = "*"
 
 [dependencies.mysql]
 mysql = "*"
