@@ -13,6 +13,8 @@ num = "*"
 docopt = "*"
 rustc-serialize = "*"
 toml = "*"
+# Note: also include Cargo license in our LICENSE bundle;
+# we copied some Toml handling code from Cargo
 
 [dependencies.mysql]
 mysql = "*"
