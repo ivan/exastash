@@ -36,7 +36,8 @@ CREATE TABLE names (
 	parent bigint NOT NULL REFERENCES inodes (id),
 	name text_filename NOT NULL,
 	child bigint NOT NULL REFERENCES inodes (id),
-	PRIMARY KEY (parent, name)
+	PRIMARY KEY (parent, name),
+	CONSTRAINT child_ne_parent CHECK (parent <> child)
 );
 
 CREATE TABLE chunks (
