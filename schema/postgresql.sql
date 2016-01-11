@@ -28,9 +28,11 @@ CREATE TABLE inodes (
 	added_user character varying(32) NOT NULL,
 	added_host character varying(64) NOT NULL,
 	added_version character varying(42) NOT NULL
+	-- TODO: constraint: if file, executable = TRUE or FALSE, if dir, executable = NULL
+	-- TODO: constraint: if dir, content_lz4 = NULL
 );
 
-CREATE DOMAIN text_filename AS text CHECK(octet_length(VALUE) <= 255);
+CREATE DOMAIN text_filename AS text CHECK(octet_length(VALUE) <= 255 AND VALUE !~ '/');
 
 CREATE TABLE names (
 	parent bigint NOT NULL REFERENCES inodes (id),
