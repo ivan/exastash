@@ -13,6 +13,7 @@ num = "*"
 docopt = "*"
 rustc-serialize = "*"
 toml = "*"
+postgres = "*"
 # Note: also include Cargo license in our LICENSE bundle;
 # we copied some Toml handling code from Cargo
 
