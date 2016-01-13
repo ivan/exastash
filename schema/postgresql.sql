@@ -1,5 +1,7 @@
 CREATE DATABASE IF NOT EXISTS ${DB_PREFIX + stashName};
 
+-- All "without timezone" times are in UTC
+
 CREATE TYPE inode_type AS ENUM ('f', 'd');
 
 CREATE DOMAIN int_nlinks AS integer CHECK(VALUE >= 1);
@@ -62,8 +64,10 @@ CREATE TABLE pack_store (
 	folder text
 );
 
-CREATE DOMAIN text_email AS text CHECK(VALUE ~ '@');
+CREATE DOMAIN text_email AS text CHECK(VALUE ~ '@' AND VALUE = lower(VALUE));
 CREATE TYPE oauth2_token_type AS ENUM ('bearer', 'mac');
+
+-- Should oauth2_credentials be shared across filesystem databases?
 
 -- What used to be google-tokens.json in node terastash
 -- We support using multiple Google accounts to upload to a pack store
