@@ -6,7 +6,7 @@ use docopt::Docopt;
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
-use rustc_serialize::serialize::Decodable;
+use rustc_serialize::Decodable;
 
 const USAGE: &'static str = "
 terastash
@@ -39,6 +39,7 @@ struct Config {
 	stashes: Vec<Stash>
 }
 
+/*
 fn get_config() -> Result<Config, Box<Error>> {
 	let mut config_file = try!(File::open("/home/at/.config/rs-terastash.toml"));
 	let mut config_content = String::new();
@@ -49,11 +50,12 @@ fn get_config() -> Result<Config, Box<Error>> {
 	let config = try!(Config::decode(&mut decoder));
 	Ok(config)
 }
+*/
 
 fn main() {
 	let args: Args = Docopt::new(USAGE)
 		.and_then(|d| d.decode())
 		.unwrap_or_else(|e| e.exit());
 	println!("{:?}", args);
-	get_config()
+	//get_config()
 }
