@@ -2,7 +2,7 @@ CREATE DATABASE IF NOT EXISTS ${DB_PREFIX + stashName};
 
 -- All "without timezone" times are in UTC
 
-CREATE TYPE inode_type AS ENUM ('f', 'd');
+CREATE TYPE inode_type AS ENUM ('f', 'd', 's');
 
 CREATE DOMAIN int_nlinks AS integer CHECK(VALUE >= 1);
 CREATE DOMAIN bigint_size AS bigint CHECK(VALUE >= 0);
