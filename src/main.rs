@@ -1,61 +1,39 @@
-extern crate rustc_serialize;
-extern crate docopt;
-extern crate toml;
+extern crate structopt;
 
-use docopt::Docopt;
-use std::error::Error;
-use std::fs::File;
-use std::io::Read;
-use rustc_serialize::Decodable;
+use structopt::StructOpt;
 
-const USAGE: &'static str = "
-terastash
+#[derive(StructOpt, Debug)]
+#[structopt(name = "ts")]
+/// terastash
+enum Opt {
+    #[structopt(name = "add")]
+    /// Add a file to the stash
+    Add {
+        #[structopt(short = "d", long = "drop-old-if-different")]
+        /// If path already exists in the db, and (mtime, size, executable) of
+        /// new file is different, drop the old file instead of throwing 'already exists'
+        drop_old_if_different: bool,
 
-Usage:
-	ts init -n <name>
-	ts (-h | --help)
-	ts --version
+        #[structopt(short = "c", long = "continue-on-exists")]
+        /// Keep going on 'already exists' errors
+        continue_on_exists: bool,
 
-Options:
-	-h --help     Show this screen.
-	--version     Show version.
-";
+        #[structopt(long = "ignore-mtime")]
+        /// Ignore mtime when checking that local file is equivalent to db file
+        ignore_mtime: bool,
+    },
 
-#[derive(Debug, RustcDecodable)]
-struct Args {
-	arg_name: String,
-	cmd_init: bool
+    #[structopt(name = "ls")]
+    /// List files in a stash directory
+    Ls {
+        #[structopt(short = "j")]
+        /// Print just the filenames without any decoration
+        just_names: bool,
+    },
 }
-
-#[derive(Debug, RustcDecodable)]
-struct Stash {
-	name: String,
-	paths: Vec<String>,
-	db: String
-}
-
-#[derive(Debug, RustcDecodable)]
-struct Config {
-	stashes: Vec<Stash>
-}
-
-/*
-fn get_config() -> Result<Config, Box<Error>> {
-	let mut config_file = try!(File::open("/home/at/.config/rs-terastash.toml"));
-	let mut config_content = String::new();
-	try!(config_file.read_to_string(&mut config_content));
-	let mut parser = toml::Parser::new(&config_content);
-	let toml = parser.parse().unwrap();
-	let mut decoder = toml::Decoder::new(toml);
-	let config = try!(Config::decode(&mut decoder));
-	Ok(config)
-}
-*/
 
 fn main() {
-	let args: Args = Docopt::new(USAGE)
-		.and_then(|d| d.decode())
-		.unwrap_or_else(|e| e.exit());
-	println!("{:?}", args);
-	//get_config()
+    let matches = Opt::from_args();
+
+    println!("{:?}", matches);
 }

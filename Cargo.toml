@@ -1,23 +1,21 @@
 [package]
 name = "terastash"
 version = "0.1.0"
+edition = "2018"
 authors = ["Ivan Kozik <ivan@ludios.org>"]
 
 [[bin]]
 name = "ts"
+path = "src/main.rs"
 
 [dependencies]
-regex = "*"
-regex_macros = "*"
-num = "*"
-docopt = "*"
-rustc-serialize = "*"
-toml = "*"
-postgres = "*"
+regex = "1.1.6"
+lazy_static = "1.3.0"
+num = "0.1.42"
+structopt = "0.2.17"
+
+rustc-serialize = "0.3.24"
+toml = "0.5.1"
+postgres = "0.15.2"
 # Note: also include Cargo license in our LICENSE bundle;
 # we copied some Toml handling code from Cargo
-
-[dependencies.mysql]
-mysql = "*"
-default-features = false
-features = ["socket"]
