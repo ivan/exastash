@@ -1,5 +1,6 @@
 use std::time::Duration;
 use std::cmp::min;
+use std::ops::Mul;
 use num::rational::Ratio;
 
 // We need to be able to multiply a std::time::Duration by a
@@ -23,16 +24,10 @@ impl MyMul<Ratio<u32>> for Duration {
     }
 }
 
-impl MyMul<u32> for u32 {
-    type Output = u32;
-    fn mymul(self, rhs: u32) -> u32 {
-        self * rhs
-    }
-}
-
-impl MyMul<u64> for u64 {
-    type Output = u64;
-    fn mymul(self, rhs: u64) -> u64 {
+// Implement MyMul for Mul's
+impl<T> MyMul for T where T: Mul<Output = T> {
+    type Output = T;
+    fn mymul(self, rhs: T) -> T {
         self * rhs
     }
 }
