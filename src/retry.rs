@@ -48,9 +48,9 @@ pub struct Decayer<N: MyMul<M, Output=N> + Ord + Copy, M: Copy> {
 impl <N: MyMul<M, Output=N> + Ord + Copy, M: Copy> Decayer<N, M> {
     pub fn new(initial: N, multiplier: M, max: N) -> Decayer<N, M> {
         Decayer {
-            initial: initial,
-            multiplier: multiplier,
-            max: max,
+            initial,
+            multiplier,
+            max,
             first: true,
             current: initial,
         }

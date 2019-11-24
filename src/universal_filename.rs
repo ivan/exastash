@@ -13,30 +13,26 @@ pub type CheckResult = Result<(), BadFilenameError>;
  */
 pub fn check(s: &str) -> CheckResult {
     lazy_static! {
-        static ref NULL_RE: Regex           = Regex::new(r"\x00").unwrap();
-        static ref SLASH_RE: Regex          = Regex::new(r"/").unwrap();
-        static ref TRAILING_DOT_RE: Regex   = Regex::new(r"\.$").unwrap();
-        static ref TRAILING_SPACE_RE: Regex = Regex::new(r" $").unwrap();
         static ref DOS_DEVICE_RE: Regex     = Regex::new(r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$").unwrap();
         static ref INVALID_CHARS_RE: Regex  = Regex::new(r#"[\|<>:"/\?\*\\\x00-\x1F]"#).unwrap();
     }
-    if NULL_RE.is_match(s) {
+    if s.contains('\x00') {
         return Err(BadFilenameError { message: "Filename cannot contain NULL; got ${inspect(s)}".to_owned() });
     }
-    if SLASH_RE.is_match(s) {
+    if s.contains('/') {
         return Err(BadFilenameError { message: "Filename cannot contain '/'; got ${inspect(s)}".to_owned() });
     }
     let trimmed = s.trim();
     if trimmed == "" || trimmed == "." || trimmed == ".." {
         return Err(BadFilenameError { message: "Trimmed filename cannot be '', '.', or '..'; got ${inspect(trimmed)} from ${inspect(s)}".to_owned() });
     }
-    if TRAILING_DOT_RE.is_match(s) {
+    if s.ends_with('.') {
         return Err(BadFilenameError { message: "Windows shell does not support filenames that end with '.'; got ${inspect(s)}".to_owned() });
     }
-    if TRAILING_SPACE_RE.is_match(s) {
+    if s.ends_with(' ') {
         return Err(BadFilenameError { message: "Windows shell does not support filenames that end with space; got ${inspect(s)}".to_owned() });
     }
-    let first_part = s.split(".").next().unwrap().to_uppercase();
+    let first_part = s.split('.').next().unwrap().to_uppercase();
     if DOS_DEVICE_RE.is_match(&first_part) {
         return Err(BadFilenameError { message: "Some Windows APIs do not support filenames \
             whose non-extension component is ${inspect(first_part)}; got ${inspect(s)}".to_owned() });

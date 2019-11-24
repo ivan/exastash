@@ -13,14 +13,14 @@ pub fn div_ceil(x: u64, y: u64) -> u64 {
 fn floor_log2(mut n: u64) -> u32 {
     let mut log = 0u32;
     while n > 1 {
-        n = n >> 1;
-        log = log + 1;
+        n >>= 1;
+        log += 1;
     }
     log
 }
 
 fn round_up_to_nearest(n: u64, nearest: u64) -> u64 {
-    return div_ceil(n, nearest) * nearest;
+    div_ceil(n, nearest) * nearest
 }
 
 /// For tiny files (< 2KB), return 16

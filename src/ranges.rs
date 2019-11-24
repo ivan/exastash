@@ -17,7 +17,7 @@ pub fn intersect(range1: Range, range2: Range) -> Option<Range> {
     // Range is the max of the beginnings to the min of the ends
     let start = max(range1.start, range2.start);
     let end = min(range1.end, range2.end);
-    if !(start < end) {
+    if start >= end {
         return None;
     }
     Some(Range::new(start, end))
