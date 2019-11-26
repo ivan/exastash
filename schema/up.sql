@@ -1,11 +1,5 @@
 \set ON_ERROR_STOP on
 
--- https://stackoverflow.com/questions/15178859/postgres-constraint-ensuring-one-column-of-many-is-present
--- Usage: CHECK (count_not_nulls(array[inline_id, gdrive_id]) = 1),
-CREATE FUNCTION count_not_nulls(p_array anyarray) RETURNS bigint AS $$
-    SELECT count(x) FROM unnest($1) AS x
-$$ LANGUAGE SQL IMMUTABLE;
-
 CREATE DOMAIN sec  AS bigint CHECK (VALUE >= 0);
 CREATE DOMAIN nsec AS bigint CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 
