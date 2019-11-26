@@ -67,6 +67,8 @@ CREATE DOMAIN symlink_target AS text
     -- We follow the lower limit in case symlinks need to be copied to XFS.
     CHECK (octet_length(VALUE) <= 1024);
 
+
+
 -- We don't store uid, gid, and the exact mode; those can be decided and
 -- changed globally by the user.
 CREATE TABLE inodes (
@@ -90,7 +92,12 @@ CREATE TABLE inodes (
 -- Start with inode 2 to avoid confusing any stupid software.
 ALTER SEQUENCE inodes_ino_seq RESTART WITH 2;
 
+CREATE INDEX inode_size_index  ON inodes (size);
+CREATE INDEX inode_mtime_index ON inodes (mtime);
+
 INSERT INTO inodes (type, mtime) VALUES ('DIR', now()::timespec64);
+
+
 
 CREATE TABLE names (
     parent bigint         NOT NULL REFERENCES inodes (ino),
@@ -100,6 +107,3 @@ CREATE TABLE names (
     PRIMARY KEY (parent, name)
     -- TODO ensure that child is not any of parents
 );
-
-CREATE INDEX inode_size_index  ON inodes (size);
-CREATE INDEX inode_mtime_index ON inodes (mtime);
