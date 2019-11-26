@@ -1,5 +1,17 @@
 \set ON_ERROR_STOP on
 
+CREATE FUNCTION raise_exception() RETURNS trigger
+AS $$
+DECLARE
+    message text;
+BEGIN
+    message := TG_ARGV[0];
+    RAISE EXCEPTION '%', message;
+END;
+$$ LANGUAGE plpgsql;
+
+
+
 CREATE DOMAIN sec  AS bigint CHECK (VALUE >= 0);
 CREATE DOMAIN nsec AS bigint CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 
@@ -65,6 +77,16 @@ CREATE TABLE inodes (
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
 
+CREATE TRIGGER inodes_check_update
+    BEFORE UPDATE ON inodes
+    FOR EACH ROW
+    WHEN (
+        OLD.ino != NEW.ino OR
+        OLD.type != NEW.type OR
+        OLD.symlink_target IS DISTINCT FROM NEW.symlink_target
+    )
+    EXECUTE FUNCTION raise_exception('cannot change ino, type, or symlink_target');
+
 INSERT INTO inodes (ino, type, mtime) VALUES (2, 'DIR', now()::timespec64);
 
 -- inode 0 is not used by Linux filesystems (0 means NULL).
@@ -86,7 +108,7 @@ CREATE TABLE storage_gdrive_chunks (
     -- the longest file_id we have is 33, but allow up to 160 in case Google changes format
     file_id            text      NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
     -- forbid very long account names
-    account            text      CHECK (account ~ '\A.{1,255}\Z'), 
+    account            text      CHECK (account ~ '\A.{1,255}\Z'),
     md5                md5       NOT NULL,
     crc32c             crc32c    NOT NULL,
     size               bigint    NOT NULL CHECK (size >= 1),
@@ -106,6 +128,8 @@ CREATE TABLE storage_inline_content (
 CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
 
 -- An inode can be stored in 1 or more storage
+--
+-- TODO: trigger to ensure ino is of type REG
 CREATE TABLE storage_map (
     ino                       bigint         NOT NULL REFERENCES inodes,
     type                      storage_type   NOT NULL,
