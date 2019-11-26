@@ -1,13 +1,5 @@
 \set ON_ERROR_STOP on
 
---- https://stackoverflow.com/questions/15178859/postgres-constraint-ensuring-one-column-of-many-is-present
---- Usage: CHECK (count_not_nulls(array[id1, id2]) = 1),
-CREATE FUNCTION count_not_nulls(p_array anyarray) RETURNS bigint AS $$
-    SELECT count(x) FROM unnest($1) AS x
-$$ LANGUAGE SQL IMMUTABLE;
-
-
-
 CREATE DOMAIN sec  AS bigint CHECK (VALUE >= 0);
 CREATE DOMAIN nsec AS bigint CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 
@@ -124,11 +116,18 @@ CREATE TABLE storage_map (
             -- TODO: internetarchive
         END
     ) STORED,
-    gdrive_chunk_sequence_id  bigint         REFERENCES storage_gdrive_chunks (chunk_sequence_id),
-    inline_content_id         bigint         REFERENCES storage_inline_content (inline_id),
+    gdrive_chunk_sequence_id  bigint, -- uses the FOREIGN KEY below
+    inline_content_id         bigint REFERENCES storage_inline_content (inline_id),
     -- TODO: internetarchive
 
-    CONSTRAINT only_one_id_type CHECK (count_not_nulls(ARRAY[gdrive_chunk_sequence_id, inline_content_id]) = 1),
+    -- TODO: add a trigger that basically does this, ensuring the 0th chunk exists in storage_gdrive_chunks
+    -- FOREIGN KEY (gdrive_chunk_sequence_id, 0) REFERENCES storage_gdrive_chunks (chunk_sequence_id, chunk_id),
+
+    CONSTRAINT only_one_id_type
+        CHECK ((
+            (gdrive_chunk_sequence_id IS NOT NULL)::integer +
+            (inline_content_id        IS NOT NULL)::integer
+        ) = 1),
 
     PRIMARY KEY (ino, type, child_id)
 );
