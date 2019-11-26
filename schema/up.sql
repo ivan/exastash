@@ -60,7 +60,7 @@ CREATE DOMAIN linux_basename AS text
         AND VALUE !~ '/'
     );
 
--- text instead of bytea, see the UTF-8 rationale for linux_filename
+-- text instead of bytea, see the UTF-8 rationale above
 CREATE DOMAIN symlink_target AS text
     -- ext4 and btrfs limit the symlink target to ~4096 bytes.
     -- xfs limits the symlink target to 1024 bytes.
