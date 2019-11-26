@@ -12,8 +12,8 @@ CREATE DOMAIN nsec AS bigint CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 -- We store timespec64 instead of `timestamp with time zone` because
 -- `timestamp with time zone` is only microsecond precise, and some
 -- applications may reasonably expect nanosecond-precise mtimes to
--- round trip correctly.  It may also be useful in some cases when sorting
--- files created at nearly the same time.
+-- round trip correctly.  It may also be useful in some cases when
+-- sorting files created at nearly the same time.
 CREATE TYPE timespec64 AS (
     sec  sec,
     nsec nsec
