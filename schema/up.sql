@@ -173,6 +173,7 @@ CREATE TABLE storage_map (
 -- of 255 bytes.
 CREATE DOMAIN linux_basename AS text
     CHECK (
+        octet_length(VALUE) >= 1 AND
         octet_length(VALUE) <= 255
         AND VALUE !~ '/'
     );
