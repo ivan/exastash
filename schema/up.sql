@@ -89,7 +89,7 @@ ALTER SEQUENCE inodes_ino_seq RESTART WITH 2;
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
 
-INSERT INTO inodes (type, mtime) VALUES ('DIR', now()::timespec64);
+INSERT INTO inodes (type, mtime) VALUES ('DIR', now()::timespec64) RETURNING ino;
 
 
 

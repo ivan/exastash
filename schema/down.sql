@@ -8,8 +8,8 @@ DROP TABLE inodes;
 
 DROP DOMAIN symlink_target;
 DROP DOMAIN linux_basename;
-DROP FUNCTION timestamp_to_timespec64;
-DROP FUNCTION count_not_nulls;
+DROP CAST (timestamp with time zone AS timespec64);
+DROP FUNCTION timestamp_to_timespec64 CASCADE;
 DROP TYPE timespec64 CASCADE;
 DROP TYPE inode_type CASCADE;
 DROP DOMAIN nsec;
