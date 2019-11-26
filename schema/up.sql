@@ -1,3 +1,5 @@
+\set ON_ERROR_STOP on
+
 -- https://stackoverflow.com/questions/15178859/postgres-constraint-ensuring-one-column-of-many-is-present
 -- Usage: CHECK (count_not_nulls(array[inline_id, gdrive_id]) = 1),
 CREATE FUNCTION count_not_nulls(p_array anyarray)
@@ -45,7 +47,7 @@ CREATE DOMAIN symlink_target AS text
 -- We don't store uid, gid, and the exact mode; those can be decided and
 -- changed globally by the user.
 CREATE TABLE inodes (
-    ino             bigserial       NOT NULL PRIMARY KEY,
+    ino             bigserial       NOT NULL PRIMARY KEY CHECK (ino >= 0),
     type            inode_type      NOT NULL,
     size            bigint          CHECK (size >= 0),
     mtime           timespec64      NOT NULL,
@@ -59,6 +61,11 @@ CREATE TABLE inodes (
     CONSTRAINT only_lnk_has_symlink_target       CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL)),
     CONSTRAINT size_matches_inline_content       CHECK (inline_content IS NULL OR size = octet_length(inline_content))
 );
+
+-- inode 0 is not used by Linux filesystems
+-- inode 1 is used by Linux filesystems for bad blocks information
+-- Start with inode 2 to avoid confusing any stupid software
+ALTER SEQUENCE inodes_ino_seq RESTART WITH 2;
 
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
