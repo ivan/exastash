@@ -1,5 +1,13 @@
 \set ON_ERROR_STOP on
 
+--- https://stackoverflow.com/questions/15178859/postgres-constraint-ensuring-one-column-of-many-is-present
+--- Usage: CHECK (count_not_nulls(array[id1, id2]) = 1),
+CREATE FUNCTION count_not_nulls(p_array anyarray) RETURNS bigint AS $$
+    SELECT count(x) FROM unnest($1) AS x
+$$ LANGUAGE SQL IMMUTABLE;
+
+
+
 CREATE DOMAIN sec  AS bigint CHECK (VALUE >= 0);
 CREATE DOMAIN nsec AS bigint CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 
@@ -33,8 +41,99 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 
 CREATE CAST (timestamp with time zone AS timespec64) WITH FUNCTION timestamp_to_timespec64 AS ASSIGNMENT;
 
+
+
 -- http://man7.org/linux/man-pages/man7/inode.7.html
 CREATE TYPE inode_type AS ENUM ('REG', 'DIR', 'LNK');
+
+-- text instead of bytea, see the UTF-8 rationale on linux_basename
+CREATE DOMAIN symlink_pathname AS text
+    -- ext4 and btrfs limit the symlink target to ~4096 bytes.
+    -- xfs limits the symlink target to 1024 bytes.
+    -- We follow the lower limit in case symlinks need to be copied to XFS.
+    --
+    -- Linux does not allow empty pathnames: https://lwn.net/Articles/551224/
+    CHECK (octet_length(VALUE) >= 1 AND octet_length(VALUE) <= 1024);
+
+-- We don't store uid, gid, and the exact mode; those can be decided and
+-- changed globally by the user.
+CREATE TABLE inodes (
+    ino                 bigserial         NOT NULL PRIMARY KEY CHECK (ino >= 2),
+    type                inode_type        NOT NULL,
+    size                bigint            CHECK (size >= 0),
+    mtime               timespec64        NOT NULL,
+    executable          boolean,
+    symlink_target      symlink_pathname,
+
+    CONSTRAINT only_reg_has_size           CHECK ((type != 'REG' AND size           IS NULL) OR (type = 'REG' AND size           IS NOT NULL)),
+    CONSTRAINT only_reg_has_executable     CHECK ((type != 'REG' AND executable     IS NULL) OR (type = 'REG' AND executable     IS NOT NULL)),
+    CONSTRAINT only_lnk_has_symlink_target CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL))
+);
+
+CREATE INDEX inode_size_index  ON inodes (size);
+CREATE INDEX inode_mtime_index ON inodes (mtime);
+
+INSERT INTO inodes (ino, type, mtime) VALUES (2, 'DIR', now()::timespec64);
+
+-- inode 0 is not used by Linux filesystems (0 means NULL).
+-- inode 1 is used by Linux filesystems for bad blocks information.
+-- inode 2 is used directly above for /
+-- Start with inode 3 for all other inodes.
+ALTER SEQUENCE inodes_ino_seq RESTART WITH 3;
+
+
+
+CREATE DOMAIN md5    AS bytea CHECK (length(VALUE) = 16);
+CREATE DOMAIN crc32c AS bytea CHECK (length(VALUE) = 4);
+
+-- There can be multiple chunks in a sequence of chunks
+CREATE TABLE storage_gdrive_chunks (
+    chunk_sequence_id  bigint    NOT NULL CHECK (chunk_sequence_id >= 1),
+    chunk_id           smallint  NOT NULL CHECK (chunk_id >= 0),
+    -- the shortest file_id we have is 28
+    -- the longest file_id we have is 33, but allow up to 160 in case Google changes format
+    file_id            text      NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
+    -- forbid very long account names
+    account            text      CHECK (account ~ '\A.{1,255}\Z'), 
+    md5                md5       NOT NULL,
+    crc32c             crc32c    NOT NULL,
+    size               bigint    NOT NULL CHECK (size >= 1),
+
+    PRIMARY KEY (chunk_sequence_id, chunk_id)
+);
+
+
+
+CREATE TABLE storage_inline_content (
+    inline_id  bigserial  NOT NULL PRIMARY KEY CHECK (inline_id >= 1),
+    content    bytea      NOT NULL
+);
+
+
+
+CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
+
+-- An inode can be stored in 1 or more storage
+CREATE TABLE storage_map (
+    ino                       bigint         NOT NULL REFERENCES inodes,
+    type                      storage_type   NOT NULL,
+    child_id                  bigint         NOT NULL GENERATED ALWAYS AS (
+        CASE
+            WHEN gdrive_chunk_sequence_id IS NOT NULL THEN gdrive_chunk_sequence_id
+            WHEN inline_content_id        IS NOT NULL THEN inline_content_id
+            -- TODO: internetarchive
+        END
+    ) STORED,
+    gdrive_chunk_sequence_id  bigint         REFERENCES storage_gdrive_chunks (chunk_sequence_id),
+    inline_content_id         bigint         REFERENCES storage_inline_content (inline_id),
+    -- TODO: internetarchive
+
+    CONSTRAINT only_one_id_type CHECK (count_not_nulls(ARRAY[gdrive_chunk_sequence_id, inline_content_id]) = 1),
+
+    PRIMARY KEY (ino, type, child_id)
+);
+
+
 
 -- We do not follow Windows filename restrictions here because they are
 -- often very restrictive (e.g. no "aux.c.something"); applications can
@@ -53,47 +152,6 @@ CREATE DOMAIN linux_basename AS text
         octet_length(VALUE) <= 255
         AND VALUE !~ '/'
     );
-
--- text instead of bytea, see the UTF-8 rationale above
-CREATE DOMAIN symlink_target AS text
-    -- ext4 and btrfs limit the symlink target to ~4096 bytes.
-    -- xfs limits the symlink target to 1024 bytes.
-    -- We follow the lower limit in case symlinks need to be copied to XFS.
-    CHECK (octet_length(VALUE) <= 1024);
-
-
-
--- We don't store uid, gid, and the exact mode; those can be decided and
--- changed globally by the user.
-CREATE TABLE inodes (
-    ino             bigserial       NOT NULL PRIMARY KEY CHECK (ino >= 2),
-    type            inode_type      NOT NULL,
-    size            bigint          CHECK (size >= 0),
-    mtime           timespec64      NOT NULL,
-    executable      boolean,
-    inline_content  bytea,
-    symlink_target  symlink_target,
-
-    -- TODO: CONSTRAINT for type REG, ensure one of inline_content or gdrive_content
-    CONSTRAINT only_reg_has_size                 CHECK ((type != 'REG' AND size           IS NULL) OR (type = 'REG' AND size           IS NOT NULL)),
-    CONSTRAINT only_reg_has_executable           CHECK ((type != 'REG' AND executable     IS NULL) OR (type = 'REG' AND executable     IS NOT NULL)),
-    CONSTRAINT only_reg_maybe_has_inline_content CHECK (inline_content IS NULL OR type = 'REG'),
-    CONSTRAINT only_lnk_has_symlink_target       CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL)),
-    CONSTRAINT size_matches_inline_content       CHECK (inline_content IS NULL OR size = octet_length(inline_content))
-);
-
-CREATE INDEX inode_size_index  ON inodes (size);
-CREATE INDEX inode_mtime_index ON inodes (mtime);
-
-INSERT INTO inodes (ino, type, mtime) VALUES (2, 'DIR', now()::timespec64);
-
--- inode 0 is not used by Linux filesystems (0 means NULL).
--- inode 1 is used by Linux filesystems for bad blocks information.
--- inode 2 is used directly above for /
--- Start with inode 3 for all other inodes.
-ALTER SEQUENCE inodes_ino_seq RESTART WITH 3;
-
-
 
 CREATE TABLE names (
     parent bigint         NOT NULL REFERENCES inodes (ino),
