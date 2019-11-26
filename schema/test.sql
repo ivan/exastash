@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(11);
+SELECT plan(13);
 SELECT has_table('inodes');
 
 PREPARE cannot_insert_with_negative_ino AS INSERT INTO inodes (
@@ -31,12 +31,22 @@ SELECT throws_ilike('cannot_insert_lnk_with_size', '%violates check constraint%'
 PREPARE cannot_insert_dir_with_executable AS INSERT INTO inodes (
   type, size, mtime, executable, inline_content, symlink_target
 ) VALUES ('DIR', NULL, (0, 0), true, NULL, NULL);
-SELECT throws_ilike('cannot_insert_dir_with_size', '%violates check constraint%');
+SELECT throws_ilike('cannot_insert_dir_with_executable', '%violates check constraint%');
 
 PREPARE cannot_insert_lnk_with_executable AS INSERT INTO inodes (
   type, size, mtime, executable, inline_content, symlink_target
 ) VALUES ('LNK', NULL, (0, 0), true, NULL, NULL);
-SELECT throws_ilike('cannot_insert_lnk_with_size', '%violates check constraint%');
+SELECT throws_ilike('cannot_insert_lnk_with_executable', '%violates check constraint%');
+
+PREPARE cannot_insert_dir_with_inline_content AS INSERT INTO inodes (
+  type, size, mtime, executable, inline_content, symlink_target
+) VALUES ('DIR', NULL, (0, 0), NULL, '', NULL);
+SELECT throws_ilike('cannot_insert_dir_with_inline_content', '%violates check constraint%');
+
+PREPARE cannot_insert_lnk_with_inline_content AS INSERT INTO inodes (
+  type, size, mtime, executable, inline_content, symlink_target
+) VALUES ('LNK', NULL, (0, 0), NULL, '', NULL);
+SELECT throws_ilike('cannot_insert_lnk_with_inline_content', '%violates check constraint%');
 
 PREPARE insert_reg_with_inline_content AS INSERT INTO inodes (
   type, size, mtime, executable, inline_content, symlink_target
