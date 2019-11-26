@@ -55,6 +55,7 @@ CREATE TABLE inodes (
     inline_content  bytea,
     symlink_target  symlink_target,
 
+    -- TODO: CONSTRAINT for type REG, ensure one of inline_content or gdrive_content
     CONSTRAINT only_reg_has_size                 CHECK ((type != 'REG' AND size           IS NULL) OR (type = 'REG' AND size           IS NOT NULL)),
     CONSTRAINT only_reg_has_executable           CHECK ((type != 'REG' AND executable     IS NULL) OR (type = 'REG' AND executable     IS NOT NULL)),
     CONSTRAINT only_reg_maybe_has_inline_content CHECK (inline_content IS NULL OR type = 'REG'),
@@ -62,7 +63,7 @@ CREATE TABLE inodes (
     CONSTRAINT size_matches_inline_content       CHECK (inline_content IS NULL OR size = octet_length(inline_content))
 );
 
--- inode 0 is not used by Linux filesystems
+-- inode 0 is not used by Linux filesystems (0 means NULL)
 -- inode 1 is used by Linux filesystems for bad blocks information
 -- Start with inode 2 to avoid confusing any stupid software
 ALTER SEQUENCE inodes_ino_seq RESTART WITH 2;
