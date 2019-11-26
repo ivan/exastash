@@ -2,19 +2,42 @@
 
 -- https://stackoverflow.com/questions/15178859/postgres-constraint-ensuring-one-column-of-many-is-present
 -- Usage: CHECK (count_not_nulls(array[inline_id, gdrive_id]) = 1),
-CREATE FUNCTION count_not_nulls(p_array anyarray)
-RETURNS BIGINT AS
-$$
+CREATE FUNCTION count_not_nulls(p_array anyarray) RETURNS bigint AS $$
     SELECT count(x) FROM unnest($1) AS x
 $$ LANGUAGE SQL IMMUTABLE;
 
 CREATE DOMAIN sec  AS bigint CHECK (VALUE >= 0);
 CREATE DOMAIN nsec AS bigint CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 
+-- We store timespec64 instead of `timestamp with time zone` because
+-- `timestamp with time zone` is only microsecond precise, and some
+-- applications may reasonably expect nanosecond-precise mtimes to
+-- round trip correctly.  It may also be useful in some cases when sorting
+-- files created at nearly the same time.
 CREATE TYPE timespec64 AS (
     sec  sec,
     nsec nsec
 );
+
+CREATE FUNCTION timestamp_to_timespec64(timestamp with time zone) RETURNS timespec64 AS $$
+DECLARE
+    epoch numeric;
+BEGIN
+    -- epoch: "For timestamp with time zone values, the number of seconds since
+    -- 1970-01-01 00:00:00 UTC (can be negative)"
+    --
+    -- Convert to numeric for % 1 below
+    epoch := extract(epoch from $1)::numeric;
+    RETURN(SELECT (
+        -- integer part
+        floor(epoch),
+        -- decimal part, times the number of nanoseconds in a second
+        (epoch % 1) * 10 ^ 9
+    )::timespec64);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE CAST (timestamp with time zone AS timespec64) WITH FUNCTION timestamp_to_timespec64 AS ASSIGNMENT;
 
 -- http://man7.org/linux/man-pages/man7/inode.7.html
 CREATE TYPE inode_type AS ENUM ('REG', 'DIR', 'LNK');
@@ -31,7 +54,7 @@ CREATE TYPE inode_type AS ENUM ('REG', 'DIR', 'LNK');
 -- Windows and macOS allow basenames to have up to 255 UTF-16 codepoints,
 -- but we mostly run Linux and need to follow its more restrictive limit
 -- of 255 bytes.
-CREATE DOMAIN linux_filename AS text
+CREATE DOMAIN linux_basename AS text
     CHECK (
         octet_length(VALUE) <= 255
         AND VALUE !~ '/'
@@ -62,11 +85,21 @@ CREATE TABLE inodes (
     CONSTRAINT only_lnk_has_symlink_target       CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL)),
     CONSTRAINT size_matches_inline_content       CHECK (inline_content IS NULL OR size = octet_length(inline_content))
 );
-
 -- inode 0 is not used by Linux filesystems (0 means NULL)
 -- inode 1 is used by Linux filesystems for bad blocks information
 -- Start with inode 2 to avoid confusing any stupid software
 ALTER SEQUENCE inodes_ino_seq RESTART WITH 2;
+
+INSERT INTO inodes (type, mtime) VALUES ('DIR', now()::timespec64);
+
+CREATE TABLE names (
+    parent bigint         NOT NULL REFERENCES inodes (ino),
+    name   linux_basename NOT NULL,
+    child  bigint         NOT NULL REFERENCES inodes (ino),
+    
+    PRIMARY KEY (parent, name)
+    -- TODO ensure that child is not any of parents
+);
 
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
