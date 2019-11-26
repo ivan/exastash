@@ -73,6 +73,7 @@ CREATE TABLE inodes (
     CONSTRAINT only_reg_has_executable     CHECK ((type != 'REG' AND executable     IS NULL) OR (type = 'REG' AND executable     IS NOT NULL)),
     CONSTRAINT only_lnk_has_symlink_target CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL))
 );
+-- TODO: use trigger to make sure inode is a child of some parent?
 
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
@@ -180,7 +181,12 @@ CREATE TABLE names (
     parent bigint         NOT NULL REFERENCES inodes (ino),
     name   linux_basename NOT NULL,
     child  bigint         NOT NULL REFERENCES inodes (ino),
-    
+
     PRIMARY KEY (parent, name)
     -- TODO ensure that child is not any of parents
 );
+
+CREATE TRIGGER names_check_update
+    BEFORE UPDATE ON names
+    FOR EACH ROW
+    EXECUTE FUNCTION raise_exception('cannot change parent, name, or child');

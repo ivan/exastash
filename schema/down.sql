@@ -1,5 +1,6 @@
 \set ON_ERROR_STOP off
 
+DROP TRIGGER names_check_update ON names;
 DROP TABLE names;
 DROP DOMAIN linux_basename;
 DROP TABLE storage_map;
