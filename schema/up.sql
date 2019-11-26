@@ -117,14 +117,10 @@ CREATE TABLE storage_gdrive_chunks (
     PRIMARY KEY (chunk_sequence_id, chunk_id)
 );
 
-
-
 CREATE TABLE storage_inline_content (
     inline_id  bigserial  NOT NULL PRIMARY KEY CHECK (inline_id >= 1),
     content    bytea      NOT NULL
 );
-
-
 
 CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
 
