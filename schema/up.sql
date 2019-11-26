@@ -179,9 +179,9 @@ CREATE DOMAIN linux_basename AS text
     );
 
 CREATE TABLE names (
-    parent bigint         NOT NULL REFERENCES inodes (ino),
-    name   linux_basename NOT NULL,
-    child  bigint         NOT NULL REFERENCES inodes (ino),
+    parent  bigint          NOT NULL REFERENCES inodes (ino),
+    name    linux_basename  NOT NULL,
+    child   bigint          NOT NULL REFERENCES inodes (ino),
 
     PRIMARY KEY (parent, name)
     -- TODO ensure that child is not any of parents
