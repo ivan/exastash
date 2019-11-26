@@ -47,7 +47,7 @@ CREATE DOMAIN symlink_target AS text
 -- We don't store uid, gid, and the exact mode; those can be decided and
 -- changed globally by the user.
 CREATE TABLE inodes (
-    ino             bigserial       NOT NULL PRIMARY KEY CHECK (ino >= 0),
+    ino             bigserial       NOT NULL PRIMARY KEY CHECK (ino >= 2),
     type            inode_type      NOT NULL,
     size            bigint          CHECK (size >= 0),
     mtime           timespec64      NOT NULL,
