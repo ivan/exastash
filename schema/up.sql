@@ -81,15 +81,17 @@ CREATE TABLE inodes (
     CONSTRAINT only_lnk_has_symlink_target       CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL)),
     CONSTRAINT size_matches_inline_content       CHECK (inline_content IS NULL OR size = octet_length(inline_content))
 );
--- inode 0 is not used by Linux filesystems (0 means NULL).
--- inode 1 is used by Linux filesystems for bad blocks information.
--- Start with inode 2 to avoid confusing any stupid software.
-ALTER SEQUENCE inodes_ino_seq RESTART WITH 2;
 
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
 
-INSERT INTO inodes (type, mtime) VALUES ('DIR', now()::timespec64) RETURNING ino;
+INSERT INTO inodes (ino, type, mtime) VALUES (2, 'DIR', now()::timespec64);
+
+-- inode 0 is not used by Linux filesystems (0 means NULL).
+-- inode 1 is used by Linux filesystems for bad blocks information.
+-- inode 2 is used directly above for /
+-- Start with inode 3 for all other inodes.
+ALTER SEQUENCE inodes_ino_seq RESTART WITH 3;
 
 
 
