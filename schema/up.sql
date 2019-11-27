@@ -14,17 +14,16 @@ $$ LANGUAGE plpgsql;
 CREATE DOMAIN sec  AS bigint CHECK (VALUE >= 0);
 CREATE DOMAIN nsec AS bigint CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 
--- We store timespec64 instead of `timestamp with time zone` because
--- `timestamp with time zone` is only microsecond precise, and some
--- applications may reasonably expect nanosecond-precise mtimes to
--- round trip correctly.  It may also be useful in some cases when
--- sorting files created at nearly the same time.
+-- We store timespec64 instead of timestamptz because timestamptz is only
+-- microsecond precise, and some applications may reasonably expect nanosecond-
+-- precise mtimes to round trip correctly.  It may also be useful in some cases
+-- when sorting files created at nearly the same time.
 CREATE TYPE timespec64 AS (
     sec  sec,
     nsec nsec
 );
 
-CREATE OR REPLACE FUNCTION timestamp_to_timespec64(timestamp with time zone) RETURNS timespec64 AS $$
+CREATE OR REPLACE FUNCTION timestamp_to_timespec64(timestamptz) RETURNS timespec64 AS $$
 DECLARE
     epoch numeric;
 BEGIN
@@ -42,7 +41,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
-CREATE CAST (timestamp with time zone AS timespec64) WITH FUNCTION timestamp_to_timespec64 AS ASSIGNMENT;
+CREATE CAST (timestamptz AS timespec64) WITH FUNCTION timestamp_to_timespec64 AS ASSIGNMENT;
 
 
 
@@ -127,69 +126,72 @@ CREATE TABLE gdrive_domains (
     -- TODO: access keys
 );
 
-CREATE DOMAIN md5    AS bytea CHECK (length(VALUE) = 16);
-CREATE DOMAIN crc32c AS bytea CHECK (length(VALUE) = 4);
+CREATE DOMAIN md5     AS bytea CHECK (length(VALUE) = 16);
+CREATE DOMAIN crc32c  AS bytea CHECK (length(VALUE) = 4);
+-- the shortest file_id we have is 28
+-- the longest file_id we have is 33, but allow up to 160 in case Google changes format
+CREATE DOMAIN file_id AS text  CHECK (VALUE ~ '\A[-_0-9A-Za-z]{28,160}\Z');
 
-CREATE TABLE gdrive_chunk_sequences (
-    chunk_sequence  bigserial  NOT NULL CHECK (chunk_sequence >= 1),
-    chunk_number    smallint   NOT NULL CHECK (chunk_number >= 0 and chunk_number < chunk_total),
-    chunk_total     smallint   NOT NULL CHECK (chunk_total >= 1),
-    -- the shortest file_id we have is 28
-    -- the longest file_id we have is 33, but allow up to 160 in case Google changes format
-    file_id         text       NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
+CREATE TABLE gdrive_files (
+    file_id         file_id      NOT NULL PRIMARY KEY,
     -- forbid very long owner names
     -- some of our old chunks have no recorded owner
-    file_owner      text       CHECK (file_owner ~ '\A.{1,255}\Z'),
-    md5             md5        NOT NULL,
-    crc32c          crc32c     NOT NULL,
-    size            bigint     NOT NULL CHECK (size >= 1),
-
-    PRIMARY KEY (chunk_sequence, chunk_number)
+    file_owner      text         CHECK (file_owner ~ '\A.{1,255}\Z'),
+    md5             md5          NOT NULL,
+    crc32c          crc32c       NOT NULL,
+    size            bigint       NOT NULL CHECK (size >= 1),
+    last_probed     timestamptz
 );
--- TODO: add trigger to make sure there are no holes
+
+CREATE TABLE gdrive_chunk_sequences (
+    chunk_sequence  bigserial  NOT NULL PRIMARY KEY CHECK (chunk_sequence >= 1),
+    -- ordered list of files
+    files           file_id[]  NOT NULL CHECK (cardinality(files) >= 1)
+);
+
+CREATE OR REPLACE FUNCTION assert_files_exist_in_gdrive_files() RETURNS trigger AS $$
+DECLARE
+    file_count integer;
+BEGIN
+    file_count := (SELECT COUNT(file_id) FROM gdrive_files WHERE file_id IN (SELECT unnest(NEW.files)));
+    IF file_count != cardinality(NEW.files) THEN
+        RAISE EXCEPTION 'chunk sequence had % files: % but only % of these are in gdrive_files',
+            cardinality(NEW.files), NEW.files, file_count;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER gdrive_chunk_sequences_check_files
+    BEFORE INSERT ON gdrive_chunk_sequences
+    FOR EACH ROW
+    EXECUTE FUNCTION assert_files_exist_in_gdrive_files();
+
+CREATE TRIGGER gdrive_chunk_sequences_check_update
+    BEFORE UPDATE ON gdrive_chunk_sequences
+    FOR EACH ROW
+    EXECUTE FUNCTION raise_exception('cannot change chunk_sequence or files');
 
 -- There can be multiple chunks in a sequence of chunks
 CREATE TABLE storage_gdrive (
     ino             bigint         NOT NULL REFERENCES inodes,
     gdrive_domain   gdrive_domain  NOT NULL REFERENCES gdrive_domains,
-    chunk_sequence  bigint         NOT NULL,
+    chunk_sequence  bigint         NOT NULL REFERENCES gdrive_chunk_sequences,
 
     -- Include chunk_sequence in the key because we might want to reupload
     -- some chunk sequences in a new format.
     PRIMARY KEY (ino, gdrive_domain, chunk_sequence)
 );
 
-CREATE TRIGGER storage_gdrive_check_update
-    BEFORE UPDATE ON storage_gdrive
-    FOR EACH ROW
-    EXECUTE FUNCTION raise_exception('cannot change ino, gdrive_domain, or chunk_sequence');
-
--- We can't create a REFERENCES that includes a literal `0` and we don't want
--- to use a dummy column that always stores a 0, so we need a trigger to ensure
--- the first chunk exists.
-CREATE OR REPLACE FUNCTION gdrive_ensure_first_chunk_exists() RETURNS trigger AS $$
-DECLARE
-    count integer;
-BEGIN
-    count := (SELECT COUNT(chunk_sequence) FROM gdrive_chunk_sequences
-        WHERE chunk_sequence = NEW.chunk_sequence
-          AND chunk_number = 0);
-    IF count = 0 THEN
-        RAISE EXCEPTION 'chunk_sequence % does not exist in gdrive_chunk_sequences', NEW.chunk_sequence;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER storage_gdrive_check_chunk_sequence
-    BEFORE INSERT ON storage_gdrive
-    FOR EACH ROW
-    EXECUTE FUNCTION gdrive_ensure_first_chunk_exists();
-
 CREATE TRIGGER storage_gdrive_check_ino
     BEFORE INSERT ON storage_gdrive
     FOR EACH ROW
     EXECUTE FUNCTION assert_inode_is_regular_file();
+
+CREATE TRIGGER storage_gdrive_check_update
+    BEFORE UPDATE ON storage_gdrive
+    FOR EACH ROW
+    EXECUTE FUNCTION raise_exception('cannot change ino, gdrive_domain, or chunk_sequence');
 
 CREATE DOMAIN ia_item AS text
     CHECK (
@@ -204,15 +206,20 @@ CREATE DOMAIN ia_pathname AS text
     );
 
 CREATE TABLE storage_internetarchive (
-    ino           bigint                    NOT NULL REFERENCES inodes,
-    ia_item       ia_item                   NOT NULL,
-    pathname      ia_pathname               NOT NULL,
-    darked        boolean                   NOT NULL DEFAULT false,
-    last_probed   timestamp with time zone,
+    ino           bigint       NOT NULL REFERENCES inodes,
+    ia_item       ia_item      NOT NULL,
+    pathname      ia_pathname  NOT NULL,
+    darked        boolean      NOT NULL DEFAULT false,
+    last_probed   timestamptz,
 
     -- We may know of more than one item that has the file.
     PRIMARY KEY (ino, ia_item)
 );
+
+CREATE TRIGGER storage_internetarchive_check_ino
+    BEFORE INSERT ON storage_internetarchive
+    FOR EACH ROW
+    EXECUTE FUNCTION assert_inode_is_regular_file();
 
 CREATE TRIGGER storage_internetarchive_check_update
     BEFORE UPDATE ON storage_internetarchive
@@ -223,11 +230,6 @@ CREATE TRIGGER storage_internetarchive_check_update
         OLD.pathname != NEW.pathname
     )
     EXECUTE FUNCTION raise_exception('cannot change ino, ia_item, or pathname');
-
-CREATE TRIGGER storage_internetarchive_check_ino
-    BEFORE INSERT ON storage_internetarchive
-    FOR EACH ROW
-    EXECUTE FUNCTION assert_inode_is_regular_file();
 
 CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
 
