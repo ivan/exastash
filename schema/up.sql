@@ -161,7 +161,7 @@ CREATE TABLE storage_internetarchive (
     darked        boolean                   NOT NULL DEFAULT false,
     last_probed   timestamp with time zone,
 
-    -- We may know of more than one item has the file.
+    -- We may know of more than one item that has the file.
     PRIMARY KEY (ino, ia_item)
 );
 
