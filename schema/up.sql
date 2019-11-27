@@ -107,7 +107,7 @@ CREATE DOMAIN gdrive_domain AS text
     CHECK (length(VALUE) >= 1 AND length(VALUE) <= 255);
 
 CREATE TABLE gdrive_domains (
-    gdrive_domain  gdrive_domain  NOT NULL PRIMARY KEY,
+    gdrive_domain  gdrive_domain  NOT NULL PRIMARY KEY
     -- TODO: access keys
 );
 
@@ -135,7 +135,7 @@ CREATE TABLE gdrive_chunk_sequences (
 CREATE TABLE storage_gdrive (
     ino             bigint         NOT NULL REFERENCES inodes,
     gdrive_domain   gdrive_domain  NOT NULL REFERENCES gdrive_domains,
-    chunk_sequence  bigint         NOT NULL REFERENCES gdrive_chunk_sequences,
+    chunk_sequence  bigint         NOT NULL,
 
     -- Include chunk_sequence in the key because we might want to reupload
     -- some chunk sequences in a new format.
@@ -145,7 +145,7 @@ CREATE TABLE storage_gdrive (
 CREATE DOMAIN ia_item AS text
     CHECK (
         -- https://help.archive.org/hc/en-us/articles/360018818271-Internet-Archive-Metadata
-        AND VALUE ~ '\A[A-Za-z0-9][-_\.A-Za-z0-9]{0,99}\Z'
+        VALUE ~ '\A[A-Za-z0-9][-_\.A-Za-z0-9]{0,99}\Z'
     );
 
 CREATE DOMAIN ia_pathname AS text
@@ -155,7 +155,7 @@ CREATE DOMAIN ia_pathname AS text
     );
 
 CREATE TABLE storage_internetarchive (
-    ino           biginteger                NOT NULL REFERENCES inodes,
+    ino           bigint                    NOT NULL REFERENCES inodes,
     ia_item       ia_item                   NOT NULL,
     pathname      ia_pathname               NOT NULL,
     darked        boolean                   NOT NULL DEFAULT false,
@@ -169,10 +169,11 @@ CREATE TRIGGER storage_internetarchive_check_update
     BEFORE UPDATE ON storage_internetarchive
     FOR EACH ROW
     WHEN (
-        OLD.ia_reference != NEW.ia_reference OR
-        OLD.ia_item != NEW.ia_item
+        OLD.ino != NEW.ino OR
+        OLD.ia_item != NEW.ia_item OR
+        OLD.pathname != NEW.pathname
     )
-    EXECUTE FUNCTION raise_exception('cannot change ia_reference or ia_item');
+    EXECUTE FUNCTION raise_exception('cannot change ino, ia_item, or pathname');
 
 CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
 
