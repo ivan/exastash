@@ -98,28 +98,48 @@ ALTER SEQUENCE inodes_ino_seq RESTART WITH 3;
 
 
 
-CREATE TABLE storage_inline_content (
-    inline_id  bigserial  NOT NULL PRIMARY KEY CHECK (inline_id >= 1),
-    content    bytea      NOT NULL
+CREATE TABLE storage_inline (
+    ino      bigint  NOT NULL PRIMARY KEY REFERENCES inodes,
+    content  bytea   NOT NULL
+);
+
+CREATE DOMAIN gdrive_domain AS text
+    CHECK (length(VALUE) >= 1 AND length(VALUE) <= 255);
+
+CREATE TABLE gdrive_domains (
+    gdrive_domain  gdrive_domain  NOT NULL PRIMARY KEY,
+    -- TODO: access keys
 );
 
 CREATE DOMAIN md5    AS bytea CHECK (length(VALUE) = 16);
 CREATE DOMAIN crc32c AS bytea CHECK (length(VALUE) = 4);
 
--- There can be multiple chunks in a sequence of chunks
-CREATE TABLE storage_gdrive_chunks (
-    chunk_sequence_id  bigserial  NOT NULL CHECK (chunk_sequence_id >= 1),
-    chunk_id           smallint   NOT NULL CHECK (chunk_id >= 0),
+CREATE TABLE gdrive_chunk_sequences (
+    chunk_sequence  bigserial  NOT NULL CHECK (chunk_sequence >= 1),
+    chunk_number    smallint   NOT NULL CHECK (chunk_number >= 0 and chunk_number < chunk_total),
+    chunk_total     smallint   NOT NULL CHECK (chunk_total >= 1),
     -- the shortest file_id we have is 28
     -- the longest file_id we have is 33, but allow up to 160 in case Google changes format
-    file_id            text       NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
+    file_id         text       NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
     -- forbid very long account names
-    account            text       CHECK (account ~ '\A.{1,255}\Z'),
-    md5                md5        NOT NULL,
-    crc32c             crc32c     NOT NULL,
-    size               bigint     NOT NULL CHECK (size >= 1),
+    account         text       CHECK (account ~ '\A.{1,255}\Z'), -- some of our old chunks have no account
+    md5             md5        NOT NULL,
+    crc32c          crc32c     NOT NULL,
+    size            bigint     NOT NULL CHECK (size >= 1),
 
-    PRIMARY KEY (chunk_sequence_id, chunk_id)
+    PRIMARY KEY (chunk_sequence, chunk_number)
+);
+-- TODO: represent ordered list better and/or add trigger to make sure there are no holes
+
+-- There can be multiple chunks in a sequence of chunks
+CREATE TABLE storage_gdrive (
+    ino             bigint         NOT NULL REFERENCES inodes,
+    gdrive_domain   gdrive_domain  NOT NULL REFERENCES gdrive_domains,
+    chunk_sequence  bigint         NOT NULL REFERENCES gdrive_chunk_sequences,
+
+    -- Include chunk_sequence in the key because we might want to reupload
+    -- some chunk sequences in a new format.
+    PRIMARY KEY (ino, gdrive_domain, chunk_sequence)
 );
 
 CREATE DOMAIN ia_item AS text
@@ -131,19 +151,22 @@ CREATE DOMAIN ia_item AS text
 CREATE DOMAIN ia_pathname AS text
     CHECK (
         octet_length(VALUE) >= 1 AND
-        octet_length(VALUE) <= 1024 -- the correct maximum is unknown
+        octet_length(VALUE) <= 1024 -- the true maximum is unknown
     );
 
-CREATE TABLE internetarchive_content (
-    ia_reference  bigserial    NOT NULL PRIMARY KEY CHECK (ia_reference >= 1),
-    ia_item       ia_item      NOT NULL,
-    pathname      ia_pathname  NOT NULL,
-    darked        boolean      NOT NULL DEFAULT false,
+CREATE TABLE storage_internetarchive (
+    ino           biginteger                NOT NULL REFERENCES inodes,
+    ia_item       ia_item                   NOT NULL,
+    pathname      ia_pathname               NOT NULL,
+    darked        boolean                   NOT NULL DEFAULT false,
     last_probed   timestamp with time zone,
+
+    -- We may know of more than one item has the file.
+    PRIMARY KEY (ino, ia_item)
 );
 
-CREATE TRIGGER internetarchive_content_check_update
-    BEFORE UPDATE ON internetarchive_content
+CREATE TRIGGER storage_internetarchive_check_update
+    BEFORE UPDATE ON storage_internetarchive
     FOR EACH ROW
     WHEN (
         OLD.ia_reference != NEW.ia_reference OR
@@ -157,31 +180,7 @@ CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
 -- of the same type of storage.
 --
 -- TODO: trigger to ensure ino is of type REG
-CREATE TABLE storage_map (
-    ino                       bigint         NOT NULL REFERENCES inodes,
-    type                      storage_type   NOT NULL,
-    mixed_storage_id          bigint         NOT NULL GENERATED ALWAYS AS (
-        CASE
-            WHEN gdrive_chunk_sequence_id IS NOT NULL THEN gdrive_chunk_sequence_id
-            WHEN inline_content_id        IS NOT NULL THEN inline_content_id
-            -- TODO: internetarchive
-        END
-    ) STORED,
-    gdrive_chunk_sequence_id  bigint, -- uses the FOREIGN KEY below
-    inline_content_id         bigint REFERENCES storage_inline_content (inline_id),
-    -- TODO: internetarchive
 
-    -- TODO: add a trigger that basically does this, ensuring the 0th chunk exists in storage_gdrive_chunks
-    -- FOREIGN KEY (gdrive_chunk_sequence_id, 0) REFERENCES storage_gdrive_chunks (chunk_sequence_id, chunk_id),
-
-    CONSTRAINT only_one_id_type
-        CHECK ((
-            (gdrive_chunk_sequence_id IS NOT NULL)::integer +
-            (inline_content_id        IS NOT NULL)::integer
-        ) = 1),
-
-    PRIMARY KEY (ino, type, child_id)
-);
 
 
 
