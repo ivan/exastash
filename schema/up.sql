@@ -98,29 +98,58 @@ ALTER SEQUENCE inodes_ino_seq RESTART WITH 3;
 
 
 
+CREATE TABLE storage_inline_content (
+    inline_id  bigserial  NOT NULL PRIMARY KEY CHECK (inline_id >= 1),
+    content    bytea      NOT NULL
+);
+
 CREATE DOMAIN md5    AS bytea CHECK (length(VALUE) = 16);
 CREATE DOMAIN crc32c AS bytea CHECK (length(VALUE) = 4);
 
 -- There can be multiple chunks in a sequence of chunks
 CREATE TABLE storage_gdrive_chunks (
-    chunk_sequence_id  bigint    NOT NULL CHECK (chunk_sequence_id >= 1),
-    chunk_id           smallint  NOT NULL CHECK (chunk_id >= 0),
+    chunk_sequence_id  bigserial  NOT NULL CHECK (chunk_sequence_id >= 1),
+    chunk_id           smallint   NOT NULL CHECK (chunk_id >= 0),
     -- the shortest file_id we have is 28
     -- the longest file_id we have is 33, but allow up to 160 in case Google changes format
-    file_id            text      NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
+    file_id            text       NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
     -- forbid very long account names
-    account            text      CHECK (account ~ '\A.{1,255}\Z'),
-    md5                md5       NOT NULL,
-    crc32c             crc32c    NOT NULL,
-    size               bigint    NOT NULL CHECK (size >= 1),
+    account            text       CHECK (account ~ '\A.{1,255}\Z'),
+    md5                md5        NOT NULL,
+    crc32c             crc32c     NOT NULL,
+    size               bigint     NOT NULL CHECK (size >= 1),
 
     PRIMARY KEY (chunk_sequence_id, chunk_id)
 );
 
-CREATE TABLE storage_inline_content (
-    inline_id  bigserial  NOT NULL PRIMARY KEY CHECK (inline_id >= 1),
-    content    bytea      NOT NULL
+CREATE DOMAIN ia_item AS text
+    CHECK (
+        -- https://help.archive.org/hc/en-us/articles/360018818271-Internet-Archive-Metadata
+        AND VALUE ~ '\A[A-Za-z0-9][-_\.A-Za-z0-9]{0,99}\Z'
+    );
+
+CREATE DOMAIN ia_pathname AS text
+    CHECK (
+        octet_length(VALUE) >= 1 AND
+        octet_length(VALUE) <= 1024 -- the correct maximum is unknown
+    );
+
+CREATE TABLE internetarchive_content (
+    ia_reference  bigserial    NOT NULL PRIMARY KEY CHECK (ia_reference >= 1),
+    ia_item       ia_item      NOT NULL,
+    pathname      ia_pathname  NOT NULL,
+    darked        boolean      NOT NULL DEFAULT false,
+    last_probed   timestamp with time zone,
 );
+
+CREATE TRIGGER internetarchive_content_check_update
+    BEFORE UPDATE ON internetarchive_content
+    FOR EACH ROW
+    WHEN (
+        OLD.ia_reference != NEW.ia_reference OR
+        OLD.ia_item != NEW.ia_item
+    )
+    EXECUTE FUNCTION raise_exception('cannot change ia_reference or ia_item');
 
 CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
 
