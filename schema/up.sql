@@ -1,7 +1,6 @@
 \set ON_ERROR_STOP on
 
-CREATE FUNCTION raise_exception() RETURNS trigger
-AS $$
+CREATE OR REPLACE FUNCTION raise_exception() RETURNS trigger AS $$
 DECLARE
     message text;
 BEGIN
@@ -25,7 +24,7 @@ CREATE TYPE timespec64 AS (
     nsec nsec
 );
 
-CREATE FUNCTION timestamp_to_timespec64(timestamp with time zone) RETURNS timespec64 AS $$
+CREATE OR REPLACE FUNCTION timestamp_to_timespec64(timestamp with time zone) RETURNS timespec64 AS $$
 DECLARE
     epoch numeric;
 BEGIN
@@ -121,15 +120,16 @@ CREATE TABLE gdrive_chunk_sequences (
     -- the shortest file_id we have is 28
     -- the longest file_id we have is 33, but allow up to 160 in case Google changes format
     file_id         text       NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
-    -- forbid very long account names
-    account         text       CHECK (account ~ '\A.{1,255}\Z'), -- some of our old chunks have no account
+    -- forbid very long owner names
+    -- some of our old chunks have no recorded owner
+    file_owner      text       CHECK (account ~ '\A.{1,255}\Z'),
     md5             md5        NOT NULL,
     crc32c          crc32c     NOT NULL,
     size            bigint     NOT NULL CHECK (size >= 1),
 
     PRIMARY KEY (chunk_sequence, chunk_number)
 );
--- TODO: represent ordered list better and/or add trigger to make sure there are no holes
+-- TODO: add trigger to make sure there are no holes
 
 -- There can be multiple chunks in a sequence of chunks
 CREATE TABLE storage_gdrive (
@@ -141,6 +141,33 @@ CREATE TABLE storage_gdrive (
     -- some chunk sequences in a new format.
     PRIMARY KEY (ino, gdrive_domain, chunk_sequence)
 );
+
+CREATE TRIGGER storage_gdrive_check_update
+    BEFORE UPDATE ON storage_gdrive
+    FOR EACH ROW
+    EXECUTE FUNCTION raise_exception('cannot change ino, gdrive_domain, or chunk_sequence');
+
+-- We can't create a REFERENCES that includes a literal `0` and we don't want
+-- to use a dummy column that always stores a 0, so we need a trigger to ensure
+-- the first chunk exists.
+CREATE OR REPLACE FUNCTION gdrive_ensure_first_chunk_exists() RETURNS trigger AS $$
+DECLARE
+    count integer;
+BEGIN
+    count := (SELECT COUNT(chunk_sequence) FROM gdrive_chunk_sequences
+        WHERE chunk_sequence = NEW.chunk_sequence
+          AND chunk_number = 0);
+    IF count = 0 THEN
+        RAISE EXCEPTION 'chunk_sequence % does not exist in gdrive_chunk_sequences', NEW.chunk_sequence;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER storage_gdrive_check_insert
+    BEFORE INSERT ON storage_gdrive
+    FOR EACH ROW
+    EXECUTE FUNCTION gdrive_ensure_first_chunk_exists();
 
 CREATE DOMAIN ia_item AS text
     CHECK (
