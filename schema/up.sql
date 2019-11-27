@@ -124,13 +124,14 @@ CREATE TABLE storage_inline_content (
 
 CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
 
--- An inode can be stored in 1 or more storage
+-- An inode can be stored in 1 or more storage location, including multiple
+-- of the same type of storage.
 --
 -- TODO: trigger to ensure ino is of type REG
 CREATE TABLE storage_map (
     ino                       bigint         NOT NULL REFERENCES inodes,
     type                      storage_type   NOT NULL,
-    child_id                  bigint         NOT NULL GENERATED ALWAYS AS (
+    mixed_storage_id          bigint         NOT NULL GENERATED ALWAYS AS (
         CASE
             WHEN gdrive_chunk_sequence_id IS NOT NULL THEN gdrive_chunk_sequence_id
             WHEN inline_content_id        IS NOT NULL THEN inline_content_id
