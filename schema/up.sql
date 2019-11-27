@@ -132,6 +132,7 @@ CREATE DOMAIN crc32c  AS bytea CHECK (length(VALUE) = 4);
 -- the longest file_id we have is 33, but allow up to 160 in case Google changes format
 CREATE DOMAIN file_id AS text  CHECK (VALUE ~ '\A[-_0-9A-Za-z]{28,160}\Z');
 
+-- TODO: prevent deletion of files still referenced by gdrive_chunk_sequences
 CREATE TABLE gdrive_files (
     file_id         file_id      NOT NULL PRIMARY KEY,
     -- forbid very long owner names
@@ -143,11 +144,24 @@ CREATE TABLE gdrive_files (
     last_probed     timestamptz
 );
 
+CREATE TRIGGER gdrive_files_check_update
+    BEFORE UPDATE ON gdrive_files
+    FOR EACH ROW
+    WHEN (
+        OLD.file_id != NEW.file_id OR
+        OLD.md5 != NEW.md5 OR
+        OLD.crc32c != NEW.crc32c OR
+        OLD.size != NEW.size
+    )
+    EXECUTE FUNCTION raise_exception('cannot change file_id, md5, crc32c, or size');
+
 CREATE TABLE gdrive_chunk_sequences (
     chunk_sequence  bigserial  NOT NULL PRIMARY KEY CHECK (chunk_sequence >= 1),
     -- ordered list of files
     files           file_id[]  NOT NULL CHECK (cardinality(files) >= 1)
 );
+
+CREATE INDEX file_id_index ON gdrive_chunk_sequences USING GIN (files);
 
 CREATE OR REPLACE FUNCTION assert_files_exist_in_gdrive_files() RETURNS trigger AS $$
 DECLARE
