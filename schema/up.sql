@@ -95,12 +95,29 @@ INSERT INTO inodes (ino, type, mtime) VALUES (2, 'DIR', now()::timespec64);
 -- Start with inode 3 for all other inodes.
 ALTER SEQUENCE inodes_ino_seq RESTART WITH 3;
 
+CREATE OR REPLACE FUNCTION assert_inode_is_regular_file() RETURNS trigger AS $$
+DECLARE
+    ino_type inode_type;
+BEGIN
+    ino_type := (SELECT type FROM inodes WHERE ino = NEW.ino);
+    IF ino_type != 'REG' THEN
+        RAISE EXCEPTION 'inode % is %, not a regular file', NEW.ino, ino_type;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 
 
 CREATE TABLE storage_inline (
     ino      bigint  NOT NULL PRIMARY KEY REFERENCES inodes,
     content  bytea   NOT NULL
 );
+
+CREATE TRIGGER storage_inline_check_ino
+    BEFORE INSERT ON storage_inline
+    FOR EACH ROW
+    EXECUTE FUNCTION assert_inode_is_regular_file();
 
 CREATE DOMAIN gdrive_domain AS text
     CHECK (length(VALUE) >= 1 AND length(VALUE) <= 255);
@@ -122,7 +139,7 @@ CREATE TABLE gdrive_chunk_sequences (
     file_id         text       NOT NULL CHECK (file_id ~ '\A[-_0-9A-Za-z]{28,160}\Z'),
     -- forbid very long owner names
     -- some of our old chunks have no recorded owner
-    file_owner      text       CHECK (account ~ '\A.{1,255}\Z'),
+    file_owner      text       CHECK (file_owner ~ '\A.{1,255}\Z'),
     md5             md5        NOT NULL,
     crc32c          crc32c     NOT NULL,
     size            bigint     NOT NULL CHECK (size >= 1),
@@ -164,10 +181,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER storage_gdrive_check_insert
+CREATE TRIGGER storage_gdrive_check_chunk_sequence
     BEFORE INSERT ON storage_gdrive
     FOR EACH ROW
     EXECUTE FUNCTION gdrive_ensure_first_chunk_exists();
+
+CREATE TRIGGER storage_gdrive_check_ino
+    BEFORE INSERT ON storage_gdrive
+    FOR EACH ROW
+    EXECUTE FUNCTION assert_inode_is_regular_file();
 
 CREATE DOMAIN ia_item AS text
     CHECK (
@@ -201,6 +223,11 @@ CREATE TRIGGER storage_internetarchive_check_update
         OLD.pathname != NEW.pathname
     )
     EXECUTE FUNCTION raise_exception('cannot change ino, ia_item, or pathname');
+
+CREATE TRIGGER storage_internetarchive_check_ino
+    BEFORE INSERT ON storage_internetarchive
+    FOR EACH ROW
+    EXECUTE FUNCTION assert_inode_is_regular_file();
 
 CREATE TYPE storage_type AS ENUM ('inline', 'gdrive', 'internetarchive');
 
