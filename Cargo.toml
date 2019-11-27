@@ -14,3 +14,8 @@ structopt = "0.3.5"
 postgres = { git = "https://github.com/sfackler/rust-postgres", features = ["with-chrono-0_4"] }
 tokio-postgres = { git = "https://github.com/sfackler/rust-postgres" }
 anyhow = "1.0"
+
+[profile.dev]
+# Reduce debug rebuild time
+# https://github.com/rust-gamedev/wg/issues/50#issuecomment-527160611
+debug = false
