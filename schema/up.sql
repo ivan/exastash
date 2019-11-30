@@ -71,6 +71,7 @@ CREATE TABLE inodes (
     CONSTRAINT only_reg_has_executable     CHECK ((type != 'REG' AND executable     IS NULL) OR (type = 'REG' AND executable     IS NOT NULL)),
     CONSTRAINT only_lnk_has_symlink_target CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL))
 );
+REVOKE TRUNCATE ON inodes FROM current_user;
 -- TODO: use trigger to make sure inode is a child of some parent?
 
 CREATE INDEX inode_size_index  ON inodes (size);
@@ -112,6 +113,7 @@ CREATE TABLE storage_inline (
     ino      bigint  NOT NULL PRIMARY KEY REFERENCES inodes,
     content  bytea   NOT NULL
 );
+REVOKE TRUNCATE ON storage_inline FROM current_user;
 
 CREATE TRIGGER storage_inline_check_ino
     BEFORE INSERT ON storage_inline
@@ -125,6 +127,7 @@ CREATE TABLE gdrive_domains (
     gdrive_domain  gdrive_domain  NOT NULL PRIMARY KEY
     -- TODO: access keys
 );
+REVOKE TRUNCATE ON gdrive_domains FROM current_user;
 
 CREATE DOMAIN md5     AS bytea CHECK (length(VALUE) = 16);
 CREATE DOMAIN crc32c  AS bytea CHECK (length(VALUE) = 4);
@@ -143,6 +146,7 @@ CREATE TABLE gdrive_files (
     size            bigint       NOT NULL CHECK (size >= 1),
     last_probed     timestamptz
 );
+REVOKE TRUNCATE ON gdrive_files FROM current_user;
 
 CREATE TRIGGER gdrive_files_check_update
     BEFORE UPDATE ON gdrive_files
@@ -160,6 +164,7 @@ CREATE TABLE gdrive_chunk_sequences (
     -- ordered list of files
     files           file_id[]  NOT NULL CHECK (cardinality(files) >= 1)
 );
+REVOKE TRUNCATE ON gdrive_chunk_sequences FROM current_user;
 
 CREATE INDEX file_id_index ON gdrive_chunk_sequences USING GIN (files);
 
@@ -196,6 +201,7 @@ CREATE TABLE storage_gdrive (
     -- some chunk sequences in a new format.
     PRIMARY KEY (ino, gdrive_domain, chunk_sequence)
 );
+REVOKE TRUNCATE ON storage_gdrive FROM current_user;
 
 CREATE TRIGGER storage_gdrive_check_ino
     BEFORE INSERT ON storage_gdrive
@@ -229,6 +235,7 @@ CREATE TABLE storage_internetarchive (
     -- We may know of more than one item that has the file.
     PRIMARY KEY (ino, ia_item)
 );
+REVOKE TRUNCATE ON storage_internetarchive FROM current_user;
 
 CREATE TRIGGER storage_internetarchive_check_ino
     BEFORE INSERT ON storage_internetarchive
@@ -282,6 +289,7 @@ CREATE TABLE names (
     PRIMARY KEY (parent, name)
     -- TODO ensure that child is not any of parents
 );
+REVOKE TRUNCATE ON names FROM current_user;
 
 CREATE TRIGGER names_check_update
     BEFORE UPDATE ON names
