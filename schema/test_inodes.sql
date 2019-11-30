@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(15);
+SELECT plan(14);
 
 -- CHECK constraints
 
@@ -17,7 +17,7 @@ SELECT throws_ilike('cannot_insert_with_zero_ino', '%violates check constraint%'
 PREPARE cannot_insert_with_one_ino AS INSERT INTO inodes (
   ino, type, size, mtime, executable, symlink_target
 ) VALUES (1, 'REG', 5, (0, 0), false, NULL);
-SELECT throws_ilike('cannot_insert_with_zero_ino', '%violates check constraint%');
+SELECT throws_ilike('cannot_insert_with_one_ino', '%violates check constraint%');
 
 PREPARE cannot_insert_dir_with_size AS INSERT INTO inodes (
   type, size, mtime, executable, symlink_target
@@ -59,11 +59,6 @@ SELECT throws_ilike('cannot_insert_lnk_with_target_over_1024_bytes', '%violates 
 PREPARE insert_reg AS INSERT INTO inodes (
   type, size, mtime, executable
 ) VALUES ('REG', 20, (0, 0), true);
-SELECT lives_ok('insert_reg');
-
-PREPARE insert_reg_without_executable AS INSERT INTO inodes (
-  type, size, mtime
-) VALUES ('REG', 20, (0, 0));
 SELECT lives_ok('insert_reg');
 
 PREPARE insert_dir AS INSERT INTO inodes (
