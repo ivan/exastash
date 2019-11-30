@@ -1,14 +1,12 @@
 BEGIN;
 
-SELECT plan(9);
+SELECT plan(14);
 
 INSERT INTO gdrive_domains (gdrive_domain) VALUES ('example.org');
 INSERT INTO gdrive_files (file_id, file_owner, md5, crc32c, size)
     VALUES ('AAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'some@user', '\xd41d8cd98f00b204e9800998ecf8427e', '\x00000000', 1);
 INSERT INTO gdrive_files (file_id, file_owner, md5, crc32c, size)
     VALUES ('AAAAAAAAAAAAAAAAAAAAAAAAAAAA2', 'some@user', '\xd41d8cd98f00b204e9800998ecf8427e', '\x00000000', 1);
-
--- Errors
 
 PREPARE cannot_create_empty_chunk_sequence AS INSERT INTO gdrive_chunk_sequences (files, aes_key)
     VALUES (ARRAY[]::file_id[], '\x00000000000000000000000000000000');
@@ -38,15 +36,34 @@ PREPARE cannot_insert_wrong_aes_key_size_17 AS INSERT INTO gdrive_chunk_sequence
     VALUES (ARRAY['AAAAAAAAAAAAAAAAAAAAAAAAAAAAA']::file_id[], '\x0000000000000000000000000000000000');
 SELECT throws_ilike('cannot_insert_wrong_aes_key_size_17', '%violates check constraint%');
 
--- Successes
-
 PREPARE one_file_sequence AS INSERT INTO gdrive_chunk_sequences (files, aes_key)
     VALUES (ARRAY['AAAAAAAAAAAAAAAAAAAAAAAAAAAAA']::file_id[], '\x00000000000000000000000000000000');
 SELECT lives_ok('one_file_sequence');
 
 PREPARE two_file_sequence AS INSERT INTO gdrive_chunk_sequences (files, aes_key)
-    VALUES (ARRAY['AAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAA2']::file_id[], '\x00000000000000000000000000000000');
+    VALUES (ARRAY['AAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAA2']::file_id[], '\x00000000000000000000000000000001');
 SELECT lives_ok('two_file_sequence');
+
+-- Files can't be deleted if they're still referenced by a sequence
+
+PREPARE cannot_delete_file_if_still_referenced AS DELETE FROM gdrive_files WHERE file_id = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+SELECT throws_ilike('cannot_delete_file_if_still_referenced', '%file_id still referenced%');
+
+PREPARE cannot_delete_file_if_still_referenced2 AS DELETE FROM gdrive_files WHERE file_id = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAA2';
+SELECT throws_ilike('cannot_delete_file_if_still_referenced2', '%file_id still referenced%');
+
+-- Sequence can be deleted
+
+PREPARE delete_sequence AS DELETE FROM gdrive_chunk_sequences;
+SELECT lives_ok('delete_sequence');
+
+-- Files can be deleted now that they're no longer referenced
+
+PREPARE can_delete_file1 AS DELETE FROM gdrive_files WHERE file_id = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+SELECT lives_ok('can_delete_file1');
+
+PREPARE can_delete_file2 AS DELETE FROM gdrive_files WHERE file_id = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAA2';
+SELECT lives_ok('can_delete_file2');
 
 --
 

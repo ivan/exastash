@@ -38,11 +38,12 @@ CREATE TRIGGER gdrive_files_check_update
 
 CREATE OR REPLACE FUNCTION gdrive_files_not_referenced() RETURNS trigger AS $$
 DECLARE
-    chunk_sequence bigint;
+    sequence bigint;
 BEGIN
-    chunk_sequence := (SELECT chunk_sequence FROM gdrive_chunk_sequences WHERE files @> OLD.file_id LIMIT 1);
-    IF chunk_sequence IS NOT NULL THEN
-        RAISE EXCEPTION 'file_id still referenced by chunk_sequence=%', chunk_sequence;
+    -- TODO: make sure index is actually being used for this
+    sequence := (SELECT chunk_sequence FROM gdrive_chunk_sequences WHERE OLD.file_id = ANY(files) LIMIT 1);
+    IF sequence IS NOT NULL THEN
+        RAISE EXCEPTION 'file_id still referenced by chunk_sequence=%', sequence;
     END IF;
     RETURN OLD;
 END;
