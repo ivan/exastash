@@ -34,7 +34,7 @@ DECLARE
     sequence bigint;
 BEGIN
     -- TODO: make sure index is actually being used for this
-    sequence := (SELECT chunk_sequence FROM gdrive_chunk_sequences WHERE OLD.file_id = ANY(files) LIMIT 1);
+    sequence := (SELECT chunk_sequence FROM gdrive_chunk_sequences WHERE files @> ARRAY[OLD.file_id] LIMIT 1);
     IF sequence IS NOT NULL THEN
         RAISE EXCEPTION 'file_id still referenced by chunk_sequence=%', sequence;
     END IF;
