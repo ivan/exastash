@@ -66,6 +66,7 @@ CREATE OR REPLACE FUNCTION assert_files_exist_in_gdrive_files() RETURNS trigger 
 DECLARE
     file_count integer;
 BEGIN
+    -- This catches not only missing files but also duplicate entries in NEW.files
     file_count := (SELECT COUNT(file_id) FROM gdrive_files WHERE file_id IN (SELECT unnest(NEW.files)));
     IF file_count != cardinality(NEW.files) THEN
         RAISE EXCEPTION 'chunk sequence had % files: % but only % of these are in gdrive_files',
