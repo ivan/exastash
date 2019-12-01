@@ -18,16 +18,73 @@ CREATE DOMAIN linux_basename AS text
     );
 
 CREATE TABLE names (
-    parent  bigint          NOT NULL REFERENCES inodes (ino),
+    -- Imagine REFERENCES inodes (ino) here, actually managed by our triggers
+    parent  bigint          NOT NULL,
     name    linux_basename  NOT NULL,
-    child   bigint          NOT NULL REFERENCES inodes (ino),
+    -- Imagine REFERENCES inodes (ino) here, actually managed by our triggers
+    child   bigint          NOT NULL CHECK (child != parent),
+    -- TODO: ensure that child is not in any of parents
 
     PRIMARY KEY (parent, name)
-    -- TODO ensure that child is not any of parents
 );
 REVOKE TRUNCATE ON names FROM current_user;
+
+CREATE OR REPLACE FUNCTION names_handle_insert() RETURNS trigger AS $$
+DECLARE
+    parent_old_nlinks integer;
+    child_type inode_type;
+    child_old_nlinks integer;
+BEGIN
+    IF (SELECT ino FROM inodes WHERE ino = NEW.parent) IS NULL THEN
+        RAISE EXCEPTION 'parent ino=% does not exist in inodes', NEW.parent;
+    END IF;
+    IF (SELECT ino FROM inodes WHERE ino = NEW.child) IS NULL THEN
+        RAISE EXCEPTION 'child ino=% does not exist in inodes', NEW.child;
+    END IF;
+
+    SELECT nlinks, type INTO child_old_nlinks, child_type FROM inodes WHERE ino = NEW.child;
+    UPDATE inodes SET nlinks = child_old_nlinks + 1 WHERE ino = NEW.child;
+
+    -- child directories "have a .. pointer" to the parent directory and thus increment the number of links
+    IF child_type = 'DIR' THEN
+        SELECT nlinks INTO parent_old_nlinks FROM inodes WHERE ino = NEW.parent;
+        UPDATE inodes SET nlinks = parent_old_nlinks + 1 WHERE ino = NEW.parent;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION names_handle_delete() RETURNS trigger AS $$
+DECLARE
+    parent_old_nlinks integer;
+    child_type inode_type;
+    child_old_nlinks integer;
+BEGIN
+    SELECT nlinks, type INTO child_old_nlinks, child_type FROM inodes WHERE ino = OLD.child;
+    UPDATE inodes SET nlinks = child_old_nlinks - 1 WHERE ino = OLD.child;
+
+    -- child directories "have a .. pointer" to the parent directory and thus decrement the number of links
+    IF child_type = 'DIR' THEN
+        SELECT nlinks INTO parent_old_nlinks FROM inodes WHERE ino = OLD.parent;
+        UPDATE inodes SET nlinks = parent_old_nlinks - 1 WHERE ino = OLD.parent;
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER names_handle_insert
+    BEFORE INSERT ON names
+    FOR EACH ROW
+    EXECUTE FUNCTION names_handle_insert();
 
 CREATE TRIGGER names_check_update
     BEFORE UPDATE ON names
     FOR EACH ROW
     EXECUTE FUNCTION raise_exception('cannot change parent, name, or child');
+
+CREATE TRIGGER names_check_delete
+    BEFORE UPDATE ON names
+    FOR EACH ROW
+    EXECUTE FUNCTION names_handle_delete();

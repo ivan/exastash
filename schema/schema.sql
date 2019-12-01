@@ -9,6 +9,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+\ir exastash_versions.sql
 \ir timespec64.sql
 \ir inodes.sql
 \ir storage_inline.sql

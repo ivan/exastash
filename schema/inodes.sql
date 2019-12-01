@@ -1,6 +1,6 @@
 -- http://man7.org/linux/man-pages/man7/inode.7.html
-CREATE TYPE inode_type AS ENUM ('REG', 'DIR', 'LNK');
 
+CREATE TYPE inode_type AS ENUM ('REG', 'DIR', 'LNK');
 -- text instead of bytea, see the UTF-8 rationale on linux_basename
 CREATE DOMAIN symlink_pathname AS text
     -- ext4 and btrfs limit the symlink target to ~4096 bytes.
@@ -17,6 +17,8 @@ CREATE TABLE inodes (
     type                inode_type        NOT NULL,
     size                bigint            CHECK (size >= 0),
     mtime               timespec64        NOT NULL,
+    -- Do not touch nlinks, it is managed by triggers
+    nlinks              int               CHECK ((nlinks >= 0 AND type != 'DIR') OR (nlinks >= 1 AND type = 'DIR')),
     executable          boolean,
     symlink_target      symlink_pathname,
 
@@ -30,6 +32,12 @@ REVOKE TRUNCATE ON inodes FROM current_user;
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
 
+CREATE TRIGGER inodes_check_insert
+    BEFORE UPDATE ON inodes
+    FOR EACH ROW
+    WHEN (NEW.nlinks != 0)
+    EXECUTE FUNCTION raise_exception('nlinks must be 0 when inserting');
+
 CREATE TRIGGER inodes_check_update
     BEFORE UPDATE ON inodes
     FOR EACH ROW
@@ -39,6 +47,34 @@ CREATE TRIGGER inodes_check_update
         OLD.symlink_target IS DISTINCT FROM NEW.symlink_target
     )
     EXECUTE FUNCTION raise_exception('cannot change ino, type, or symlink_target');
+
+CREATE OR REPLACE FUNCTION inodes_check_delete() RETURNS trigger AS $$
+DECLARE
+    parent_child_count integer;
+BEGIN
+    IF OLD.type = 'DIR' THEN
+        IF OLD.nlinks > 2 THEN
+            RAISE EXCEPTION 'cannot delete DIR with nlinks > 2, was %', OLD.nlinks;
+        END IF;
+        -- Don't let a directory removal cause files to be orphaned
+        parent_child_count := (SELECT COUNT(*) FROM names WHERE parent = OLD.ino);
+        IF parent_child_count > 0 THEN
+            RAISE EXCEPTION 'cannot delete non-empty DIR, had % children', parent_child_count;
+        END IF;
+    ELSE -- REG or LNK
+        IF OLD.nlinks > 0 THEN
+            RAISE EXCEPTION 'cannot delete % with nlinks > 0, was %', OLD.type, OLD.nlinks;
+        END IF;
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER inodes_check_delete
+    BEFORE UPDATE ON inodes
+    FOR EACH ROW
+    EXECUTE FUNCTION inodes_check_delete();
 
 INSERT INTO inodes (ino, type, mtime) VALUES (2, 'DIR', now()::timespec64);
 
