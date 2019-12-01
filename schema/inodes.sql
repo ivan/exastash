@@ -17,8 +17,11 @@ CREATE TABLE inodes (
     type                inode_type        NOT NULL,
     size                bigint            CHECK (size >= 0),
     mtime               timespec64        NOT NULL,
-    -- Do not touch nlinks, it is managed by triggers
-    nlinks              int               CHECK ((nlinks >= 0 AND type != 'DIR') OR (nlinks >= 1 AND type = 'DIR')),
+    -- Do not touch nlinks, it is managed by triggers.
+    --
+    -- nlinks may be 0 for both DIR and non-DIR, if directory entries have
+    -- been removed but the inode itself hasn't (e.g. still open).
+    nlinks              int               NOT NULL DEFAULT 0 CHECK (nlinks >= 0),
     executable          boolean,
     symlink_target      symlink_pathname,
 
@@ -27,7 +30,6 @@ CREATE TABLE inodes (
     CONSTRAINT only_lnk_has_symlink_target CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL))
 );
 REVOKE TRUNCATE ON inodes FROM current_user;
--- TODO: use trigger to make sure inode is a child of some parent?
 
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
@@ -48,33 +50,11 @@ CREATE TRIGGER inodes_check_update
     )
     EXECUTE FUNCTION raise_exception('cannot change ino, type, or symlink_target');
 
-CREATE OR REPLACE FUNCTION inodes_check_delete() RETURNS trigger AS $$
-DECLARE
-    parent_child_count integer;
-BEGIN
-    IF OLD.type = 'DIR' THEN
-        IF OLD.nlinks > 2 THEN
-            RAISE EXCEPTION 'cannot delete DIR with nlinks > 2, was %', OLD.nlinks;
-        END IF;
-        -- Don't let a directory removal cause files to be orphaned
-        parent_child_count := (SELECT COUNT(*) FROM names WHERE parent = OLD.ino);
-        IF parent_child_count > 0 THEN
-            RAISE EXCEPTION 'cannot delete non-empty DIR, had % children', parent_child_count;
-        END IF;
-    ELSE -- REG or LNK
-        IF OLD.nlinks > 0 THEN
-            RAISE EXCEPTION 'cannot delete % with nlinks > 0, was %', OLD.type, OLD.nlinks;
-        END IF;
-    END IF;
-
-    RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE TRIGGER inodes_check_delete
     BEFORE UPDATE ON inodes
     FOR EACH ROW
-    EXECUTE FUNCTION inodes_check_delete();
+    WHEN (OLD.nlinks > 0)
+    EXECUTE FUNCTION raise_exception('cannot delete inode with nlinks > 0');
 
 INSERT INTO inodes (ino, type, mtime) VALUES (2, 'DIR', now()::timespec64);
 
