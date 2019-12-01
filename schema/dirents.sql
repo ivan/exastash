@@ -48,6 +48,7 @@ BEGIN
     child_type := (SELECT type FROM inodes WHERE ino = NEW.child);
     IF child_type = 'DIR' THEN
         UPDATE inodes SET child_dir_count = child_dir_count + 1 WHERE ino = NEW.parent;
+        UPDATE inodes SET parent_ino = NEW.parent               WHERE ino = NEW.child;
     END IF;
 
     UPDATE inodes SET dirents_count = dirents_count + 1 WHERE ino = NEW.child;
