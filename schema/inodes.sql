@@ -1,6 +1,7 @@
 -- http://man7.org/linux/man-pages/man7/inode.7.html
 
 CREATE TYPE inode_type AS ENUM ('REG', 'DIR', 'LNK');
+
 -- text instead of bytea, see the UTF-8 rationale on linux_basename
 CREATE DOMAIN symlink_pathname AS text
     -- ext4 and btrfs limit the symlink target to ~4096 bytes.
@@ -21,15 +22,24 @@ CREATE TABLE inodes (
     mtime               timespec64        NOT NULL,
     executable          boolean,
     symlink_target      symlink_pathname,
-    -- '..' for DIR inodes
+    -- parent_ino is '..' for DIR inodes; this is here instead of in dirents
+    -- because we may want to delete the dirent to a directory while still
+    -- keeping the inode around and having a working '..'
+    --
+    -- parent for / is /
     -- TODO: make sure it's OK that we don't have a REFERENCES to inodes (ino) here
-    directory_parent    ino,
+    parent_ino          ino               CHECK ((ino = 2 AND parent_ino = ino) OR (ino != 2 AND parent_ino != ino)),
 
+    -- nlinks note: a directory gets its first "nlink" from the parent's dirent
+    -- to it, and its second "nlink" from the "." entry in the directory.
+    -- That is not how things work in our schema, but we can perfectly emulate
+    -- how Linux filesystems count "nlinks".
+    --
     -- We don't track nlinks here but rather "number of dirents" (0-inf for
     -- REG/LNK, 0-1 for DIR) and, for DIR, "number of directory children".
     -- These allow us to compute nlinks for both REG/LNK (= dirents_count)
     -- and DIR (= (dirents_count == 1 ? 2 + child_dir_count : 0))
-    --
+
     -- For any inode, a count of how many times we appear as a child in dirents
     dirents_count       int               NOT NULL DEFAULT 0 CHECK (dirents_count >= 0 AND (type != 'DIR' OR dirents_count <= 1)),
     -- For DIR inode, a count of only the _directory_ children
@@ -39,10 +49,11 @@ CREATE TABLE inodes (
     -- TODO: birth_machine
     -- TODO: birth_exastash_version
 
-    CONSTRAINT only_reg_has_size                CHECK ((type != 'REG' AND size            IS NULL) OR (type = 'REG' AND size            IS NOT NULL)),
-    CONSTRAINT only_reg_has_executable          CHECK ((type != 'REG' AND executable      IS NULL) OR (type = 'REG' AND executable      IS NOT NULL)),
-    CONSTRAINT only_lnk_has_symlink_target      CHECK ((type != 'LNK' AND symlink_target  IS NULL) OR (type = 'LNK' AND symlink_target  IS NOT NULL)),
-    CONSTRAINT only_dir_has_child_dir_count     CHECK ((type != 'DIR' AND child_dir_count IS NULL) OR (type = 'DIR' AND child_dir_count IS NOT NULL))
+    CONSTRAINT only_reg_has_size             CHECK ((type != 'REG' AND size            IS NULL) OR (type = 'REG' AND size            IS NOT NULL)),
+    CONSTRAINT only_reg_has_executable       CHECK ((type != 'REG' AND executable      IS NULL) OR (type = 'REG' AND executable      IS NOT NULL)),
+    CONSTRAINT only_lnk_has_symlink_target   CHECK ((type != 'LNK' AND symlink_target  IS NULL) OR (type = 'LNK' AND symlink_target  IS NOT NULL)),
+    CONSTRAINT only_dir_has_child_dir_count  CHECK ((type != 'DIR' AND child_dir_count IS NULL) OR (type = 'DIR' AND child_dir_count IS NOT NULL)),
+    CONSTRAINT only_dir_has_parent_ino       CHECK ((type != 'DIR' AND parent_ino      IS NULL) OR (type = 'DIR' AND parent_ino      IS NOT NULL))
 );
 REVOKE TRUNCATE ON inodes FROM current_user;
 
@@ -88,7 +99,7 @@ CREATE TRIGGER inodes_check_delete
     WHEN (OLD.dirents_count > 0 OR OLD.ino = 2)
     EXECUTE FUNCTION raise_exception('cannot delete inode with dirents_count > 0 or ino = 2 (root DIR)');
 
-INSERT INTO inodes (ino, type, mtime, child_dir_count) VALUES (2, 'DIR', now()::timespec64, 0);
+INSERT INTO inodes (ino, type, mtime, parent_ino) VALUES (2, 'DIR', now()::timespec64, 2);
 
 -- inode 0 is not used by Linux filesystems (0 means NULL).
 -- inode 1 is used by Linux filesystems for bad blocks information.

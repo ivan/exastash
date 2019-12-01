@@ -65,8 +65,8 @@ PREPARE insert_reg AS INSERT INTO inodes (
 SELECT lives_ok('insert_reg');
 
 PREPARE insert_dir AS INSERT INTO inodes (
-  type, size, mtime
-) VALUES ('DIR', NULL, (0, 0));
+  type, size, mtime, parent_ino
+) VALUES ('DIR', NULL, (0, 0), 2);
 SELECT lives_ok('insert_dir');
 
 PREPARE insert_lnk AS INSERT INTO inodes (
