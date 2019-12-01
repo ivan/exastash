@@ -10,6 +10,8 @@ CREATE DOMAIN symlink_pathname AS text
     -- Linux does not allow empty pathnames: https://lwn.net/Articles/551224/
     CHECK (octet_length(VALUE) >= 1 AND octet_length(VALUE) <= 1024);
 
+CREATE DOMAIN ino AS bigint CHECK (VALUE >= 2);
+
 -- We don't store uid, gid, and the exact mode; those can be decided and
 -- changed globally by the user.
 CREATE TABLE inodes (
@@ -17,28 +19,58 @@ CREATE TABLE inodes (
     type                inode_type        NOT NULL,
     size                bigint            CHECK (size >= 0),
     mtime               timespec64        NOT NULL,
-    -- Do not touch nlinks, it is managed by triggers.
-    --
-    -- nlinks may be 0 for both DIR and non-DIR, if directory entries have
-    -- been removed but the inode itself hasn't (e.g. still open).
-    nlinks              int               NOT NULL DEFAULT 0 CHECK (nlinks >= 0),
     executable          boolean,
     symlink_target      symlink_pathname,
+    -- '..' for DIR inodes
+    -- TODO: make sure it's OK that we don't have a REFERENCES to inodes (ino) here
+    directory_parent    ino,
 
-    CONSTRAINT only_reg_has_size           CHECK ((type != 'REG' AND size           IS NULL) OR (type = 'REG' AND size           IS NOT NULL)),
-    CONSTRAINT only_reg_has_executable     CHECK ((type != 'REG' AND executable     IS NULL) OR (type = 'REG' AND executable     IS NOT NULL)),
-    CONSTRAINT only_lnk_has_symlink_target CHECK ((type != 'LNK' AND symlink_target IS NULL) OR (type = 'LNK' AND symlink_target IS NOT NULL))
+    -- We don't track nlinks here but rather "number of dirents" (0-inf for
+    -- REG/LNK, 0-1 for DIR) and, for DIR, "number of directory children".
+    -- These allow us to compute nlinks for both REG/LNK (= dirents_count)
+    -- and DIR (= (dirents_count == 1 ? 2 + child_dir_count : 0))
+    --
+    -- For any inode, a count of how many times we appear as a child in dirents
+    dirents_count       int               NOT NULL DEFAULT 0 CHECK (dirents_count >= 0 AND (type != 'DIR' OR dirents_count <= 1)),
+    -- For DIR inode, a count of only the _directory_ children
+    child_dir_count     int               CHECK (child_dir_count >= 0),
+
+    -- TODO: birth_time
+    -- TODO: birth_machine
+    -- TODO: birth_exastash_version
+
+    CONSTRAINT only_reg_has_size                CHECK ((type != 'REG' AND size            IS NULL) OR (type = 'REG' AND size            IS NOT NULL)),
+    CONSTRAINT only_reg_has_executable          CHECK ((type != 'REG' AND executable      IS NULL) OR (type = 'REG' AND executable      IS NOT NULL)),
+    CONSTRAINT only_lnk_has_symlink_target      CHECK ((type != 'LNK' AND symlink_target  IS NULL) OR (type = 'LNK' AND symlink_target  IS NOT NULL)),
+    CONSTRAINT only_dir_has_child_dir_count     CHECK ((type != 'DIR' AND child_dir_count IS NULL) OR (type = 'DIR' AND child_dir_count IS NOT NULL))
 );
 REVOKE TRUNCATE ON inodes FROM current_user;
 
 CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
 
-CREATE TRIGGER inodes_check_insert
+CREATE OR REPLACE FUNCTION inodes_handle_insert() RETURNS trigger AS $$
+BEGIN
+    IF NEW.dirents_count != 0 THEN
+        RAISE EXCEPTION 'If given, dirents_count must be 0';
+    END IF;
+    NEW.dirents_count := 0;
+
+    IF NEW.type = 'DIR' THEN
+        IF NEW.child_dir_count != 0 THEN
+            RAISE EXCEPTION 'If given, child_dir_count must be 0 when inserting a DIR';
+        END IF;
+        NEW.child_dir_count := 0;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER inodes_handle_insert
     BEFORE INSERT ON inodes
     FOR EACH ROW
-    WHEN (NEW.nlinks != 0)
-    EXECUTE FUNCTION raise_exception('nlinks must be 0 when inserting');
+    EXECUTE FUNCTION inodes_handle_insert();
 
 CREATE TRIGGER inodes_check_update
     BEFORE UPDATE ON inodes
@@ -53,10 +85,10 @@ CREATE TRIGGER inodes_check_update
 CREATE TRIGGER inodes_check_delete
     BEFORE DELETE ON inodes
     FOR EACH ROW
-    WHEN (OLD.nlinks > 0)
-    EXECUTE FUNCTION raise_exception('cannot delete inode with nlinks > 0');
+    WHEN (OLD.dirents_count > 0 OR OLD.ino = 2)
+    EXECUTE FUNCTION raise_exception('cannot delete inode with dirents_count > 0 or ino = 2 (root DIR)');
 
-INSERT INTO inodes (ino, type, mtime) VALUES (2, 'DIR', now()::timespec64);
+INSERT INTO inodes (ino, type, mtime, child_dir_count) VALUES (2, 'DIR', now()::timespec64, 0);
 
 -- inode 0 is not used by Linux filesystems (0 means NULL).
 -- inode 1 is used by Linux filesystems for bad blocks information.

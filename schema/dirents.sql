@@ -19,10 +19,10 @@ CREATE DOMAIN linux_basename AS text
 
 CREATE TABLE dirents (
     -- Imagine REFERENCES inodes (ino) here, actually managed by our triggers
-    parent    bigint          NOT NULL,
+    parent    ino             NOT NULL,
     basename  linux_basename  NOT NULL,
     -- Imagine REFERENCES inodes (ino) here, actually managed by our triggers
-    child     bigint          NOT NULL CHECK (child != parent),
+    child     ino             NOT NULL CHECK (child != parent),
     -- TODO: ensure that child is not in any of parents
 
     PRIMARY KEY (parent, basename)
@@ -31,25 +31,26 @@ REVOKE TRUNCATE ON dirents FROM current_user;
 
 CREATE OR REPLACE FUNCTION dirents_handle_insert() RETURNS trigger AS $$
 DECLARE
-    parent_old_nlinks integer;
+    parent_type inode_type;
     child_type inode_type;
-    child_old_nlinks integer;
 BEGIN
-    IF (SELECT ino FROM inodes WHERE ino = NEW.parent) IS NULL THEN
+    parent_type := (SELECT type FROM inodes WHERE ino = NEW.parent);
+    IF parent_type IS NULL THEN
         RAISE EXCEPTION 'parent ino=% does not exist in inodes', NEW.parent;
+    END IF;
+    IF parent_type != 'DIR' THEN
+        RAISE EXCEPTION 'parent ino=% is not a DIR', NEW.parent;
     END IF;
     IF (SELECT ino FROM inodes WHERE ino = NEW.child) IS NULL THEN
         RAISE EXCEPTION 'child ino=% does not exist in inodes', NEW.child;
     END IF;
 
-    SELECT nlinks, type INTO child_old_nlinks, child_type FROM inodes WHERE ino = NEW.child;
-    UPDATE inodes SET nlinks = child_old_nlinks + 1 WHERE ino = NEW.child;
-
-    -- child directories "have a .. pointer" to the parent directory and thus increment the number of links
+    child_type := (SELECT type FROM inodes WHERE ino = NEW.child);
     IF child_type = 'DIR' THEN
-        SELECT nlinks INTO parent_old_nlinks FROM inodes WHERE ino = NEW.parent;
-        UPDATE inodes SET nlinks = parent_old_nlinks + 1 WHERE ino = NEW.parent;
+        UPDATE inodes SET child_dir_count = child_dir_count + 1 WHERE ino = NEW.parent;
     END IF;
+
+    UPDATE inodes SET dirents_count = dirents_count + 1 WHERE ino = NEW.child;
 
     RETURN NEW;
 END;
@@ -57,18 +58,14 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION dirents_handle_delete() RETURNS trigger AS $$
 DECLARE
-    parent_old_nlinks integer;
     child_type inode_type;
-    child_old_nlinks integer;
 BEGIN
-    SELECT nlinks, type INTO child_old_nlinks, child_type FROM inodes WHERE ino = OLD.child;
-    UPDATE inodes SET nlinks = child_old_nlinks - 1 WHERE ino = OLD.child;
-
-    -- child directories "have a .. pointer" to the parent directory and thus decrement the number of links
+    child_type := (SELECT type FROM inodes WHERE ino = OLD.child);
     IF child_type = 'DIR' THEN
-        SELECT nlinks INTO parent_old_nlinks FROM inodes WHERE ino = OLD.parent;
-        UPDATE inodes SET nlinks = parent_old_nlinks - 1 WHERE ino = OLD.parent;
+        UPDATE inodes SET child_dir_count = child_dir_count - 1 WHERE ino = OLD.parent;
     END IF;
+
+    UPDATE inodes SET dirents_count = dirents_count - 1 WHERE ino = OLD.child;
 
     RETURN OLD;
 END;

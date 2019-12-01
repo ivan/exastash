@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(14);
+SELECT plan(15);
 
 -- CHECK constraints
 
@@ -53,6 +53,9 @@ PREPARE cannot_insert_lnk_with_target_over_1024_bytes AS INSERT INTO inodes (
   type, size, mtime, executable, symlink_target
 ) VALUES ('LNK', NULL, (0, 0), NULL, repeat('x', 1025));
 SELECT throws_ilike('cannot_insert_lnk_with_target_over_1024_bytes', '%violates check constraint%');
+
+PREPARE cannot_delete_root_inode AS DELETE FROM inodes WHERE ino = 2;
+SELECT throws_ilike('cannot_delete_root_inode', '%cannot delete%');
 
 -- Successes
 

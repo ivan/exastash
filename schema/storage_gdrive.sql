@@ -111,7 +111,7 @@ CREATE TRIGGER gsuite_domains_check_update
 -- storage
 
 CREATE TABLE storage_gdrive (
-    ino             bigint         NOT NULL REFERENCES inodes,
+    ino             ino            NOT NULL REFERENCES inodes,
     gsuite_domain   gsuite_domain  NOT NULL REFERENCES gsuite_domains,
     chunk_sequence  bigint         NOT NULL REFERENCES gdrive_chunk_sequences,
 

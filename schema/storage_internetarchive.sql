@@ -11,7 +11,7 @@ CREATE DOMAIN ia_pathname AS text
     );
 
 CREATE TABLE storage_internetarchive (
-    ino           bigint       NOT NULL REFERENCES inodes,
+    ino           ino          NOT NULL REFERENCES inodes,
     ia_item       ia_item      NOT NULL,
     pathname      ia_pathname  NOT NULL,
     darked        boolean      NOT NULL DEFAULT false,

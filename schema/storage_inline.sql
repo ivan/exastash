@@ -1,6 +1,6 @@
 CREATE TABLE storage_inline (
-    ino      bigint  PRIMARY KEY REFERENCES inodes,
-    content  bytea   NOT NULL
+    ino      ino    PRIMARY KEY REFERENCES inodes,
+    content  bytea  NOT NULL
 );
 REVOKE TRUNCATE ON storage_inline FROM current_user;
 
