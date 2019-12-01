@@ -15,6 +15,8 @@ CREATE DOMAIN linux_basename AS text
         octet_length(VALUE) >= 1 AND
         octet_length(VALUE) <= 255
         AND VALUE !~ '/'
+        AND VALUE != '.'
+        AND VALUE != '..'
     );
 
 CREATE TABLE dirents (
