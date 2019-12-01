@@ -35,7 +35,7 @@ CREATE INDEX inode_size_index  ON inodes (size);
 CREATE INDEX inode_mtime_index ON inodes (mtime);
 
 CREATE TRIGGER inodes_check_insert
-    BEFORE UPDATE ON inodes
+    BEFORE INSERT ON inodes
     FOR EACH ROW
     WHEN (NEW.nlinks != 0)
     EXECUTE FUNCTION raise_exception('nlinks must be 0 when inserting');
@@ -51,7 +51,7 @@ CREATE TRIGGER inodes_check_update
     EXECUTE FUNCTION raise_exception('cannot change ino, type, or symlink_target');
 
 CREATE TRIGGER inodes_check_delete
-    BEFORE UPDATE ON inodes
+    BEFORE DELETE ON inodes
     FOR EACH ROW
     WHEN (OLD.nlinks > 0)
     EXECUTE FUNCTION raise_exception('cannot delete inode with nlinks > 0');

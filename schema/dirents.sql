@@ -17,19 +17,19 @@ CREATE DOMAIN linux_basename AS text
         AND VALUE !~ '/'
     );
 
-CREATE TABLE names (
+CREATE TABLE dirents (
     -- Imagine REFERENCES inodes (ino) here, actually managed by our triggers
-    parent  bigint          NOT NULL,
-    name    linux_basename  NOT NULL,
+    parent    bigint          NOT NULL,
+    basename  linux_basename  NOT NULL,
     -- Imagine REFERENCES inodes (ino) here, actually managed by our triggers
-    child   bigint          NOT NULL CHECK (child != parent),
+    child     bigint          NOT NULL CHECK (child != parent),
     -- TODO: ensure that child is not in any of parents
 
-    PRIMARY KEY (parent, name)
+    PRIMARY KEY (parent, basename)
 );
-REVOKE TRUNCATE ON names FROM current_user;
+REVOKE TRUNCATE ON dirents FROM current_user;
 
-CREATE OR REPLACE FUNCTION names_handle_insert() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION dirents_handle_insert() RETURNS trigger AS $$
 DECLARE
     parent_old_nlinks integer;
     child_type inode_type;
@@ -55,7 +55,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION names_handle_delete() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION dirents_handle_delete() RETURNS trigger AS $$
 DECLARE
     parent_old_nlinks integer;
     child_type inode_type;
@@ -74,17 +74,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER names_handle_insert
-    BEFORE INSERT ON names
+CREATE TRIGGER dirents_handle_insert
+    BEFORE INSERT ON dirents
     FOR EACH ROW
-    EXECUTE FUNCTION names_handle_insert();
+    EXECUTE FUNCTION dirents_handle_insert();
 
-CREATE TRIGGER names_check_update
-    BEFORE UPDATE ON names
+CREATE TRIGGER dirents_check_update
+    BEFORE UPDATE ON dirents
     FOR EACH ROW
-    EXECUTE FUNCTION raise_exception('cannot change parent, name, or child');
+    EXECUTE FUNCTION raise_exception('cannot change parent, basename, or child');
 
-CREATE TRIGGER names_check_delete
-    BEFORE UPDATE ON names
+CREATE TRIGGER dirents_check_delete
+    BEFORE UPDATE ON dirents
     FOR EACH ROW
-    EXECUTE FUNCTION names_handle_delete();
+    EXECUTE FUNCTION dirents_handle_delete();
