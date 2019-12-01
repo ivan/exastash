@@ -23,7 +23,6 @@ CREATE TABLE dirents (
     basename  linux_basename  NOT NULL,
     -- Imagine REFERENCES inodes (ino) here, actually managed by our triggers
     child     ino             NOT NULL CHECK (child != parent),
-    -- TODO: ensure that child is not in any of parents
 
     PRIMARY KEY (parent, basename)
 );

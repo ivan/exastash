@@ -1,10 +1,8 @@
 BEGIN;
 
-SELECT plan(3);
+SELECT plan(6);
 
 CALL create_root_inode('fake', 41);
-
--- CHECK constraints
 
 PREPARE child_cannot_be_parent AS INSERT INTO dirents (
     parent, basename, child
@@ -30,6 +28,21 @@ PREPARE parent_cannot_be_a_lnk AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (5, 'name', 4);
 SELECT throws_ilike('parent_cannot_be_a_lnk', 'parent ino=5 is not a DIR');
+
+PREPARE can_add_reg_child AS INSERT INTO dirents (
+    parent, basename, child
+) VALUES (2, 'child', 3);
+SELECT lives_ok('can_add_reg_child');
+
+PREPARE can_add_lnk_child AS INSERT INTO dirents (
+    parent, basename, child
+) VALUES (2, 'symlink', 5);
+SELECT lives_ok('can_add_lnk_child');
+
+PREPARE cannot_add_same_basename AS INSERT INTO dirents (
+    parent, basename, child
+) VALUES (2, 'child', 4);
+SELECT throws_ilike('cannot_add_same_basename', 'duplicate key value violates unique constraint%');
 
 SELECT * FROM finish();
 
