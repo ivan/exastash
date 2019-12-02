@@ -8,7 +8,7 @@ CALL create_root_inode('fake', 41);
 
 -- ino 2 is the root directory
 PREPARE cannot_add_content_for_dir AS INSERT INTO storage_inline (ino, content) VALUES (2, E'hello\nworld');
-SELECT throws_ilike('cannot_add_content_for_dir', '%inode 2 is DIR, not a regular file%');
+SELECT throws_like('cannot_add_content_for_dir', '%inode 2 is DIR, not a regular file%');
 
 -- Successes
 

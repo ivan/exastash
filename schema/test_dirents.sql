@@ -7,7 +7,7 @@ CALL create_root_inode('fake', 41);
 PREPARE child_cannot_be_parent AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (2, 'name', 2);
-SELECT throws_ilike('child_cannot_be_parent', '%violates check constraint%');
+SELECT throws_like('child_cannot_be_parent', '%violates check constraint%');
 
 INSERT INTO inodes (
     ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
@@ -22,22 +22,22 @@ INSERT INTO inodes (
 PREPARE parent_must_exist AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (300, 'name', 4);
-SELECT throws_ilike('parent_must_exist', 'parent ino=300 does not exist in inodes');
+SELECT throws_like('parent_must_exist', 'parent ino=300 does not exist in inodes');
 
 PREPARE child_must_exist AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (2, 'name', 300);
-SELECT throws_ilike('child_must_exist', 'child ino=300 does not exist in inodes');
+SELECT throws_like('child_must_exist', 'child ino=300 does not exist in inodes');
 
 PREPARE parent_cannot_be_a_reg AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (3, 'name', 4);
-SELECT throws_ilike('parent_cannot_be_a_reg', 'parent ino=3 is not a DIR');
+SELECT throws_like('parent_cannot_be_a_reg', 'parent ino=3 is not a DIR');
 
 PREPARE parent_cannot_be_a_lnk AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (5, 'name', 4);
-SELECT throws_ilike('parent_cannot_be_a_lnk', 'parent ino=5 is not a DIR');
+SELECT throws_like('parent_cannot_be_a_lnk', 'parent ino=5 is not a DIR');
 
 PREPARE can_add_reg_child AS INSERT INTO dirents (
     parent, basename, child
@@ -57,22 +57,22 @@ SELECT lives_ok('can_add_lnk_child');
 PREPARE cannot_add_same_basename AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (2, 'child', 4);
-SELECT throws_ilike('cannot_add_same_basename', 'duplicate key value violates unique constraint%');
+SELECT throws_like('cannot_add_same_basename', 'duplicate key value violates unique constraint%');
 
 PREPARE cannot_add_empty_basename AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (2, '', 4);
-SELECT throws_ilike('cannot_add_empty_basename', '%violates check constraint%');
+SELECT throws_like('cannot_add_empty_basename', '%violates check constraint%');
 
 PREPARE cannot_add_dot_basename AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (2, '.', 4);
-SELECT throws_ilike('cannot_add_dot_basename', '%violates check constraint%');
+SELECT throws_like('cannot_add_dot_basename', '%violates check constraint%');
 
 PREPARE cannot_add_dot_dot_basename AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (2, '..', 4);
-SELECT throws_ilike('cannot_add_dot_dot_basename', '%violates check constraint%');
+SELECT throws_like('cannot_add_dot_dot_basename', '%violates check constraint%');
 
 -- TODO test cannot UPDATE
 -- TODO test cannot DELETE directory with children

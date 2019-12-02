@@ -9,55 +9,55 @@ CALL create_root_inode('fake', 41);
 PREPARE cannot_insert_with_negative_ino AS INSERT INTO inodes (
     ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES (-1, 'REG', 5, (0, 0), false, NULL, (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_with_negative_ino', '%violates check constraint%');
+SELECT throws_like('cannot_insert_with_negative_ino', '%violates check constraint%');
 
 PREPARE cannot_insert_with_zero_ino AS INSERT INTO inodes (
     ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES (0, 'REG', 5, (0, 0), false, NULL, (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_with_zero_ino', '%violates check constraint%');
+SELECT throws_like('cannot_insert_with_zero_ino', '%violates check constraint%');
 
 PREPARE cannot_insert_with_one_ino AS INSERT INTO inodes (
     ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES (1, 'REG', 5, (0, 0), false, NULL, (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_with_one_ino', '%violates check constraint%');
+SELECT throws_like('cannot_insert_with_one_ino', '%violates check constraint%');
 
 PREPARE cannot_insert_dir_with_size AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES ('DIR', 0, (0, 0), NULL, NULL, (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_dir_with_size', '%violates check constraint%');
+SELECT throws_like('cannot_insert_dir_with_size', '%violates check constraint%');
 
 PREPARE cannot_insert_lnk_with_size AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES ('LNK', 0, (0, 0), NULL, NULL, (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_lnk_with_size', '%violates check constraint%');
+SELECT throws_like('cannot_insert_lnk_with_size', '%violates check constraint%');
 
 PREPARE cannot_insert_dir_with_executable AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES ('DIR', NULL, (0, 0), true, NULL, (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_dir_with_executable', '%violates check constraint%');
+SELECT throws_like('cannot_insert_dir_with_executable', '%violates check constraint%');
 
 PREPARE cannot_insert_lnk_with_executable AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES ('LNK', NULL, (0, 0), true, NULL, (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_lnk_with_executable', '%violates check constraint%');
+SELECT throws_like('cannot_insert_lnk_with_executable', '%violates check constraint%');
 
 PREPARE cannot_insert_reg_with_symlink_target AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES ('LNK', 0, (0, 0), true, '../some/target', (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_reg_with_symlink_target', '%violates check constraint%');
+SELECT throws_like('cannot_insert_reg_with_symlink_target', '%violates check constraint%');
 
 PREPARE cannot_insert_dir_with_symlink_target AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES ('DIR', NULL, (0, 0), NULL, '../some/target', (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_dir_with_symlink_target', '%violates check constraint%');
+SELECT throws_like('cannot_insert_dir_with_symlink_target', '%violates check constraint%');
 
 PREPARE cannot_insert_lnk_with_target_over_1024_bytes AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES ('LNK', NULL, (0, 0), NULL, repeat('x', 1025), (0, 0), 'fake', 41);
-SELECT throws_ilike('cannot_insert_lnk_with_target_over_1024_bytes', '%violates check constraint%');
+SELECT throws_like('cannot_insert_lnk_with_target_over_1024_bytes', '%violates check constraint%');
 
 PREPARE cannot_delete_root_inode AS DELETE FROM inodes WHERE ino = 2;
-SELECT throws_ilike('cannot_delete_root_inode', '%cannot delete%');
+SELECT throws_like('cannot_delete_root_inode', '%cannot delete%');
 
 -- Successes
 
