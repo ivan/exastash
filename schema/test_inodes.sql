@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(16);
+SELECT plan(18);
 
 -- CHECK constraints
 
@@ -76,6 +76,16 @@ PREPARE cannot_insert_dir_with_invalid_parent_ino AS INSERT INTO inodes (
     ino, type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version
 ) VALUES (100, 'DIR', NULL, (0, 0), 9000, (0, 0), 'fake', 41);
 SELECT throws_like('cannot_insert_dir_with_invalid_parent_ino', 'parent_ino=9000 does not exist');
+
+PREPARE cannot_insert_inode_with_invalid_dirents_count AS INSERT INTO inodes (
+    ino, type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version, dirents_count
+) VALUES (100, 'DIR', NULL, (0, 0), 2, (0, 0), 'fake', 41, 1);
+SELECT throws_like('cannot_insert_inode_with_invalid_dirents_count', 'If given, dirents_count must be 0');
+
+PREPARE cannot_insert_inode_with_invalid_child_dir_count AS INSERT INTO inodes (
+    ino, type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version, child_dir_count
+) VALUES (100, 'DIR', NULL, (0, 0), 2, (0, 0), 'fake', 41, 1);
+SELECT throws_like('cannot_insert_inode_with_invalid_child_dir_count', 'If given, child_dir_count must be 0 when inserting a DIR');
 
 PREPARE insert_lnk AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
