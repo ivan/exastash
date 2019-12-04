@@ -2,8 +2,6 @@ BEGIN;
 
 SELECT plan(22);
 
--- CHECK constraints
-
 CALL create_root_inode('fake', 41);
 
 PREPARE cannot_insert_with_negative_ino AS INSERT INTO inodes (
