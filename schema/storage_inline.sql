@@ -8,3 +8,9 @@ CREATE TRIGGER storage_inline_check_ino
     BEFORE INSERT ON storage_inline
     FOR EACH ROW
     EXECUTE FUNCTION assert_inode_is_regular_file();
+
+CREATE TRIGGER storage_inline_check_update
+    BEFORE UPDATE ON storage_inline
+    FOR EACH ROW
+    WHEN (OLD.ino != NEW.ino)
+    EXECUTE FUNCTION raise_exception('cannot change ino');
