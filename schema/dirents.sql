@@ -32,15 +32,20 @@ REVOKE TRUNCATE ON dirents FROM current_user;
 
 CREATE OR REPLACE FUNCTION dirents_handle_insert() RETURNS trigger AS $$
 DECLARE
+    parent_dirents_count int;
     parent_type inode_type;
     child_type inode_type;
 BEGIN
-    parent_type := (SELECT type FROM inodes WHERE ino = NEW.parent);
+    SELECT type, dirents_count INTO parent_type, parent_dirents_count FROM inodes WHERE ino = NEW.parent;
     IF parent_type IS NULL THEN
         RAISE EXCEPTION 'parent ino=% does not exist in inodes', NEW.parent;
     END IF;
     IF parent_type != 'DIR' THEN
         RAISE EXCEPTION 'parent ino=% is not a DIR', NEW.parent;
+    END IF;
+    -- Directories must be parented (except for the root DIR)
+    IF parent_dirents_count = 0 AND NEW.parent != 2 THEN
+        RAISE EXCEPTION 'cannot create dirents for DIR ino=% with no parent', NEW.parent;
     END IF;
     IF (SELECT ino FROM inodes WHERE ino = NEW.child) IS NULL THEN
         RAISE EXCEPTION 'child ino=% does not exist in inodes', NEW.child;
@@ -49,7 +54,9 @@ BEGIN
     child_type := (SELECT type FROM inodes WHERE ino = NEW.child);
     IF child_type = 'DIR' THEN
         UPDATE inodes SET child_dir_count = child_dir_count + 1 WHERE ino = NEW.parent;
-        UPDATE inodes SET parent_ino = NEW.parent               WHERE ino = NEW.child;
+        -- Only directories track their parent (for ..), and because files may have
+        -- multiple parents while directories have at most one.
+        UPDATE inodes SET parent_ino = NEW.parent WHERE ino = NEW.child;
     END IF;
 
     UPDATE inodes SET dirents_count = dirents_count + 1 WHERE ino = NEW.child;
@@ -64,6 +71,10 @@ DECLARE
 BEGIN
     child_type := (SELECT type FROM inodes WHERE ino = OLD.child);
     IF child_type = 'DIR' THEN
+        IF (SELECT true FROM dirents WHERE parent = OLD.child LIMIT 1) IS NOT NULL THEN
+            RAISE EXCEPTION 'child DIR ino=% is not empty', OLD.child;
+        END IF;
+
         UPDATE inodes SET child_dir_count = child_dir_count - 1 WHERE ino = OLD.parent;
     END IF;
 
@@ -84,6 +95,6 @@ CREATE TRIGGER dirents_check_update
     EXECUTE FUNCTION raise_exception('cannot change parent, basename, or child');
 
 CREATE TRIGGER dirents_check_delete
-    BEFORE UPDATE ON dirents
+    BEFORE DELETE ON dirents
     FOR EACH ROW
     EXECUTE FUNCTION dirents_handle_delete();

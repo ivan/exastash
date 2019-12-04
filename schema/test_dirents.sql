@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(12);
+SELECT plan(16);
 
 CALL create_root_inode('fake', 41);
 
@@ -10,14 +10,12 @@ PREPARE child_cannot_be_parent AS INSERT INTO dirents (
 SELECT throws_like('child_cannot_be_parent', '%violates check constraint%');
 
 INSERT INTO inodes (
-    ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
-) VALUES (3, 'REG', 0, (0, 0), false, NULL, (0, 0), 'fake', 41);
-INSERT INTO inodes (
-    ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
-) VALUES (4, 'REG', 0, (0, 0), false, NULL, (0, 0), 'fake', 41);
-INSERT INTO inodes (
-    ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
-) VALUES (5, 'LNK', NULL, (0, 0), NULL, 'somewhere', (0, 0), 'fake', 41);
+    ino, parent_ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
+) VALUES
+    (3, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake', 41),
+    (4, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake', 41),
+    (5, NULL, 'LNK', NULL, (0, 0), NULL,  'somewhere', (0, 0), 'fake', 41),
+    (6, 2,    'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake', 41);
 
 PREPARE parent_must_exist AS INSERT INTO dirents (
     parent, basename, child
@@ -74,8 +72,27 @@ PREPARE cannot_add_dot_dot_basename AS INSERT INTO dirents (
 ) VALUES (2, '..', 4);
 SELECT throws_like('cannot_add_dot_dot_basename', '%violates check constraint%');
 
+-- Directories
+
+PREPARE cannot_create_children_for_unparented_dir AS INSERT INTO dirents (
+    parent, basename, child
+) VALUES (6, 'name', 3);
+SELECT throws_like('cannot_create_children_for_unparented_dir', 'cannot create dirents for DIR ino=6 with no parent');
+
+INSERT INTO dirents (parent, basename, child) VALUES (2, 'dir', 6);
+
+PREPARE can_add_file_to_nonroot_dir AS INSERT INTO dirents (
+    parent, basename, child
+) VALUES (6, 'name', 3);
+SELECT lives_ok('can_add_file_to_nonroot_dir');
+
+PREPARE cannot_delete_nonempty_dir AS DELETE FROM dirents WHERE parent = 2 AND basename = 'dir';
+SELECT throws_like('cannot_delete_nonempty_dir', 'child DIR ino=6 is not empty');
+
+PREPARE can_remove_file_from_nonroot_dir AS DELETE FROM dirents WHERE parent = 6 AND basename = 'name';
+SELECT lives_ok('can_remove_file_from_nonroot_dir');
+
 -- TODO test cannot UPDATE
--- TODO test cannot DELETE directory with children
 -- TODO test dirents_count
 -- TODO test child_dir_count
 -- TODO test parent_ino

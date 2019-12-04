@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(15);
+SELECT plan(16);
 
 -- CHECK constraints
 
@@ -59,17 +59,23 @@ SELECT throws_like('cannot_insert_lnk_with_target_over_1024_bytes', '%violates c
 PREPARE cannot_delete_root_inode AS DELETE FROM inodes WHERE ino = 2;
 SELECT throws_like('cannot_delete_root_inode', '%cannot delete%');
 
--- Successes
-
 PREPARE insert_reg AS INSERT INTO inodes (
-    type, size, mtime, executable, birth_time, birth_hostname, birth_exastash_version
-) VALUES ('REG', 20, (0, 0), true, (0, 0), 'fake', 41);
+    ino, type, size, mtime, executable, birth_time, birth_hostname, birth_exastash_version
+) VALUES (90, 'REG', 20, (0, 0), true, (0, 0), 'fake', 41);
 SELECT lives_ok('insert_reg');
 
 PREPARE insert_dir AS INSERT INTO inodes (
-    type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version
-) VALUES ('DIR', NULL, (0, 0), 2, (0, 0), 'fake', 41);
+    ino, type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version
+) VALUES (100, 'DIR', NULL, (0, 0), 2, (0, 0), 'fake', 41);
 SELECT lives_ok('insert_dir');
+
+-- Parent the dir
+INSERT INTO dirents (parent, basename, child) VALUES (2, 'dir', 100);
+
+PREPARE cannot_insert_dir_with_invalid_parent_ino AS INSERT INTO inodes (
+    ino, type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version
+) VALUES (100, 'DIR', NULL, (0, 0), 9000, (0, 0), 'fake', 41);
+SELECT throws_like('cannot_insert_dir_with_invalid_parent_ino', 'parent_ino=9000 does not exist');
 
 PREPARE insert_lnk AS INSERT INTO inodes (
     type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version

@@ -31,8 +31,8 @@ CREATE TABLE inodes (
     -- because we may want to delete the dirent to a directory while still
     -- keeping the inode around and having a working '..'
     --
-    -- parent for / is /
-    -- TODO: make sure it's OK that we don't have a REFERENCES to inodes (ino) here
+    -- parent_ino for / is /
+    -- parent_ino may point to an inode that no longer exists
     parent_ino              ino               CHECK ((ino = 2 AND parent_ino = ino) OR (ino != 2 AND parent_ino != ino)),
 
     -- nlinks note: a directory gets its first "nlink" from the parent's dirent
@@ -46,7 +46,7 @@ CREATE TABLE inodes (
     -- and DIR (= (dirents_count == 1 ? 2 + child_dir_count : 0))
 
     -- For any inode, a count of how many times we appear as a child in dirents
-    dirents_count           int               NOT NULL DEFAULT 0 CHECK (dirents_count >= 0 AND (type != 'DIR' OR dirents_count <= 1)),
+    dirents_count           int               NOT NULL CHECK (dirents_count >= 0 AND (type != 'DIR' OR dirents_count <= 1)),
     -- For DIR inode, a count of only the _directory_ children
     child_dir_count         int               CHECK (child_dir_count >= 0),
 
@@ -72,6 +72,13 @@ BEGIN
         RAISE EXCEPTION 'If given, dirents_count must be 0';
     END IF;
     NEW.dirents_count := 0;
+
+    -- We want this to be valid at insertion time, even if the inode may later disappear
+    IF NEW.parent_ino IS NOT NULL AND NEW.parent_ino != 2 THEN
+        IF (SELECT COUNT(ino) FROM inodes WHERE ino = NEW.parent_ino) = 0 THEN
+            RAISE EXCEPTION 'parent_ino=% does not exist', NEW.parent_ino;
+        END IF;
+    END IF;
 
     IF NEW.type = 'DIR' THEN
         IF NEW.child_dir_count != 0 THEN
