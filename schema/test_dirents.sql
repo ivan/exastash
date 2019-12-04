@@ -95,7 +95,6 @@ SELECT throws_like('cannot_delete_nonempty_dir', 'child DIR ino=6 is not empty')
 PREPARE can_remove_file_from_nonroot_dir AS DELETE FROM dirents WHERE parent = 6 AND basename = 'name';
 SELECT lives_ok('can_remove_file_from_nonroot_dir');
 
--- TODO test child_dir_count
 -- TODO test parent_ino
 
 SELECT * FROM finish();
