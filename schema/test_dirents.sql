@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(16);
+SELECT plan(17);
 
 CALL create_root_inode('fake', 41);
 
@@ -81,6 +81,9 @@ SELECT throws_like('cannot_create_children_for_unparented_dir', 'cannot create d
 
 INSERT INTO dirents (parent, basename, child) VALUES (2, 'dir', 6);
 
+PREPARE cannot_update AS UPDATE dirents SET basename = 'renamed' WHERE parent = 2 AND child = 6;
+SELECT throws_like('cannot_update', 'cannot change parent, basename, or child');
+
 PREPARE can_add_file_to_nonroot_dir AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (6, 'name', 3);
@@ -92,7 +95,6 @@ SELECT throws_like('cannot_delete_nonempty_dir', 'child DIR ino=6 is not empty')
 PREPARE can_remove_file_from_nonroot_dir AS DELETE FROM dirents WHERE parent = 6 AND basename = 'name';
 SELECT lives_ok('can_remove_file_from_nonroot_dir');
 
--- TODO test cannot UPDATE
 -- TODO test dirents_count
 -- TODO test child_dir_count
 -- TODO test parent_ino
