@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(18);
+SELECT plan(20);
 
 -- CHECK constraints
 
@@ -69,8 +69,12 @@ PREPARE insert_dir AS INSERT INTO inodes (
 ) VALUES (100, 'DIR', NULL, (0, 0), 2, (0, 0), 'fake', 41);
 SELECT lives_ok('insert_dir');
 
+SELECT ok((SELECT dirents_count FROM inodes WHERE ino = 100) = 0, 'dirents_count should be 0 for unparented DIR');
+
 -- Parent the dir
 INSERT INTO dirents (parent, basename, child) VALUES (2, 'dir', 100);
+
+SELECT ok((SELECT dirents_count FROM inodes WHERE ino = 100) = 1, 'dirents_count should be 1 for parented DIR');
 
 PREPARE cannot_insert_dir_with_invalid_parent_ino AS INSERT INTO inodes (
     ino, type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version
