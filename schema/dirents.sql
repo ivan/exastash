@@ -57,6 +57,8 @@ BEGIN
         -- Only directories track their parent (for ..), and because files may have
         -- multiple parents while directories have at most one.
         UPDATE inodes SET parent_ino = NEW.parent WHERE ino = NEW.child;
+    ELSE
+        UPDATE inodes SET child_nondir_count = child_nondir_count + 1 WHERE ino = NEW.parent;
     END IF;
 
     UPDATE inodes SET dirents_count = dirents_count + 1 WHERE ino = NEW.child;
@@ -76,6 +78,8 @@ BEGIN
         END IF;
 
         UPDATE inodes SET child_dir_count = child_dir_count - 1 WHERE ino = OLD.parent;
+    ELSE
+        UPDATE inodes SET child_nondir_count = child_nondir_count - 1 WHERE ino = OLD.parent;
     END IF;
 
     UPDATE inodes SET dirents_count = dirents_count - 1 WHERE ino = OLD.child;

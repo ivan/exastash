@@ -47,19 +47,26 @@ CREATE TABLE inodes (
 
     -- For any inode, a count of how many times we appear as a child in dirents
     dirents_count           int               NOT NULL CHECK (dirents_count >= 0 AND (type != 'DIR' OR dirents_count <= 1)),
-    -- For DIR inode, a count of only the _directory_ children
+    -- For DIR inode, a count of only the DIR children
     child_dir_count         int               CHECK (child_dir_count >= 0),
+    -- For DIR inode, a count of only the non-DIR children
+    --
+    -- This is not needed for the nlinks calculation.  It is used only
+    -- to provide some redundancy to catch catastrophic corruption of
+    -- the dirents table (e.g. entries going missing).
+    child_nondir_count      int               CHECK (child_nondir_count >= 0),
 
     -- When/where/with what exastash version was this inode produced?
     birth_time              timespec64        NOT NULL,
     birth_hostname          text              NOT NULL CHECK (octet_length(birth_hostname) >= 1 AND octet_length(birth_hostname) <= 253),
     birth_exastash_version  smallint          NOT NULL REFERENCES exastash_versions (version_id),
 
-    CONSTRAINT only_reg_has_size              CHECK ((type != 'REG' AND size            IS NULL) OR (type = 'REG' AND size            IS NOT NULL)),
-    CONSTRAINT only_reg_has_executable        CHECK ((type != 'REG' AND executable      IS NULL) OR (type = 'REG' AND executable      IS NOT NULL)),
-    CONSTRAINT only_lnk_has_symlink_target    CHECK ((type != 'LNK' AND symlink_target  IS NULL) OR (type = 'LNK' AND symlink_target  IS NOT NULL)),
-    CONSTRAINT only_dir_has_child_dir_count   CHECK ((type != 'DIR' AND child_dir_count IS NULL) OR (type = 'DIR' AND child_dir_count IS NOT NULL)),
-    CONSTRAINT only_dir_has_parent_ino        CHECK ((type != 'DIR' AND parent_ino      IS NULL) OR (type = 'DIR' AND parent_ino      IS NOT NULL))
+    CONSTRAINT only_reg_has_size               CHECK ((type != 'REG' AND size               IS NULL) OR (type = 'REG' AND size               IS NOT NULL)),
+    CONSTRAINT only_reg_has_executable         CHECK ((type != 'REG' AND executable         IS NULL) OR (type = 'REG' AND executable         IS NOT NULL)),
+    CONSTRAINT only_lnk_has_symlink_target     CHECK ((type != 'LNK' AND symlink_target     IS NULL) OR (type = 'LNK' AND symlink_target     IS NOT NULL)),
+    CONSTRAINT only_dir_has_child_dir_count    CHECK ((type != 'DIR' AND child_dir_count    IS NULL) OR (type = 'DIR' AND child_dir_count    IS NOT NULL)),
+    CONSTRAINT only_dir_has_child_nondir_count CHECK ((type != 'DIR' AND child_nondir_count IS NULL) OR (type = 'DIR' AND child_nondir_count IS NOT NULL)),
+    CONSTRAINT only_dir_has_parent_ino         CHECK ((type != 'DIR' AND parent_ino         IS NULL) OR (type = 'DIR' AND parent_ino         IS NOT NULL))
 );
 REVOKE TRUNCATE ON inodes FROM current_user;
 
@@ -85,6 +92,11 @@ BEGIN
             RAISE EXCEPTION 'If given, child_dir_count must be 0 when inserting a DIR';
         END IF;
         NEW.child_dir_count := 0;
+
+        IF NEW.child_nondir_count != 0 THEN
+            RAISE EXCEPTION 'If given, child_nondir_count must be 0 when inserting a DIR';
+        END IF;
+        NEW.child_nondir_count := 0;
     END IF;
 
     RETURN NEW;
