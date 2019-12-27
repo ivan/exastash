@@ -1,5 +1,4 @@
--- Look up inode by relative or absolute path, returning just the ino
-CREATE OR REPLACE FUNCTION get_ino_for_path(current_ino bigint, path text) RETURNS ino AS $$
+CREATE OR REPLACE FUNCTION __get_ino_for_path(current_ino bigint, path text, symlink_resolutions_left int) RETURNS ino AS $$
 DECLARE
     segment text;
     next_ino bigint;
@@ -39,11 +38,23 @@ BEGIN
         
         SELECT type, symlink_target INTO type_, symlink_target_ FROM inodes WHERE ino = next_ino;
         IF type_ = 'LNK' THEN
-            next_ino := (SELECT get_ino_for_path(current_ino, symlink_target_));
+            IF symlink_resolutions_left - 1 = 0 THEN
+                RAISE EXCEPTION 'Too many levels of symbolic links';
+            END IF;
+            next_ino := (SELECT __get_ino_for_path(current_ino, symlink_target_, symlink_resolutions_left - 1));
         END IF;
 
         current_ino := next_ino;
     END LOOP;
     RETURN current_ino;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Look up inode by relative or absolute path, returning just the ino
+CREATE OR REPLACE FUNCTION get_ino_for_path(current_ino bigint, path text) RETURNS ino AS $$
+BEGIN
+    -- Match the Linux behavior: "once the 40th symlink is detected,
+    -- an error is returned" https://lwn.net/Articles/650786/
+    RETURN __get_ino_for_path(current_ino, path, 40);
 END;
 $$ LANGUAGE plpgsql;
