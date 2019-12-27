@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(6);
+SELECT plan(18);
 
 CALL create_root_inode('fake_hostname', 41);
 
@@ -14,6 +14,7 @@ INSERT INTO inodes (
     (7, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41);
 
 INSERT INTO dirents (parent, basename, child) VALUES (2, 'six', 6);
+INSERT INTO dirents (parent, basename, child) VALUES (2, 'three', 3);
 INSERT INTO dirents (parent, basename, child) VALUES (6, 'seven', 7);
 INSERT INTO dirents (parent, basename, child) VALUES (7, 'three', 3);
 
@@ -25,6 +26,22 @@ SELECT ok((SELECT get_ino_for_path(2, '/.')) = 2);
 SELECT ok((SELECT get_ino_for_path(2, '/./')) = 2);
 SELECT ok((SELECT get_ino_for_path(2, '/..')) = 2);
 SELECT ok((SELECT get_ino_for_path(2, '/../')) = 2);
+
+SELECT ok((SELECT get_ino_for_path(2, '/six')) = 6);
+SELECT ok((SELECT get_ino_for_path(2, '/six/')) = 6);
+SELECT ok((SELECT get_ino_for_path(2, '/three')) = 3);
+
+PREPARE cannot_add_trailing_slash_to_reg AS SELECT get_ino_for_path(2, '/three/');
+SELECT throws_like('cannot_add_trailing_slash_to_reg', 'inode 3 is not a directory');
+
+SELECT ok((SELECT get_ino_for_path(2, '/six/seven')) = 7);
+SELECT ok((SELECT get_ino_for_path(2, '/six/seven/')) = 7);
+SELECT ok((SELECT get_ino_for_path(2, '/six/seven/.')) = 7);
+SELECT ok((SELECT get_ino_for_path(2, '/six/seven/..')) = 6);
+SELECT ok((SELECT get_ino_for_path(2, '/six/seven/../')) = 6);
+SELECT ok((SELECT get_ino_for_path(2, '/six/seven/../..')) = 2);
+SELECT ok((SELECT get_ino_for_path(2, '/six/seven/../../')) = 2);
+SELECT ok((SELECT get_ino_for_path(2, '/six/seven/../../..')) = 2);
 
 SELECT * FROM finish();
 

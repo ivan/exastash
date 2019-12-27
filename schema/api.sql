@@ -14,9 +14,12 @@ BEGIN
     END IF;
 
     FOR segment IN SELECT regexp_split_to_table(path, '/') LOOP
-        -- If we're a directory and segment is "", treat that as a no-op
-        -- to handle /some//path and /some/path/
-        IF segment = '' AND (SELECT type FROM inodes WHERE ino = current_ino) = 'DIR' THEN
+        IF (SELECT type FROM inodes WHERE ino = current_ino) != 'DIR' THEN
+            RAISE EXCEPTION 'inode % is not a directory', current_ino;
+        END IF;
+
+        -- Treat "" as a no-op to handle /some//path and /some/path/
+        IF segment = '' THEN
             CONTINUE;
         END IF;
 
@@ -36,7 +39,7 @@ BEGIN
         current_ino := next_ino;
 
         SELECT type, symlink_target INTO type_, symlink_target_ FROM inodes WHERE ino = current_ino;
-        IF next_type = 'LNK' THEN
+        IF type_ = 'LNK' THEN
             current_ino := (SELECT get_ino_for_path(current_ino, symlink_target_));
         END IF;
     END LOOP;
