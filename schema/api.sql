@@ -1,9 +1,10 @@
--- Look up inode by relative or absolute path, returns just the ino
--- If relative path is given, the "current" directory is set to current_ino
+-- Look up inode by relative or absolute path, returning just the ino
 CREATE OR REPLACE FUNCTION get_ino_for_path(current_ino bigint, path text) RETURNS ino AS $$
 DECLARE
     segment text;
     next_ino bigint;
+    type_ inode_type;
+    symlink_target_ symlink_pathname;
 BEGIN
     -- The very beginning of a path is the only place you can specify
     -- that you want the root directory.
@@ -33,6 +34,11 @@ BEGIN
             RAISE EXCEPTION 'inode % does not have dirent for %', current_ino, quote_literal(segment);
         END IF;
         current_ino := next_ino;
+
+        SELECT type, symlink_target INTO type_, symlink_target_ FROM inodes WHERE ino = current_ino;
+        IF next_type = 'LNK' THEN
+            current_ino := (SELECT get_ino_for_path(current_ino, symlink_target_));
+        END IF;
     END LOOP;
     RETURN current_ino;
 END;
