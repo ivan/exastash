@@ -1,7 +1,14 @@
-CREATE OR REPLACE FUNCTION __get_ino_for_path(current_ino bigint, path text, symlink_resolutions_left int) RETURNS ino AS $$
+CREATE PROCEDURE create_root_inode(hostname text, exastash_version integer)
+LANGUAGE SQL
+AS $$
+    INSERT INTO inodes (ino, type, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version)
+        VALUES (2, 'DIR', now()::timespec64, 2, now()::timespec64, hostname, exastash_version);
+$$;
+
+CREATE OR REPLACE FUNCTION __get_ino_for_path(current_ino ino, path text, symlink_resolutions_left int) RETURNS ino AS $$
 DECLARE
     segment text;
-    next_ino bigint;
+    next_ino ino;
     type_ inode_type;
     symlink_target_ symlink_pathname;
 BEGIN
@@ -51,10 +58,23 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Look up inode by relative or absolute path, returning just the ino
-CREATE OR REPLACE FUNCTION get_ino_for_path(current_ino bigint, path text) RETURNS ino AS $$
+CREATE OR REPLACE FUNCTION get_ino_for_path(current_ino ino, path text) RETURNS ino AS $$
 BEGIN
     -- Match the Linux behavior: "once the 40th symlink is detected,
     -- an error is returned" https://lwn.net/Articles/650786/
     RETURN __get_ino_for_path(current_ino, path, 40);
+END;
+$$ LANGUAGE plpgsql;
+
+-- List a directory by path
+CREATE OR REPLACE FUNCTION get_children_for_path(current_ino ino, path text) RETURNS TABLE(basename linux_basename, child ino) AS $$
+DECLARE
+    ino_ ino;
+BEGIN
+    ino_ := get_ino_for_path(current_ino, path);
+    IF (SELECT type FROM inodes WHERE ino = ino_) != 'DIR' THEN
+        RAISE EXCEPTION 'inode % is not a directory', ino_;
+    END IF;
+    RETURN QUERY SELECT dirents.basename, dirents.child FROM dirents WHERE parent = ino_;
 END;
 $$ LANGUAGE plpgsql;

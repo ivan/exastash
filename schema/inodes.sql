@@ -126,13 +126,6 @@ CREATE TRIGGER inodes_check_delete
     WHEN (OLD.dirents_count > 0 OR OLD.ino = 2)
     EXECUTE FUNCTION raise_exception('cannot delete inode with dirents_count > 0 or ino = 2 (root DIR)');
 
-CREATE PROCEDURE create_root_inode(hostname text, exastash_version integer)
-LANGUAGE SQL
-AS $$
-    INSERT INTO inodes (ino, type, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version)
-        VALUES (2, 'DIR', now()::timespec64, 2, now()::timespec64, hostname, exastash_version);
-$$;
-
 CREATE OR REPLACE FUNCTION assert_inode_is_regular_file() RETURNS trigger AS $$
 DECLARE
     ino_type inode_type;
