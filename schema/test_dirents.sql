@@ -1,8 +1,8 @@
 BEGIN;
 
-SELECT plan(18);
+SELECT plan(19);
 
-CALL create_root_inode('fake', 41);
+CALL create_root_inode('fake_hostname', 41);
 
 PREPARE child_cannot_be_parent AS INSERT INTO dirents (
     parent, basename, child
@@ -12,11 +12,12 @@ SELECT throws_like('child_cannot_be_parent', '%violates check constraint%');
 INSERT INTO inodes (
     ino, parent_ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES
-    (3, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake', 41),
-    (4, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake', 41),
-    (5, NULL, 'LNK', NULL, (0, 0), NULL,  'somewhere', (0, 0), 'fake', 41),
-    (6, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake', 41),
-    (7, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake', 41);
+    (3, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
+    (4, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
+    (5, NULL, 'LNK', NULL, (0, 0), NULL,  'somewhere', (0, 0), 'fake_hostname', 41),
+    (6, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41),
+    (7, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41),
+    (8, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41);
 INSERT INTO dirents (parent, basename, child) VALUES (2, '7', 7);
 
 PREPARE parent_must_exist AS INSERT INTO dirents (
@@ -85,6 +86,10 @@ PREPARE cannot_create_children_for_unparented_dir AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (6, 'name', 3);
 SELECT throws_like('cannot_create_children_for_unparented_dir', 'cannot create dirents for DIR ino=6 with no parent');
+
+INSERT INTO dirents (parent, basename, child) VALUES (2, 'eight', 8);
+PREPARE cannot_have_more_than_one_dirent_for_dir AS INSERT INTO dirents (parent, basename, child) VALUES (2, 'eight_again', 8);
+SELECT throws_like('cannot_have_more_than_one_dirent_for_dir', '%violates check constraint%');
 
 INSERT INTO dirents (parent, basename, child) VALUES (2, 'dir', 6);
 
