@@ -36,12 +36,13 @@ BEGIN
         IF next_ino IS NULL THEN
             RAISE EXCEPTION 'inode % does not have dirent for %', current_ino, quote_literal(segment);
         END IF;
-        current_ino := next_ino;
-
-        SELECT type, symlink_target INTO type_, symlink_target_ FROM inodes WHERE ino = current_ino;
+        
+        SELECT type, symlink_target INTO type_, symlink_target_ FROM inodes WHERE ino = next_ino;
         IF type_ = 'LNK' THEN
-            current_ino := (SELECT get_ino_for_path(current_ino, symlink_target_));
+            next_ino := (SELECT get_ino_for_path(current_ino, symlink_target_));
         END IF;
+
+        current_ino := next_ino;
     END LOOP;
     RETURN current_ino;
 END;

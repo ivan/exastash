@@ -1,22 +1,32 @@
 BEGIN;
 
-SELECT plan(18);
+SELECT plan(27);
 
 CALL create_root_inode('fake_hostname', 41);
 
 INSERT INTO inodes (
     ino, parent_ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
 ) VALUES
-    (3, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
-    (4, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
-    (5, NULL, 'LNK', NULL, (0, 0), NULL,  'somewhere', (0, 0), 'fake_hostname', 41),
-    (6, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41),
-    (7, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41);
+    (3,  NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
+    (4,  NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
+    (6,  NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41),
+    (7,  NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41),
+    (8,  NULL, 'LNK', NULL, (0, 0), NULL,  'six',       (0, 0), 'fake_hostname', 41),
+    (9,  NULL, 'LNK', NULL, (0, 0), NULL,  '../six',    (0, 0), 'fake_hostname', 41),
+    (10, NULL, 'LNK', NULL, (0, 0), NULL,  '../../six', (0, 0), 'fake_hostname', 41),
+    (11, NULL, 'LNK', NULL, (0, 0), NULL,  '../',       (0, 0), 'fake_hostname', 41);
 
-INSERT INTO dirents (parent, basename, child) VALUES (2, 'six', 6);
-INSERT INTO dirents (parent, basename, child) VALUES (2, 'three', 3);
-INSERT INTO dirents (parent, basename, child) VALUES (6, 'seven', 7);
-INSERT INTO dirents (parent, basename, child) VALUES (7, 'three', 3);
+INSERT INTO dirents (parent, basename, child) VALUES
+    (2, 'six', 6),
+    (2, 'symlink8',  8),
+    (2, 'symlink9',  9),
+    (2, 'symlink10', 10),
+    (2, 'three', 3),
+    (6, 'seven', 7),
+    -- same symlink inode but pointing to different absolute paths
+    (7, 'symlink11', 11),
+    (6, 'symlink11', 11),
+    (7, 'three', 3);
 
 PREPARE get_nonexistent AS SELECT get_ino_for_path(2, '/nonexistent');
 SELECT throws_like('get_nonexistent', 'inode 2 does not have dirent for ''nonexistent''');
@@ -42,6 +52,16 @@ SELECT ok((SELECT get_ino_for_path(2, '/six/seven/../')) = 6);
 SELECT ok((SELECT get_ino_for_path(2, '/six/seven/../..')) = 2);
 SELECT ok((SELECT get_ino_for_path(2, '/six/seven/../../')) = 2);
 SELECT ok((SELECT get_ino_for_path(2, '/six/seven/../../..')) = 2);
+
+SELECT ok((SELECT get_ino_for_path(2, 'symlink8'))  = 6);
+SELECT ok((SELECT get_ino_for_path(2, 'symlink9'))  = 6);
+SELECT ok((SELECT get_ino_for_path(2, 'symlink10')) = 6);
+SELECT ok((SELECT get_ino_for_path(2, 'six/seven/symlink11')) = 6);
+SELECT ok((SELECT get_ino_for_path(2, 'six/seven/symlink11/symlink11')) = 2);
+SELECT ok((SELECT get_ino_for_path(2, 'six/seven/symlink11/symlink11/six')) = 6);
+SELECT ok((SELECT get_ino_for_path(2, 'six/seven/symlink11/symlink11/six/seven')) = 7);
+SELECT ok((SELECT get_ino_for_path(2, 'six/seven/symlink11/symlink11/six/seven/symlink11')) = 6);
+SELECT ok((SELECT get_ino_for_path(2, 'six/seven/symlink11/symlink11/six/seven/symlink11/symlink11')) = 2);
 
 SELECT * FROM finish();
 
