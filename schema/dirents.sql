@@ -54,14 +54,13 @@ BEGIN
     child_type := (SELECT type FROM inodes WHERE ino = NEW.child);
     IF child_type = 'DIR' THEN
         UPDATE inodes SET child_dir_count = child_dir_count + 1 WHERE ino = NEW.parent;
-        -- Only directories track their parent (for ..), and because files may have
-        -- multiple parents while directories have at most one.
-        UPDATE inodes SET parent_ino = NEW.parent WHERE ino = NEW.child;
     ELSE
         UPDATE inodes SET child_nondir_count = child_nondir_count + 1 WHERE ino = NEW.parent;
     END IF;
 
-    UPDATE inodes SET dirents_count = dirents_count + 1 WHERE ino = NEW.child;
+    -- Only directories have one parent (for ".."); see inodes.sql for why
+    -- we set parent_ino for REG/LNK inodes too.
+    UPDATE inodes SET dirents_count = dirents_count + 1, parent_ino = NEW.parent WHERE ino = NEW.child;
 
     RETURN NEW;
 END;
@@ -70,6 +69,8 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION dirents_handle_delete() RETURNS trigger AS $$
 DECLARE
     child_type inode_type;
+    dirents_count_ int;
+    parent_ino_ bigint;
 BEGIN
     child_type := (SELECT type FROM inodes WHERE ino = OLD.child);
     IF child_type = 'DIR' THEN
@@ -82,7 +83,12 @@ BEGIN
         UPDATE inodes SET child_nondir_count = child_nondir_count - 1 WHERE ino = OLD.parent;
     END IF;
 
-    UPDATE inodes SET dirents_count = dirents_count - 1 WHERE ino = OLD.child;
+    SELECT dirents_count, parent_ino INTO dirents_count_, parent_ino_ FROM inodes WHERE ino = OLD.child;
+    dirents_count_ := dirents_count_ - 1;
+    IF dirents_count_ = 0 THEN
+        parent_ino_ = NULL;
+    END IF;
+    UPDATE inodes SET dirents_count = dirents_count_, parent_ino = parent_ino_ WHERE ino = OLD.child;
 
     RETURN OLD;
 END;

@@ -31,8 +31,12 @@ CREATE TABLE inodes (
     -- because we may want to delete the dirent to a directory while still
     -- keeping the inode around and having a working '..'
     --
-    -- parent_ino for / is /
+    -- parent_ino for the root DIR / is itself
     -- parent_ino may point to an inode that no longer exists
+    --
+    -- REG and LNK inodes also have parent_ino, but it refers only to the last
+    -- parent into which the inode was placed.  This exists only to make it
+    -- possible to `CLUSTER inodes` and must otherwise not be used.
     parent_ino              ino               CHECK ((ino = 2 AND parent_ino = ino) OR (ino != 2 AND parent_ino != ino)),
 
     -- nlinks note: a directory gets its first "nlink" from the parent's dirent
@@ -46,7 +50,7 @@ CREATE TABLE inodes (
     -- and DIR (= (dirents_count == 1 ? 2 + child_dir_count : 0))
 
     -- For any inode, a count of how many times we appear as a child in dirents
-    dirents_count           int               NOT NULL CHECK (dirents_count >= 0 AND (type != 'DIR' OR dirents_count <= 1)),
+    dirents_count           int               NOT NULL CHECK ((ino = 2 AND dirents_count = 0) OR (dirents_count >= 0 AND (type != 'DIR' OR dirents_count <= 1))),
     -- For DIR inode, a count of only the DIR children
     child_dir_count         int               CHECK (child_dir_count >= 0),
     -- For DIR inode, a count of only the non-DIR children
@@ -61,12 +65,13 @@ CREATE TABLE inodes (
     birth_hostname          text              NOT NULL CHECK (octet_length(birth_hostname) >= 1 AND octet_length(birth_hostname) <= 253),
     birth_exastash_version  smallint          NOT NULL REFERENCES exastash_versions (version_id),
 
-    CONSTRAINT only_reg_has_size               CHECK ((type != 'REG' AND size               IS NULL) OR (type = 'REG' AND size               IS NOT NULL)),
-    CONSTRAINT only_reg_has_executable         CHECK ((type != 'REG' AND executable         IS NULL) OR (type = 'REG' AND executable         IS NOT NULL)),
-    CONSTRAINT only_lnk_has_symlink_target     CHECK ((type != 'LNK' AND symlink_target     IS NULL) OR (type = 'LNK' AND symlink_target     IS NOT NULL)),
-    CONSTRAINT only_dir_has_child_dir_count    CHECK ((type != 'DIR' AND child_dir_count    IS NULL) OR (type = 'DIR' AND child_dir_count    IS NOT NULL)),
-    CONSTRAINT only_dir_has_child_nondir_count CHECK ((type != 'DIR' AND child_nondir_count IS NULL) OR (type = 'DIR' AND child_nondir_count IS NOT NULL)),
-    CONSTRAINT only_dir_has_parent_ino         CHECK ((type != 'DIR' AND parent_ino         IS NULL) OR (type = 'DIR' AND parent_ino         IS NOT NULL))
+    CONSTRAINT only_reg_has_size                  CHECK ((type != 'REG' AND size               IS NULL) OR (type = 'REG' AND size               IS NOT NULL)),
+    CONSTRAINT only_reg_has_executable            CHECK ((type != 'REG' AND executable         IS NULL) OR (type = 'REG' AND executable         IS NOT NULL)),
+    CONSTRAINT only_lnk_has_symlink_target        CHECK ((type != 'LNK' AND symlink_target     IS NULL) OR (type = 'LNK' AND symlink_target     IS NOT NULL)),
+    CONSTRAINT only_dir_has_child_dir_count       CHECK ((type != 'DIR' AND child_dir_count    IS NULL) OR (type = 'DIR' AND child_dir_count    IS NOT NULL)),
+    CONSTRAINT only_dir_has_child_nondir_count    CHECK ((type != 'DIR' AND child_nondir_count IS NULL) OR (type = 'DIR' AND child_nondir_count IS NOT NULL)),
+    -- If we never appear as a child in dirents, parent_ino should be NULL
+    CONSTRAINT parent_ino_only_if_nonzero_dirents CHECK ((dirents_count = 0 AND parent_ino IS NULL) OR ((ino = 2 OR dirents_count > 0) AND parent_ino IS NOT NULL))
 );
 REVOKE TRUNCATE ON inodes FROM current_user;
 
@@ -80,11 +85,8 @@ BEGIN
     END IF;
     NEW.dirents_count := 0;
 
-    -- We want this to be valid at insertion time, even if the inode may later disappear
-    IF NEW.parent_ino IS NOT NULL AND NEW.parent_ino != 2 THEN
-        IF (SELECT COUNT(ino) FROM inodes WHERE ino = NEW.parent_ino) = 0 THEN
-            RAISE EXCEPTION 'parent_ino=% does not exist', NEW.parent_ino;
-        END IF;
+    IF NEW.ino != 2 AND NEW.parent_ino IS NOT NULL THEN
+        RAISE EXCEPTION 'parent_ino must be NULL at insertion time (except for root DIR)';
     END IF;
 
     IF NEW.type = 'DIR' THEN

@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(17);
+SELECT plan(18);
 
 CALL create_root_inode('fake', 41);
 
@@ -15,7 +15,9 @@ INSERT INTO inodes (
     (3, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake', 41),
     (4, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake', 41),
     (5, NULL, 'LNK', NULL, (0, 0), NULL,  'somewhere', (0, 0), 'fake', 41),
-    (6, 2,    'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake', 41);
+    (6, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake', 41),
+    (7, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake', 41);
+INSERT INTO dirents (parent, basename, child) VALUES (2, '7', 7);
 
 PREPARE parent_must_exist AS INSERT INTO dirents (
     parent, basename, child
@@ -42,6 +44,9 @@ PREPARE can_add_reg_child AS INSERT INTO dirents (
 ) VALUES (2, 'child', 3);
 SELECT lives_ok('can_add_reg_child');
 
+PREPARE can_delete_reg_child AS DELETE FROM dirents WHERE parent = 2 AND basename = 'child';
+SELECT lives_ok('can_delete_reg_child');
+
 PREPARE can_add_reg_child_weird_name AS INSERT INTO dirents (
     parent, basename, child
 ) VALUES (2, '.child..with.dots.', 3);
@@ -52,10 +57,12 @@ PREPARE can_add_lnk_child AS INSERT INTO dirents (
 ) VALUES (2, 'symlink', 5);
 SELECT lives_ok('can_add_lnk_child');
 
-PREPARE cannot_add_same_basename AS INSERT INTO dirents (
+INSERT INTO dirents (parent, basename, child) VALUES (2, 'same_parent_basename', 4);
+INSERT INTO dirents (parent, basename, child) VALUES (7, 'same_parent_basename', 4); -- different parent is OK
+PREPARE cannot_add_same_parent_basename AS INSERT INTO dirents (
     parent, basename, child
-) VALUES (2, 'child', 4);
-SELECT throws_like('cannot_add_same_basename', 'duplicate key value violates unique constraint%');
+) VALUES (2, 'same_parent_basename', 4);
+SELECT throws_like('cannot_add_same_parent_basename', 'duplicate key value violates unique constraint%');
 
 PREPARE cannot_add_empty_basename AS INSERT INTO dirents (
     parent, basename, child
