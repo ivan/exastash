@@ -21,7 +21,7 @@ BEGIN
 
         next_ino := (SELECT child FROM dirents WHERE parent = current_ino AND basename = segment);
         IF next_ino IS NULL THEN
-            RAISE EXCEPTION 'inode % does not have dirent %', current_ino, segment;
+            RAISE EXCEPTION 'inode % does not have dirent for %', current_ino, quote_literal(segment);
         END IF;
         current_ino := next_ino;
     END LOOP;

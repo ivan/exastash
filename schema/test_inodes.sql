@@ -2,7 +2,7 @@ BEGIN;
 
 SELECT plan(22);
 
-CALL create_root_inode('fake', 41);
+CALL create_root_inode('fake_hostname', 41);
 
 PREPARE cannot_insert_with_negative_ino AS INSERT INTO inodes (
     ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
