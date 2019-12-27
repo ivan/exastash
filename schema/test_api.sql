@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(1);
+SELECT plan(6);
 
 CALL create_root_inode('fake_hostname', 41);
 
@@ -19,6 +19,12 @@ INSERT INTO dirents (parent, basename, child) VALUES (7, 'three', 3);
 
 PREPARE get_nonexistent AS SELECT get_ino_for_path(2, '/nonexistent');
 SELECT throws_like('get_nonexistent', 'inode 2 does not have dirent for ''nonexistent''');
+
+SELECT ok((SELECT get_ino_for_path(2, '/')) = 2);
+SELECT ok((SELECT get_ino_for_path(2, '/.')) = 2);
+SELECT ok((SELECT get_ino_for_path(2, '/./')) = 2);
+SELECT ok((SELECT get_ino_for_path(2, '/..')) = 2);
+SELECT ok((SELECT get_ino_for_path(2, '/../')) = 2);
 
 SELECT * FROM finish();
 

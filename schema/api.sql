@@ -2,7 +2,7 @@
 -- If relative path is given, the "current" directory is set to current_ino
 CREATE OR REPLACE FUNCTION get_ino_for_path(current_ino bigint, path text) RETURNS ino AS $$
 DECLARE
-    segment linux_basename;
+    segment text;
     next_ino bigint;
 BEGIN
     -- The very beginning of a path is the only place you can specify
@@ -15,7 +15,16 @@ BEGIN
     FOR segment IN SELECT regexp_split_to_table(path, '/') LOOP
         -- If we're a directory and segment is "", treat that as a no-op
         -- to handle /some//path and /some/path/
-        IF segment = '' THEN
+        IF segment = '' AND (SELECT type FROM inodes WHERE ino = current_ino) = 'DIR' THEN
+            CONTINUE;
+        END IF;
+
+        IF segment = '.' THEN
+            CONTINUE;
+        END IF;
+
+        IF segment = '..' THEN
+            current_ino := (SELECT parent_ino FROM inodes WHERE ino = current_ino);
             CONTINUE;
         END IF;
 
@@ -25,6 +34,6 @@ BEGIN
         END IF;
         current_ino := next_ino;
     END LOOP;
-    RETURN next_ino;
+    RETURN current_ino;
 END;
 $$ LANGUAGE plpgsql;
