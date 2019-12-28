@@ -3,8 +3,8 @@ extern crate structopt;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "ts")]
-/// terastash
+#[structopt(name = "es")]
+/// exastash
 enum Opt {
     #[structopt(name = "add")]
     /// Add a file to the stash
