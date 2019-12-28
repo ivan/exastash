@@ -76,18 +76,18 @@ SELECT ok((SELECT dirents_count FROM inodes WHERE ino = 100) = 1, 'dirents_count
 SELECT ok((SELECT child_dir_count FROM inodes WHERE ino = 2) = 1, 'child_dir_count should be 1 for root DIR with one DIR');
 
 PREPARE cannot_insert_dir_with_non_null_parent_ino AS INSERT INTO inodes (
-    ino, type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version
-) VALUES (100, 'DIR', NULL, (0, 0), 9000, (0, 0), 'fake', 41);
+    type, size, mtime, parent_ino, birth_time, birth_hostname, birth_exastash_version
+) VALUES ('DIR', NULL, (0, 0), 9000, (0, 0), 'fake', 41);
 SELECT throws_like('cannot_insert_dir_with_non_null_parent_ino', 'parent_ino must be NULL at insertion time%');
 
 PREPARE cannot_insert_inode_with_invalid_dirents_count AS INSERT INTO inodes (
-    ino, type, size, mtime, birth_time, birth_hostname, birth_exastash_version, dirents_count
-) VALUES (100, 'DIR', NULL, (0, 0), (0, 0), 'fake', 41, 1);
+    type, size, mtime, birth_time, birth_hostname, birth_exastash_version, dirents_count
+) VALUES ('DIR', NULL, (0, 0), (0, 0), 'fake', 41, 1);
 SELECT throws_like('cannot_insert_inode_with_invalid_dirents_count', 'If given, dirents_count must be 0');
 
 PREPARE cannot_insert_inode_with_invalid_child_dir_count AS INSERT INTO inodes (
-    ino, type, size, mtime, birth_time, birth_hostname, birth_exastash_version, child_dir_count
-) VALUES (100, 'DIR', NULL, (0, 0), (0, 0), 'fake', 41, 1);
+    type, size, mtime, birth_time, birth_hostname, birth_exastash_version, child_dir_count
+) VALUES ('DIR', NULL, (0, 0), (0, 0), 'fake', 41, 1);
 SELECT throws_like('cannot_insert_inode_with_invalid_child_dir_count', 'If given, child_dir_count must be 0 when inserting a DIR');
 
 PREPARE insert_lnk AS INSERT INTO inodes (
