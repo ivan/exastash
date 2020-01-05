@@ -8,7 +8,7 @@ CREATE DOMAIN nsec AS int    CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 CREATE TYPE timespec64 AS (
     sec  sec,
     nsec nsec
-);
+); 
 
 CREATE OR REPLACE FUNCTION timestamp_to_timespec64(timestamptz) RETURNS timespec64 AS $$
 DECLARE

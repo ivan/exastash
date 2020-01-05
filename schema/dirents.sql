@@ -36,9 +36,11 @@ REVOKE TRUNCATE ON dirents FROM current_user;
 
 -- dirents REFERENCES dirs/files/symlinks tables and we may want to delete rows
 -- from those tables, so we need indexes to avoid full table scans of dirents.
-CREATE INDEX dirents_child_dir_index     ON dirents (child_dir);
-CREATE INDEX dirents_child_file_index    ON dirents (child_file);
-CREATE INDEX dirents_child_symlink_index ON dirents (child_symlink);
+--
+-- UNIQUE because a directory cannot have more than one parent
+CREATE UNIQUE INDEX dirents_child_dir_index     ON dirents (child_dir);
+CREATE        INDEX dirents_child_file_index    ON dirents (child_file);
+CREATE        INDEX dirents_child_symlink_index ON dirents (child_symlink);
 
 CREATE TRIGGER dirents_check_update
     BEFORE UPDATE ON dirents

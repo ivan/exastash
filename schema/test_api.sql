@@ -5,7 +5,7 @@ SELECT plan(28);
 CALL create_root_inode('fake_hostname', 41);
 
 INSERT INTO inodes (
-    ino, parent_ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
+    ino, parent_ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_version
 ) VALUES
     (3,  NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
     (4,  NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),

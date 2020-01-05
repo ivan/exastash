@@ -50,23 +50,28 @@ BEGIN
             CONTINUE;
         END IF;
 
-        -- IF segment = '..' THEN
-        --     current_ino := (SELECT parent_ino FROM inodes WHERE ino = current_ino);
-        --     CONTINUE;
-        -- END IF;
+        IF segment = '..' THEN
+            next_ino := (SELECT parent FROM dirents WHERE child_dir = current_ino);
+            IF next_ino IS NULL THEN
+                RAISE EXCEPTION 'inode % does not have a parent', current_ino;
+            END IF;
+            current_ino := next_ino;           
+            CONTINUE;
+        END IF;
 
-        next_ino := (SELECT child FROM dirents WHERE parent = current_ino AND basename = segment);
+        next_ino := (SELECT coalesce(child_dir, child_file, child_symlink) FROM dirents WHERE parent = current_ino AND basename = segment);
         IF next_ino IS NULL THEN
             RAISE EXCEPTION 'inode % does not have dirent for %', current_ino, quote_literal(segment);
         END IF;
         
-        -- SELECT type, symlink_target INTO type_, symlink_target_ FROM inodes WHERE ino = next_ino;
-        -- IF type_ = 'LNK' THEN
-        --     IF symlink_resolutions_left - 1 = 0 THEN
-        --         RAISE EXCEPTION 'Too many levels of symbolic links';
-        --     END IF;
-        --     next_ino := (SELECT __get_ino_for_path(current_ino, symlink_target_, symlink_resolutions_left - 1));
-        -- END IF;
+        -- This is the symlinks range; see inodes.sql
+        IF next_ino >= 6142909891733356544 AND next_ino <= 6160924290242838527 THEN
+            symlink_target_ := (SELECT symlink_target FROM symlinks WHERE ino = next_ino);
+            IF symlink_resolutions_left - 1 = 0 THEN
+                RAISE EXCEPTION 'Too many levels of symbolic links';
+            END IF;
+            next_ino := (SELECT __get_ino_for_path(current_ino, symlink_target_, symlink_resolutions_left - 1));
+        END IF;
 
         current_ino := next_ino;
     END LOOP;

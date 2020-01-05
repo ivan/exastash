@@ -4,13 +4,11 @@ SELECT plan(19);
 
 CALL create_root_inode('fake_hostname', 41);
 
-PREPARE child_cannot_be_parent AS INSERT INTO dirents (
-    parent, basename, child
-) VALUES (2, 'name', 2);
+PREPARE child_cannot_be_parent AS CALL create_dirent(2, 'name', 2);
 SELECT throws_like('child_cannot_be_parent', '%violates check constraint%');
 
 INSERT INTO inodes (
-    ino, parent_ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_exastash_version
+    ino, parent_ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_version
 ) VALUES
     (3, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
     (4, NULL, 'REG', 0,    (0, 0), false, NULL,        (0, 0), 'fake_hostname', 41),
@@ -20,14 +18,10 @@ INSERT INTO inodes (
     (8, NULL, 'DIR', NULL, (0, 0), NULL,  NULL,        (0, 0), 'fake_hostname', 41);
 INSERT INTO dirents (parent, basename, child) VALUES (2, '7', 7);
 
-PREPARE parent_must_exist AS INSERT INTO dirents (
-    parent, basename, child
-) VALUES (300, 'name', 4);
+PREPARE parent_must_exist AS CALL create_dirent(300, 'name', 4);
 SELECT throws_like('parent_must_exist', 'parent ino=300 does not exist in inodes');
 
-PREPARE child_must_exist AS INSERT INTO dirents (
-    parent, basename, child
-) VALUES (2, 'name', 300);
+PREPARE child_must_exist AS CALL create_dirent(2, 'name', 300);
 SELECT throws_like('child_must_exist', 'child ino=300 does not exist in inodes');
 
 PREPARE parent_cannot_be_a_reg AS INSERT INTO dirents (
