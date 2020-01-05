@@ -1,5 +1,5 @@
 CREATE DOMAIN sec  AS bigint CHECK (VALUE >= 0);
-CREATE DOMAIN nsec AS bigint CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
+CREATE DOMAIN nsec AS int    CHECK (VALUE >= 0 AND VALUE <= 10 ^ 9);
 
 -- We store timespec64 instead of timestamptz because timestamptz is only
 -- microsecond precise, and some applications may reasonably expect nanosecond-

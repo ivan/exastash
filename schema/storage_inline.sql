@@ -1,13 +1,8 @@
 CREATE TABLE storage_inline (
-    ino      ino    PRIMARY KEY REFERENCES inodes,
+    ino      bigint PRIMARY KEY REFERENCES files,
     content  bytea  NOT NULL
 );
 REVOKE TRUNCATE ON storage_inline FROM current_user;
-
-CREATE TRIGGER storage_inline_check_ino
-    BEFORE INSERT ON storage_inline
-    FOR EACH ROW
-    EXECUTE FUNCTION assert_inode_is_regular_file();
 
 CREATE TRIGGER storage_inline_check_update
     BEFORE UPDATE ON storage_inline

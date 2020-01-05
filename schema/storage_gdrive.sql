@@ -111,7 +111,7 @@ CREATE TRIGGER gsuite_domains_check_update
 -- storage
 
 CREATE TABLE storage_gdrive (
-    ino             ino            NOT NULL REFERENCES inodes,
+    ino             bigint         NOT NULL REFERENCES files,
     gsuite_domain   gsuite_domain  NOT NULL REFERENCES gsuite_domains,
     chunk_sequence  bigint         NOT NULL REFERENCES gdrive_chunk_sequences,
 
@@ -120,11 +120,6 @@ CREATE TABLE storage_gdrive (
     PRIMARY KEY (ino, gsuite_domain, chunk_sequence)
 );
 REVOKE TRUNCATE ON storage_gdrive FROM current_user;
-
-CREATE TRIGGER storage_gdrive_check_ino
-    BEFORE INSERT ON storage_gdrive
-    FOR EACH ROW
-    EXECUTE FUNCTION assert_inode_is_regular_file();
 
 CREATE TRIGGER storage_gdrive_check_update
     BEFORE UPDATE ON storage_gdrive

@@ -11,7 +11,7 @@ CREATE DOMAIN ia_pathname AS text
     );
 
 CREATE TABLE storage_internetarchive (
-    ino           ino          NOT NULL REFERENCES inodes,
+    ino           bigint       NOT NULL REFERENCES files,
     ia_item       ia_item      NOT NULL,
     pathname      ia_pathname  NOT NULL,
     darked        boolean      NOT NULL DEFAULT false,
@@ -21,11 +21,6 @@ CREATE TABLE storage_internetarchive (
     PRIMARY KEY (ino, ia_item)
 );
 REVOKE TRUNCATE ON storage_internetarchive FROM current_user;
-
-CREATE TRIGGER storage_internetarchive_check_ino
-    BEFORE INSERT ON storage_internetarchive
-    FOR EACH ROW
-    EXECUTE FUNCTION assert_inode_is_regular_file();
 
 CREATE TRIGGER storage_internetarchive_check_update
     BEFORE UPDATE ON storage_internetarchive
