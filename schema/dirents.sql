@@ -21,11 +21,12 @@ CREATE DOMAIN linux_basename AS text
 
 CREATE TABLE dirents (
     parent        bigint          NOT NULL REFERENCES dirs,
-    basename      linux_basename  NOT NULL,
     -- Exactly one of these
     child_dir     bigint          CHECK (child_dir != parent) REFERENCES dirs,
     child_file    bigint          CHECK (child_file != parent) REFERENCES files,
     child_symlink bigint          CHECK (child_symlink != parent) REFERENCES symlinks,
+    -- Keep this last to reduce pg_column_size
+    basename      linux_basename  NOT NULL,
 
     CHECK (num_nonnulls(child_dir, child_file, child_symlink) = 1),
 
