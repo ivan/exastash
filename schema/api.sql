@@ -5,6 +5,24 @@ AS $$
         VALUES (2, now()::timespec64, now()::timespec64, hostname, exastash_version);
 $$;
 
+CREATE PROCEDURE create_dirent(parent_ bigint, basename_ linux_basename, child bigint)
+LANGUAGE SQL
+AS $$
+    INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink) VALUES (
+        parent_,
+        basename_,
+        (CASE WHEN child >=                   2 AND child <=   18014398509481983 THEN child END),
+        (CASE WHEN child >= 3062447746611937280 AND child <= 3080462145121419263 THEN child END),
+        (CASE WHEN child >= 6142909891733356544 AND child <= 6160924290242838527 THEN child END)
+    );
+$$;
+
+CREATE PROCEDURE remove_dirent(parent_ bigint, basename_ linux_basename)
+LANGUAGE SQL
+AS $$
+    DELETE FROM dirents WHERE parent = parent_ AND basename = basename_;
+$$;
+
 CREATE OR REPLACE FUNCTION __get_ino_for_path(current_ino bigint, path text, symlink_resolutions_left int) RETURNS bigint AS $$
 DECLARE
     segment text;
