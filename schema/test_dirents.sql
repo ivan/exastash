@@ -4,8 +4,7 @@ SELECT plan(19);
 
 CALL create_root_inode('fake_hostname', 41);
 
-PREPARE child_cannot_be_parent AS CALL create_dirent(2, 'name', 2);
-SELECT throws_like('child_cannot_be_parent', '%violates check constraint%');
+SELECT throws_like(E'CALL create_dirent(2, \'name\', 2)', '%violates check constraint%');
 
 INSERT INTO inodes (
     ino, parent_ino, type, size, mtime, executable, symlink_target, birth_time, birth_hostname, birth_version
