@@ -50,6 +50,7 @@ BEGIN
             CONTINUE;
         END IF;
 
+        -- TODO: optionally support POSIX ../ behavior where /../ stays at root?
         IF segment = '..' THEN
             next_ino := (SELECT parent FROM dirents WHERE child_dir = current_ino);
             IF next_ino IS NULL THEN
