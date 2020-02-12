@@ -11,14 +11,14 @@ CREATE DOMAIN ia_pathname AS text
     );
 
 CREATE TABLE storage_internetarchive (
-    ino           bigint       NOT NULL REFERENCES files,
+    file_id       bigint       NOT NULL REFERENCES files,
     ia_item       ia_item      NOT NULL,
     pathname      ia_pathname  NOT NULL,
     darked        boolean      NOT NULL DEFAULT false,
     last_probed   timestamptz,
 
     -- We may know of more than one item that has the file.
-    PRIMARY KEY (ino, ia_item)
+    PRIMARY KEY (file_id, ia_item)
 );
 REVOKE TRUNCATE ON storage_internetarchive FROM current_user;
 
@@ -26,8 +26,8 @@ CREATE TRIGGER storage_internetarchive_check_update
     BEFORE UPDATE ON storage_internetarchive
     FOR EACH ROW
     WHEN (
-        OLD.ino != NEW.ino OR
-        OLD.ia_item != NEW.ia_item OR
+        OLD.file_id  != NEW.file_id OR
+        OLD.ia_item  != NEW.ia_item OR
         OLD.pathname != NEW.pathname
     )
-    EXECUTE FUNCTION raise_exception('cannot change ino, ia_item, or pathname');
+    EXECUTE FUNCTION raise_exception('cannot change file_id, ia_item, or pathname');

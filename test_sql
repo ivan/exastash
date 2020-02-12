@@ -1,0 +1,1 @@
+pg_prove -v -h localhost -U exastash -d exastash schema/test_*.sql

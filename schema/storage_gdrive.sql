@@ -23,9 +23,9 @@ CREATE TRIGGER gdrive_files_check_update
     FOR EACH ROW
     WHEN (
         OLD.file_id != NEW.file_id OR
-        OLD.md5 != NEW.md5 OR
-        OLD.crc32c != NEW.crc32c OR
-        OLD.size != NEW.size
+        OLD.md5     != NEW.md5     OR
+        OLD.crc32c  != NEW.crc32c  OR
+        OLD.size    != NEW.size
     )
     EXECUTE FUNCTION raise_exception('cannot change file_id, md5, crc32c, or size');
 
@@ -35,7 +35,7 @@ DECLARE
 BEGIN
     -- TODO: make sure index is actually being used for this
     sequence := (SELECT chunk_sequence FROM gdrive_chunk_sequences WHERE files @> ARRAY[OLD.file_id] LIMIT 1);
-    IF sequence IS NOT NULL THEN
+    IF FOUND THEN
         RAISE EXCEPTION 'file_id still referenced by chunk_sequence=%', sequence;
     END IF;
     RETURN OLD;
@@ -111,17 +111,17 @@ CREATE TRIGGER gsuite_domains_check_update
 -- storage
 
 CREATE TABLE storage_gdrive (
-    ino             bigint         NOT NULL REFERENCES files,
+    file_id         bigint         NOT NULL REFERENCES files (id),
     gsuite_domain   gsuite_domain  NOT NULL REFERENCES gsuite_domains,
     chunk_sequence  bigint         NOT NULL REFERENCES gdrive_chunk_sequences,
 
     -- Include chunk_sequence in the key because we might want to reupload
     -- some chunk sequences in a new format.
-    PRIMARY KEY (ino, gsuite_domain, chunk_sequence)
+    PRIMARY KEY (file_id, gsuite_domain, chunk_sequence)
 );
 REVOKE TRUNCATE ON storage_gdrive FROM current_user;
 
 CREATE TRIGGER storage_gdrive_check_update
     BEFORE UPDATE ON storage_gdrive
     FOR EACH ROW
-    EXECUTE FUNCTION raise_exception('cannot change ino, gsuite_domain, or chunk_sequence');
+    EXECUTE FUNCTION raise_exception('cannot change file_id, gsuite_domain, or chunk_sequence');

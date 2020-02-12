@@ -5,37 +5,20 @@ AS $$
         VALUES (2, now()::timespec64, now()::timespec64, hostname, exastash_version);
 $$;
 
-CREATE PROCEDURE create_dirent(parent_ bigint, basename_ linux_basename, child bigint)
-LANGUAGE SQL
-AS $$
-    INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink) VALUES (
-        parent_,
-        basename_,
-        (CASE WHEN child >=                   2 AND child <=   18014398509481983 THEN child END),
-        (CASE WHEN child >= 3062447746611937280 AND child <= 3080462145121419263 THEN child END),
-        (CASE WHEN child >= 6142909891733356544 AND child <= 6160924290242838527 THEN child END)
-    );
-$$;
-
 CREATE PROCEDURE remove_dirent(parent_ bigint, basename_ linux_basename)
 LANGUAGE SQL
 AS $$
     DELETE FROM dirents WHERE parent = parent_ AND basename = basename_;
 $$;
 
-CREATE OR REPLACE FUNCTION __get_ino_for_path(current_ino bigint, path text, symlink_resolutions_left int) RETURNS bigint AS $$
+CREATE OR REPLACE FUNCTION __get_ino_for_path(current_ino bigint, path text, symlink_resolutions_left int) RETURNS RECORD AS $$
 DECLARE
     segment text;
-    next_ino bigint;
+    next_dir bigint;
+    next_file bigint;
+    next_symlink bigint;
     symlink_target_ symlink_pathname;
 BEGIN
-    -- The very beginning of a path is the only place you can specify
-    -- that you want the root directory.
-    IF starts_with(path, '/') THEN
-        current_ino := 2;
-        path := (SELECT substr(path, 2));
-    END IF;
-
     FOR segment IN SELECT regexp_split_to_table(path, '/') LOOP
         IF (SELECT ino FROM dirs WHERE ino = current_ino) IS NULL THEN
             RAISE EXCEPTION 'inode % is not a directory', current_ino;
@@ -50,7 +33,6 @@ BEGIN
             CONTINUE;
         END IF;
 
-        -- TODO: optionally support POSIX ../ behavior where /../ stays at root?
         IF segment = '..' THEN
             next_ino := (SELECT parent FROM dirents WHERE child_dir = current_ino);
             IF next_ino IS NULL THEN
@@ -60,13 +42,12 @@ BEGIN
             CONTINUE;
         END IF;
 
-        next_ino := (SELECT coalesce(child_dir, child_file, child_symlink) FROM dirents WHERE parent = current_ino AND basename = segment);
-        IF next_ino IS NULL THEN
+        SELECT child_dir, child_file, child_symlink INTO next_dir, next_file, next_symlink FROM dirents WHERE parent = current_ino AND basename = segment);
+        IF NOT FOUND THEN
             RAISE EXCEPTION 'inode % does not have dirent for %', current_ino, quote_literal(segment);
         END IF;
-        
-        -- This is the symlinks range; see inodes.sql
-        IF next_ino >= 6142909891733356544 AND next_ino <= 6160924290242838527 THEN
+
+        IF next_symlink IS NOT NULL THEN
             symlink_target_ := (SELECT symlink_target FROM symlinks WHERE ino = next_ino);
             IF symlink_resolutions_left - 1 = 0 THEN
                 RAISE EXCEPTION 'Too many levels of symbolic links';
@@ -80,7 +61,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Look up inode by relative or absolute path, returning just the ino
+-- Look up inode by relative path, returning the type and ino.
+--
+-- Absolute path (i.e. one starting with '/') is not supported because the
+-- database does not know which DIR inode was used for root DIR.
 CREATE OR REPLACE FUNCTION get_ino_for_path(current_ino bigint, path text) RETURNS bigint AS $$
 BEGIN
     -- Match the Linux behavior: "once the 40th symlink is detected,
