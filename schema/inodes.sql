@@ -58,9 +58,9 @@ CREATE TRIGGER dirs_check_update
     BEFORE UPDATE ON dirs
     FOR EACH ROW
     WHEN (
-        OLD.id             != NEW.id            OR
-        OLD.birth_time     != NEW.birth_time    OR
-        OLD.birth_version  != NEW.birth_version OR
+        OLD.id             != NEW.id             OR
+        OLD.birth_time     != NEW.birth_time     OR
+        OLD.birth_version  != NEW.birth_version  OR
         OLD.birth_hostname != NEW.birth_hostname
     )
     EXECUTE FUNCTION raise_exception('cannot change id or birth_* columns');
@@ -69,9 +69,9 @@ CREATE TRIGGER files_check_update
     BEFORE UPDATE ON files
     FOR EACH ROW
     WHEN (
-        OLD.id             != NEW.id            OR
-        OLD.birth_time     != NEW.birth_time    OR
-        OLD.birth_version  != NEW.birth_version OR
+        OLD.id             != NEW.id             OR
+        OLD.birth_time     != NEW.birth_time     OR
+        OLD.birth_version  != NEW.birth_version  OR
         OLD.birth_hostname != NEW.birth_hostname
     )
     EXECUTE FUNCTION raise_exception('cannot change id or birth_* columns');
