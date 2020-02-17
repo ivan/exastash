@@ -9,11 +9,11 @@ name = "es"
 path = "src/main.rs"
 
 [dependencies]
+anyhow = "1.0"
 num = "0.2"
 structopt = "0.3"
-postgres = { git = "https://github.com/sfackler/rust-postgres", features = ["with-chrono-0_4"] }
-tokio-postgres = { git = "https://github.com/sfackler/rust-postgres" }
-anyhow = "1.0"
+postgres = "0.17"
+tokio-postgres = "0.5"
 
 [profile.dev]
 # Reduce debug rebuild time
