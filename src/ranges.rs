@@ -41,14 +41,14 @@ mod tests {
 
     #[test]
     fn test_intersect() {
-        assert_eq!(intersect(Range::new(0, 100),   Range::new(0, 100)),   Some(Range::new(0, 100)));
-        assert_eq!(intersect(Range::new(0, 1),     Range::new(0, 2)),     Some(Range::new(0, 1)));
-        assert_eq!(intersect(Range::new(0, 100),   Range::new(1, 100)),   Some(Range::new(1, 100)));
-        assert_eq!(intersect(Range::new(0, 100),   Range::new(50, 150)),  Some(Range::new(50, 100)));
-        assert_eq!(intersect(Range::new(50, 150),  Range::new(0, 100)),   Some(Range::new(50, 100)));
-        assert_eq!(intersect(Range::new(100, 200), Range::new(50, 150)),  Some(Range::new(100, 150)));
-        assert_eq!(intersect(Range::new(50, 150),  Range::new(100, 200)), Some(Range::new(100, 150)));
-        assert_eq!(intersect(Range::new(200, 300), Range::new(50, 150)),  None);
-        assert_eq!(intersect(Range::new(50, 150),  Range::new(200, 300)), None);
+        assert_eq!(intersect(Range::new(0,   100), Range::new(0,   100)), Some(Range::new(0,   100)));
+        assert_eq!(intersect(Range::new(0,   1),   Range::new(0,   2)),   Some(Range::new(0,   1)));
+        assert_eq!(intersect(Range::new(0,   100), Range::new(1,   100)), Some(Range::new(1,   100)));
+        assert_eq!(intersect(Range::new(0,   100), Range::new(50,  150)), Some(Range::new(50,  100)));
+        assert_eq!(intersect(Range::new(50,  150), Range::new(0,   100)), Some(Range::new(50,  100)));
+        assert_eq!(intersect(Range::new(100, 200), Range::new(50,  150)), Some(Range::new(100, 150)));
+        assert_eq!(intersect(Range::new(50,  150), Range::new(100, 200)), Some(Range::new(100, 150)));
+        assert_eq!(intersect(Range::new(200, 300), Range::new(50,  150)), None);
+        assert_eq!(intersect(Range::new(50,  150), Range::new(200, 300)), None);
     }
 }
