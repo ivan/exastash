@@ -1,19 +1,19 @@
 use std::cmp::{min, max};
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct Range {
+pub(crate) struct Range {
     start: u64,
     end: u64
 }
 
 impl Range {
-    pub fn new(start: u64, end: u64) -> Range {
+    pub(crate) fn new(start: u64, end: u64) -> Range {
         assert!(start < end, "start must be < end; got start={}, end={}", start, end);
         Range { start, end }
     }
 }
 
-pub fn intersect(range1: Range, range2: Range) -> Option<Range> {
+pub(crate) fn intersect(range1: Range, range2: Range) -> Option<Range> {
     // Range is the max of the beginnings to the min of the ends
     let start = max(range1.start, range2.start);
     let end = min(range1.end, range2.end);

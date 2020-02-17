@@ -5,7 +5,7 @@ use num::rational::Ratio;
 
 // We need to be able to multiply a std::time::Duration by a
 // num::rational:Ratio, so we need our own Mul trait.
-pub trait MyMul<RHS=Self> {
+pub(crate) trait MyMul<RHS=Self> {
     type Output;
     fn mymul(self, rhs: RHS) -> Self::Output;
 }
@@ -32,7 +32,7 @@ impl<T> MyMul for T where T: Mul<Output = T> {
     }
 }
 
-pub struct Decayer<N: MyMul<M, Output=N> + Ord + Copy, M: Copy> {
+pub(crate) struct Decayer<N: MyMul<M, Output=N> + Ord + Copy, M: Copy> {
     /// initial number to return
     initial: N,
     /// multiply number by this value after each call to decay()
@@ -46,7 +46,7 @@ pub struct Decayer<N: MyMul<M, Output=N> + Ord + Copy, M: Copy> {
 }
 
 impl <N: MyMul<M, Output=N> + Ord + Copy, M: Copy> Decayer<N, M> {
-    pub fn new(initial: N, multiplier: M, max: N) -> Decayer<N, M> {
+    pub(crate) fn new(initial: N, multiplier: M, max: N) -> Decayer<N, M> {
         Decayer {
             initial,
             multiplier,
@@ -56,13 +56,13 @@ impl <N: MyMul<M, Output=N> + Ord + Copy, M: Copy> Decayer<N, M> {
         }
     }
 
-    pub fn reset(&mut self) -> N {
+    pub(crate) fn reset(&mut self) -> N {
         self.first = true;
         self.current = self.initial;
         self.current
     }
 
-    pub fn decay(&mut self) -> N {
+    pub(crate) fn decay(&mut self) -> N {
         if self.first {
             self.first = false;
         } else {
