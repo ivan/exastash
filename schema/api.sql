@@ -2,7 +2,7 @@ CREATE PROCEDURE create_root_inode(hostname text, exastash_version integer)
 LANGUAGE SQL
 AS $$
     INSERT INTO dirs (ino, mtime, birth_time, birth_hostname, birth_version)
-        VALUES (2, now()::timespec64, now()::timespec64, hostname, exastash_version);
+        VALUES (2, now(), now(), hostname, exastash_version);
 $$;
 
 CREATE PROCEDURE remove_dirent(parent_ bigint, basename_ linux_basename)
