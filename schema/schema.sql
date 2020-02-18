@@ -1,5 +1,8 @@
 \set ON_ERROR_STOP on
 
+CREATE SCHEMA stash;
+SET search_path TO stash;
+
 CREATE OR REPLACE FUNCTION raise_exception() RETURNS trigger AS $$
 DECLARE
     message text;
