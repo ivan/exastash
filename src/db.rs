@@ -18,10 +18,10 @@ mod tests {
     use std::process::Command;
 
     static DATABASE_URL: Lazy<String> = Lazy::new(|| {
-        let mut pg_tmp = Command::new("pg_tmp");
-        let stdout = pg_tmp.output().expect("failed to execute pg_tmp").stdout;
+        let mut command = Command::new("pg_tmp");
+        let stdout = command.output().expect("failed to execute pg_tmp").stdout;
         let database_url = String::from_utf8(stdout).expect("could not parse pg_tmp output as UTF-8");
-        // Add a &user= to fix: "no PostgreSQL user name specified in startup packet"
+        // Add a &user= to fix "no PostgreSQL user name specified in startup packet"
         let user = env_var("USER").unwrap();
         let database_url = format!("{}&user={}", database_url, user);
         database_url
