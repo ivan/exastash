@@ -14,7 +14,7 @@ fn postgres_client_production() -> Result<Client> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use once_cell::sync::Lazy;
+    use once_cell::sync::{OnceCell, Lazy};
     use std::process::Command;
 
     static DATABASE_URL: Lazy<String> = Lazy::new(|| {
@@ -24,12 +24,23 @@ mod tests {
         // Add a &user= to fix: "no PostgreSQL user name specified in startup packet"
         let user = env_var("USER").unwrap();
         let database_url = format!("{}&user={}", database_url, user);
-        dbg!(&database_url);
         database_url
     });
 
+    static POPULATED: OnceCell<bool> = OnceCell::new();
+
     fn get_client() -> Client {
-        Client::connect(&*DATABASE_URL, NoTls).unwrap()
+        let url = &*DATABASE_URL;
+        POPULATED.get_or_init(|| {
+            let mut command = Command::new("psql");
+            let psql = command.arg(url).arg("-f").arg("schema/schema.sql");
+            let code = psql.status().expect("failed to execute psql");
+            if !code.success() {
+                panic!("psql exited with code {:?}", code.code());
+            }
+            true
+        });
+        Client::connect(url, NoTls).unwrap()
     }
 
     #[test]
