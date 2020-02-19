@@ -5,6 +5,12 @@ use postgres::{Client, Transaction, NoTls, IsolationLevel};
 use chrono::{DateTime, Utc};
 use crate::EXASTASH_VERSION;
 
+fn get_hostname() -> String {
+    let os_string = gethostname::gethostname();
+    let hostname = os_string.to_str().expect("hostname on this machine was not valid UTF-8");
+    hostname.to_owned()
+}
+
 fn env_var(var: &str) -> Result<String> {
     env::var(var).with_context(|| anyhow!("Could not get variable {:?} from environment", var))
 }
@@ -24,6 +30,12 @@ pub(crate) struct Birth {
     hostname: String,
 }
 
+impl Birth {
+    pub(crate) fn here_and_now() -> Birth {
+        Birth { time: Utc::now(), version: EXASTASH_VERSION, hostname: get_hostname() }
+    }
+}
+
 fn start_transaction(client: &mut Client) -> Result<Transaction> {
     // PostgreSQL's default Read Committed isolation level allows for too many
     // anomalies, e.g. "two successive SELECT commands can see different data"
@@ -38,16 +50,8 @@ fn start_transaction(client: &mut Client) -> Result<Transaction> {
     Ok(transaction)
 }
 
-fn get_hostname() -> Result<String> {
-    let os_string = gethostname::gethostname();
-    let hostname = os_string.to_str()
-        .with_context(|| anyhow!("hostname {:?} could not be converted to UTF-8 string", os_string))?;
-    Ok(hostname.to_owned())
-}
-
-pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>) -> Result<u64> {
+pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birth) -> Result<u64> {
     let mut transaction = start_transaction(client)?;
-    let birth = Birth { time: Utc::now(), version: EXASTASH_VERSION, hostname: get_hostname()? };
     let rows = transaction.query(
         "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
@@ -60,11 +64,11 @@ pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>) -> Result<u6
     Ok(id)
 }
 
-pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, executable: bool) -> Result<()> {
+pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, executable: bool, birth: &Birth) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: &str) -> Result<()> {
+pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<()> {
     Ok(())
 }
 
@@ -112,7 +116,7 @@ mod tests {
     #[test]
     fn test_cannot_change_dir_immutables() -> Result<()> {
         let mut client = get_client();
-        let id = create_dir(&mut client, Utc::now())?;
+        let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
         dbg!(id);
         Ok(())
     }
