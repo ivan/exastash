@@ -50,7 +50,8 @@ fn start_transaction(client: &mut Client) -> Result<Transaction> {
     Ok(transaction)
 }
 
-pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birth) -> Result<u64> {
+/// Create an entry for a directory in the database and return its id
+pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birth) -> Result<i64> {
     let mut transaction = start_transaction(client)?;
     let rows = transaction.query(
         "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
@@ -63,12 +64,13 @@ pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birt
         ]
     )?;
     let id: i64 = rows[0].get(0);
-    let id = u64::try_from(id).with_context(|| anyhow!("id {} out of expected u64 range", id))?;
+    assert!(id >= 1);
     transaction.commit()?;
     Ok(id)
 }
 
-pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, executable: bool, birth: &Birth) -> Result<u64> {
+/// Create an entry for a file in the database and return its id
+pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, executable: bool, birth: &Birth) -> Result<i64> {
     let mut transaction = start_transaction(client)?;
     let rows = transaction.query(
         "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
@@ -83,12 +85,13 @@ pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, 
         ]
     )?;
     let id: i64 = rows[0].get(0);
-    let id = u64::try_from(id).with_context(|| anyhow!("id {} out of expected u64 range", id))?;
+    assert!(id >= 1);
     transaction.commit()?;
     Ok(id)
 }
 
-pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<u64> {
+/// Create an entry for a symlink in the database and return its id
+pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<i64> {
     let mut transaction = start_transaction(client)?;
     let rows = transaction.query(
         "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
@@ -102,7 +105,7 @@ pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: 
         ]
     )?;
     let id: i64 = rows[0].get(0);
-    let id = u64::try_from(id).with_context(|| anyhow!("id {} out of expected u64 range", id))?;
+    assert!(id >= 1);
     transaction.commit()?;
     Ok(id)
 }
@@ -148,11 +151,28 @@ mod tests {
         Client::connect(uri, NoTls).unwrap()
     }
 
+    /// Can change mtime on a dir
+    #[test]
+    fn test_can_change_dir_mutables() -> Result<()> {
+        let mut client = get_client();
+        let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
+        let mut transaction = start_transaction(&mut client)?;
+        transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&id])?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    // Cannot change id, birth_time, birth_version, or birth_hostname on a dir
     #[test]
     fn test_cannot_change_dir_immutables() -> Result<()> {
         let mut client = get_client();
         let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
-        dbg!(id);
+        for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+            let mut transaction = start_transaction(&mut client)?;
+            let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
+            let result = transaction.execute(query.as_str(), &[&id]);
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_* columns");
+        }
         Ok(())
     }
 }
