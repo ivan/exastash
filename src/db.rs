@@ -179,5 +179,40 @@ mod tests {
             }
             Ok(())
         }
+
+        /// Can change size, mtime, and executable on a filer
+        #[test]
+        fn test_can_change_file_mutables() -> Result<()> {
+            let mut client = get_client();
+            let size = 0;
+            let executable = false;
+            let id = create_file(&mut client, Utc::now(), size, executable, &Birth::here_and_now())?;
+            let mut transaction = start_transaction(&mut client)?;
+            transaction.execute("UPDATE files SET mtime = now() WHERE id = $1::bigint", &[&id])?;
+            transaction.commit()?;
+            let mut transaction = start_transaction(&mut client)?;
+            transaction.execute("UPDATE files SET size = 100000 WHERE id = $1::bigint", &[&id])?;
+            transaction.commit()?;
+            let mut transaction = start_transaction(&mut client)?;
+            transaction.execute("UPDATE files SET executable = true WHERE id = $1::bigint", &[&id])?;
+            transaction.commit()?;
+            Ok(())
+        }
+
+        // Cannot change id, birth_time, birth_version, or birth_hostname on a file
+        #[test]
+        fn test_cannot_change_file_immutables() -> Result<()> {
+            let mut client = get_client();
+            let size = 0;
+            let executable = false;
+            let id = create_file(&mut client, Utc::now(), size, executable, &Birth::here_and_now())?;
+            for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+                let mut transaction = start_transaction(&mut client)?;
+                let query = format!("UPDATE files SET {} = {} WHERE id = $1::bigint", column, value);
+                let result = transaction.execute(query.as_str(), &[&id]);
+                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_* columns");
+            }
+            Ok(())
+        }
     }
 }
