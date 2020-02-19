@@ -58,18 +58,42 @@ pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birt
          RETURNING id",
          &[&mtime, &birth.time, &i16::try_from(birth.version).unwrap(), &birth.hostname])?;
     let id: i64 = rows[0].get(0);
-    let id = u64::try_from(id)
-        .with_context(|| anyhow!("id {} out of expected u64 range", id))?;
+    let id = u64::try_from(id).with_context(|| anyhow!("id {} out of expected u64 range", id))?;
     transaction.commit()?;
     Ok(id)
 }
 
-pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, executable: bool, birth: &Birth) -> Result<()> {
-    Ok(())
+pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, executable: bool, birth: &Birth) -> Result<u64> {
+    let mut transaction = start_transaction(client)?;
+    let rows = transaction.query(
+        "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
+         VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
+         RETURNING id", &[
+            &mtime,
+            &i64::try_from(size).with_context(|| anyhow!("size {} out of expected i64 range", size))?,
+            &executable,
+            &birth.time,
+            &i16::try_from(birth.version).unwrap(),
+            &birth.hostname,
+        ]
+    )?;
+    let id: i64 = rows[0].get(0);
+    let id = u64::try_from(id).with_context(|| anyhow!("id {} out of expected u64 range", id))?;
+    transaction.commit()?;
+    Ok(id)
 }
 
-pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<()> {
-    Ok(())
+pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<u64> {
+    let mut transaction = start_transaction(client)?;
+    let rows = transaction.query(
+        "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
+         VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
+         RETURNING id",
+         &[&mtime, &target, &birth.time, &i16::try_from(birth.version).unwrap(), &birth.hostname])?;
+    let id: i64 = rows[0].get(0);
+    let id = u64::try_from(id).with_context(|| anyhow!("id {} out of expected u64 range", id))?;
+    transaction.commit()?;
+    Ok(id)
 }
 
 #[cfg(test)]
