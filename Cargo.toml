@@ -16,6 +16,7 @@ num = "0.2"
 structopt = "0.3"
 postgres = { version = "0.17", features = ["with-chrono-0_4"] }
 tokio-postgres = "0.5"
+gethostname = "0.2"
 
 [profile.dev]
 # Reduce debug rebuild time

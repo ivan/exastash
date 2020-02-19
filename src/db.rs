@@ -1,7 +1,9 @@
 use std::env;
+use std::convert::TryFrom;
 use anyhow::{anyhow, Context, Result};
 use postgres::{Client, Transaction, NoTls, IsolationLevel};
 use chrono::{DateTime, Utc};
+use crate::EXASTASH_VERSION;
 
 fn env_var(var: &str) -> Result<String> {
     env::var(var).with_context(|| anyhow!("Could not get variable {:?} from environment", var))
@@ -36,11 +38,26 @@ fn start_transaction(client: &mut Client) -> Result<Transaction> {
     Ok(transaction)
 }
 
-pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>) -> Result<()> {
+fn get_hostname() -> Result<String> {
+    let os_string = gethostname::gethostname();
+    let hostname = os_string.to_str()
+        .with_context(|| anyhow!("hostname {:?} could not be converted to UTF-8 string", os_string))?;
+    Ok(hostname.to_owned())
+}
+
+pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>) -> Result<u64> {
     let mut transaction = start_transaction(client)?;
-    transaction.execute("INSERT INTO dirs (mtime) VALUES ($1::timestamptz)", &[&mtime])?;
+    let birth = Birth { time: Utc::now(), version: EXASTASH_VERSION, hostname: get_hostname()? };
+    let rows = transaction.query(
+        "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
+         VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
+         RETURNING id",
+         &[&mtime, &birth.time, &i16::try_from(birth.version).unwrap(), &birth.hostname])?;
+    let id: i64 = rows[0].get(0);
+    let id = u64::try_from(id)
+        .with_context(|| anyhow!("id {} out of expected u64 range", id))?;
     transaction.commit()?;
-    Ok(())
+    Ok(id)
 }
 
 pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, executable: bool) -> Result<()> {
@@ -95,9 +112,8 @@ mod tests {
     #[test]
     fn test_cannot_change_dir_immutables() -> Result<()> {
         let mut client = get_client();
-        let mut transaction = client.transaction()?;
-        transaction.execute("SET search_path TO stash", &[])?;
-        transaction.commit()?;
+        let id = create_dir(&mut client, Utc::now())?;
+        dbg!(id);
         Ok(())
     }
 }
