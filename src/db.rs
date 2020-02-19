@@ -55,8 +55,13 @@ pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birt
     let rows = transaction.query(
         "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
-         RETURNING id",
-         &[&mtime, &birth.time, &i16::try_from(birth.version).unwrap(), &birth.hostname])?;
+         RETURNING id", &[
+            &mtime,
+            &birth.time,
+            &i16::try_from(birth.version).unwrap(),
+            &birth.hostname
+        ]
+    )?;
     let id: i64 = rows[0].get(0);
     let id = u64::try_from(id).with_context(|| anyhow!("id {} out of expected u64 range", id))?;
     transaction.commit()?;
@@ -88,8 +93,14 @@ pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: 
     let rows = transaction.query(
         "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
-         RETURNING id",
-         &[&mtime, &target, &birth.time, &i16::try_from(birth.version).unwrap(), &birth.hostname])?;
+         RETURNING id", &[
+            &mtime,
+            &target,
+            &birth.time,
+            &i16::try_from(birth.version).unwrap(),
+            &birth.hostname
+        ]
+    )?;
     let id: i64 = rows[0].get(0);
     let id = u64::try_from(id).with_context(|| anyhow!("id {} out of expected u64 range", id))?;
     transaction.commit()?;
