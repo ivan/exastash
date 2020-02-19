@@ -151,28 +151,33 @@ mod tests {
         Client::connect(uri, NoTls).unwrap()
     }
 
-    /// Can change mtime on a dir
-    #[test]
-    fn test_can_change_dir_mutables() -> Result<()> {
-        let mut client = get_client();
-        let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
-        let mut transaction = start_transaction(&mut client)?;
-        transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&id])?;
-        transaction.commit()?;
-        Ok(())
-    }
+    // Testing our .sql from Rust, not testing our Rust
+    mod schema_internals {
+        use super::*;
 
-    // Cannot change id, birth_time, birth_version, or birth_hostname on a dir
-    #[test]
-    fn test_cannot_change_dir_immutables() -> Result<()> {
-        let mut client = get_client();
-        let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
-        for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+        /// Can change mtime on a dir
+        #[test]
+        fn test_can_change_dir_mutables() -> Result<()> {
+            let mut client = get_client();
+            let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
             let mut transaction = start_transaction(&mut client)?;
-            let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
-            let result = transaction.execute(query.as_str(), &[&id]);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_* columns");
+            transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&id])?;
+            transaction.commit()?;
+            Ok(())
         }
-        Ok(())
+
+        // Cannot change id, birth_time, birth_version, or birth_hostname on a dir
+        #[test]
+        fn test_cannot_change_dir_immutables() -> Result<()> {
+            let mut client = get_client();
+            let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
+            for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+                let mut transaction = start_transaction(&mut client)?;
+                let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
+                let result = transaction.execute(query.as_str(), &[&id]);
+                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_* columns");
+            }
+            Ok(())
+        }
     }
 }
