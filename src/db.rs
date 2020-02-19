@@ -180,7 +180,7 @@ mod tests {
             Ok(())
         }
 
-        /// Can change size, mtime, and executable on a filer
+        /// Can change size, mtime, and executable on a file
         #[test]
         fn test_can_change_file_mutables() -> Result<()> {
             let mut client = get_client();
@@ -211,6 +211,33 @@ mod tests {
                 let query = format!("UPDATE files SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&id]);
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_* columns");
+            }
+            Ok(())
+        }
+
+        /// Can change mtime on a symlink
+        #[test]
+        fn test_can_change_symlink_mutables() -> Result<()> {
+            let mut client = get_client();
+            let target = "old";
+            let id = create_symlink(&mut client, Utc::now(), target, &Birth::here_and_now())?;
+            let mut transaction = start_transaction(&mut client)?;
+            transaction.execute("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint", &[&id])?;
+            transaction.commit()?;
+            Ok(())
+        }
+
+        // Cannot change id, symlink_target, birth_time, birth_version, or birth_hostname on a symlink
+        #[test]
+        fn test_cannot_change_symlink_immutables() -> Result<()> {
+            let mut client = get_client();
+            let target = "old";
+            let id = create_symlink(&mut client, Utc::now(), target, &Birth::here_and_now())?;
+            for (column, value) in [("id", "100"), ("symlink_target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+                let mut transaction = start_transaction(&mut client)?;
+                let query = format!("UPDATE symlinks SET {} = {} WHERE id = $1::bigint", column, value);
+                let result = transaction.execute(query.as_str(), &[&id]);
+                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, symlink_target, or birth_* columns");
             }
             Ok(())
         }
