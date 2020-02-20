@@ -5,6 +5,7 @@ use crate::EXASTASH_VERSION;
 use crate::util;
 
 /// birth_time, birth_version, and birth_hostname for a dir/file/symlink
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Birth {
     /// The time at which a dir, file, or symlink was created
     time: DateTime<Utc>,
