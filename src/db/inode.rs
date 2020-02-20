@@ -63,12 +63,12 @@ pub(crate) fn create_symlink(transaction: &mut Transaction, mtime: DateTime<Utc>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::start_transaction;
     use crate::db::tests::get_client;
 
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
-        use crate::db::start_transaction;
 
         /// Cannot TRUNCATE dirs, files, or symlinks tables
         #[test]

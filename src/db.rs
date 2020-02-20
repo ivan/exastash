@@ -1,4 +1,5 @@
 mod inode;
+mod dirent;
 
 use anyhow::Result;
 use postgres::{Client, Transaction, NoTls, IsolationLevel};
