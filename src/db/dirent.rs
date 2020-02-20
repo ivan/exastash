@@ -1,14 +1,13 @@
+use crate::db::inode::Inode;
 use anyhow::{bail, Result};
 use postgres::Transaction;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum Inode {
-    Dir(i64),
-    File(i64),
-    Symlink(i64),
+trait InodeTuple {
+    fn from_tuple(child_dir: Option<i64>, child_file: Option<i64>, child_symlink: Option<i64>) -> Inode;
+    fn to_tuple(self) -> (Option<i64>, Option<i64>, Option<i64>);
 }
 
-impl Inode {
+impl InodeTuple for Inode {
     /// Converts a (dir, file, symlink) tuple from the database.
     /// Exactly one must be Some, else this panics.
     fn from_tuple(child_dir: Option<i64>, child_file: Option<i64>, child_symlink: Option<i64>) -> Inode {
@@ -67,6 +66,7 @@ pub(crate) fn list_dir(transaction: &mut Transaction, parent: Inode) -> Result<V
         _ => bail!("parent must be a directory"),
     };
 
+    transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT basename, child_dir, child_file, child_symlink FROM dirents WHERE parent = $1::bigint", &[&parent_id])?;
     let mut out = vec![];
     for row in rows {
@@ -93,16 +93,27 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_create_dirent() -> Result<()> {
+        fn test_create_dirent_and_list_dir() -> Result<()> {
             let mut client = get_client();
 
-            // Create two directories
             let mut transaction = start_transaction(&mut client)?;
             let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child  = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let dirent = Dirent::new("child".to_owned(), Inode::Dir(child));
-            create_dirent(&mut transaction, Inode::Dir(parent), &dirent)?;
+            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let child_file = inode::create_file(&mut transaction, Utc::now(), 0, false, &inode::Birth::here_and_now())?;
+            let child_symlink = inode::create_symlink(&mut transaction, Utc::now(), "target", &inode::Birth::here_and_now())?;
+            create_dirent(&mut transaction, parent, &Dirent::new("child_dir".to_owned(), child_dir))?;
+            create_dirent(&mut transaction, parent, &Dirent::new("child_file".to_owned(), child_file))?;
+            create_dirent(&mut transaction, parent, &Dirent::new("child_symlink".to_owned(), child_symlink))?;
             transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            assert_eq!(list_dir(&mut transaction, child_dir)?, vec![]);
+            assert_eq!(list_dir(&mut transaction, parent)?, vec![
+                Dirent::new("child_dir".to_owned(), child_dir),
+                Dirent::new("child_file".to_owned(), child_file),
+                Dirent::new("child_symlink".to_owned(), child_symlink),
+            ]);
+
             Ok(())
         }
     }
