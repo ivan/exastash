@@ -16,7 +16,6 @@ CREATE TABLE gdrive_files (
     size            bigint       NOT NULL CHECK (size >= 1),
     last_probed     timestamptz
 );
-REVOKE TRUNCATE ON gdrive_files FROM current_user;
 
 CREATE TRIGGER gdrive_files_check_update
     BEFORE UPDATE ON gdrive_files
@@ -47,6 +46,10 @@ CREATE TRIGGER gdrive_files_check_delete
     FOR EACH ROW
     EXECUTE FUNCTION gdrive_files_not_referenced();
 
+CREATE TRIGGER gdrive_files_forbid_truncate
+    BEFORE TRUNCATE ON gdrive_files
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
 
 -- sequences of gdrive files
 
@@ -62,7 +65,6 @@ CREATE TABLE gdrive_chunk_sequences (
     -- support it for array elements, thus we have two triggers to emulate it.
     files           file_id[]  NOT NULL CHECK (cardinality(files) >= 1)
 );
-REVOKE TRUNCATE ON gdrive_chunk_sequences FROM current_user;
 
 CREATE INDEX file_id_index ON gdrive_chunk_sequences USING GIN (files);
 
@@ -90,6 +92,10 @@ CREATE TRIGGER gdrive_chunk_sequences_check_update
     FOR EACH ROW
     EXECUTE FUNCTION raise_exception('cannot change chunk_sequence, cipher, cipher_key, or files');
 
+CREATE TRIGGER gdrive_chunk_sequences_forbid_truncate
+    BEFORE TRUNCATE ON gdrive_chunk_sequences
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
 
 -- gsuite domains
 
@@ -100,12 +106,15 @@ CREATE TABLE gsuite_domains (
     gsuite_domain  gsuite_domain  PRIMARY KEY
     -- TODO: access keys
 );
-REVOKE TRUNCATE ON gsuite_domains FROM current_user;
 
 CREATE TRIGGER gsuite_domains_check_update
     BEFORE UPDATE ON gsuite_domains
     FOR EACH ROW
     EXECUTE FUNCTION raise_exception('cannot change gsuite_domain');
+
+CREATE TRIGGER gsuite_domains_forbid_truncate
+    BEFORE TRUNCATE ON gsuite_domains
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');
 
 
 -- storage
@@ -119,9 +128,12 @@ CREATE TABLE storage_gdrive (
     -- some chunk sequences in a new format.
     PRIMARY KEY (file_id, gsuite_domain, chunk_sequence)
 );
-REVOKE TRUNCATE ON storage_gdrive FROM current_user;
 
 CREATE TRIGGER storage_gdrive_check_update
     BEFORE UPDATE ON storage_gdrive
     FOR EACH ROW
     EXECUTE FUNCTION raise_exception('cannot change file_id, gsuite_domain, or chunk_sequence');
+
+CREATE TRIGGER storage_gdrive_forbid_truncate
+    BEFORE TRUNCATE ON storage_gdrive
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');

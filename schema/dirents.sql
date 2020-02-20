@@ -33,7 +33,6 @@ CREATE TABLE dirents (
 
     PRIMARY KEY (parent, basename)
 );
-REVOKE TRUNCATE ON dirents FROM current_user;
 
 -- dirents REFERENCES dirs/files/symlinks tables and we may want to delete rows
 -- from those tables, so we need indexes to avoid full table scans of dirents.
@@ -47,3 +46,7 @@ CREATE TRIGGER dirents_check_update
     BEFORE UPDATE ON dirents
     FOR EACH ROW
     EXECUTE FUNCTION raise_exception('cannot change parent, basename, or child_*');
+
+CREATE TRIGGER dirents_forbid_truncate
+    BEFORE TRUNCATE ON dirents
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');

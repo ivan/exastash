@@ -20,14 +20,17 @@ CREATE TABLE storage_internetarchive (
     -- We may know of more than one item that has the file.
     PRIMARY KEY (file_id, ia_item)
 );
-REVOKE TRUNCATE ON storage_internetarchive FROM current_user;
 
 CREATE TRIGGER storage_internetarchive_check_update
     BEFORE UPDATE ON storage_internetarchive
     FOR EACH ROW
     WHEN (
-        OLD.file_id  != NEW.file_id OR
-        OLD.ia_item  != NEW.ia_item OR
+        OLD.file_id  != NEW.file_id  OR
+        OLD.ia_item  != NEW.ia_item  OR
         OLD.pathname != NEW.pathname
     )
     EXECUTE FUNCTION raise_exception('cannot change file_id, ia_item, or pathname');
+
+CREATE TRIGGER storage_internetarchive_forbid_truncate
+    BEFORE TRUNCATE ON storage_internetarchive
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');
