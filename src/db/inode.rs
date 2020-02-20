@@ -67,21 +67,7 @@ pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use once_cell::sync::{OnceCell, Lazy};
-    use postgres::NoTls;
-    use crate::db::{postgres_temp_instance_uri, apply_ddl};
-
-    static DATABASE_URI: Lazy<String> = Lazy::new(postgres_temp_instance_uri);
-    static DDL_APPLIED: OnceCell<bool> = OnceCell::new();
-
-    fn get_client() -> Client {
-        let uri = &*DATABASE_URI;
-        DDL_APPLIED.get_or_init(|| {
-            apply_ddl(uri, "schema/schema.sql");
-            true
-        });
-        Client::connect(uri, NoTls).unwrap()
-    }
+    use crate::db::tests::get_client;
 
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
