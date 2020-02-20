@@ -64,4 +64,11 @@ mod tests {
         });
         Client::connect(uri, NoTls).unwrap()
     }
+
+    #[test]
+    fn test_start_transaction() -> Result<()> {
+        let mut client = get_client();
+        let _ = start_transaction(&mut client)?;
+        Ok(())
+    }
 }
