@@ -10,4 +10,4 @@ pub(crate) mod db;
 
 /// Rows in database will be created with birth_version set to this value.
 /// See exastash_versions.sql.
-pub(crate) const EXASTASH_VERSION: u16 = 41;
+pub(crate) const EXASTASH_VERSION: i16 = 41;

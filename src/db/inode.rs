@@ -1,5 +1,4 @@
-use std::convert::TryFrom;
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use postgres::Client;
 use crate::EXASTASH_VERSION;
@@ -11,7 +10,7 @@ pub(crate) struct Birth {
     /// The time at which a dir, file, or symlink was created
     time: DateTime<Utc>,
     /// The exastash version with which a dir, file, or symlink was a created
-    version: u16,
+    version: i16,
     /// The hostname of the machine on which a dir, file, or symlink was a created
     hostname: String,
 }
@@ -28,12 +27,7 @@ pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birt
     let rows = transaction.query(
         "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
-         RETURNING id", &[
-            &mtime,
-            &birth.time,
-            &i16::try_from(birth.version).unwrap(),
-            &birth.hostname
-        ]
+         RETURNING id", &[&mtime, &birth.time, &birth.version, &birth.hostname]
     )?;
     let id: i64 = rows[0].get(0);
     assert!(id >= 1);
@@ -42,19 +36,13 @@ pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birt
 }
 
 /// Create an entry for a file in the database and return its id
-pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: u64, executable: bool, birth: &Birth) -> Result<i64> {
+pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: i64, executable: bool, birth: &Birth) -> Result<i64> {
+    assert!(size >= 0, "size must be >= 0");
     let mut transaction = start_transaction(client)?;
     let rows = transaction.query(
         "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
-         RETURNING id", &[
-            &mtime,
-            &i64::try_from(size).with_context(|| anyhow!("size {} out of expected i64 range", size))?,
-            &executable,
-            &birth.time,
-            &i16::try_from(birth.version).unwrap(),
-            &birth.hostname,
-        ]
+         RETURNING id", &[&mtime, &size, &executable, &birth.time, &birth.version, &birth.hostname]
     )?;
     let id: i64 = rows[0].get(0);
     assert!(id >= 1);
@@ -68,13 +56,7 @@ pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: 
     let rows = transaction.query(
         "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
-         RETURNING id", &[
-            &mtime,
-            &target,
-            &birth.time,
-            &i16::try_from(birth.version).unwrap(),
-            &birth.hostname
-        ]
+         RETURNING id", &[&mtime, &target, &birth.time, &birth.version, &birth.hostname]
     )?;
     let id: i64 = rows[0].get(0);
     assert!(id >= 1);
