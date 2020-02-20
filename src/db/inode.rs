@@ -98,7 +98,7 @@ mod tests {
             Ok(())
         }
 
-        // Cannot change id, birth_time, birth_version, or birth_hostname on a dir
+        /// Cannot change id, birth_time, birth_version, or birth_hostname on a dir
         #[test]
         fn test_cannot_change_dir_immutables() -> Result<()> {
             let mut client = get_client();
@@ -131,7 +131,7 @@ mod tests {
             Ok(())
         }
 
-        // Cannot change id, birth_time, birth_version, or birth_hostname on a file
+        /// Cannot change id, birth_time, birth_version, or birth_hostname on a file
         #[test]
         fn test_cannot_change_file_immutables() -> Result<()> {
             let mut client = get_client();
@@ -159,7 +159,7 @@ mod tests {
             Ok(())
         }
 
-        // Cannot change id, symlink_target, birth_time, birth_version, or birth_hostname on a symlink
+        /// Cannot change id, symlink_target, birth_time, birth_version, or birth_hostname on a symlink
         #[test]
         fn test_cannot_change_symlink_immutables() -> Result<()> {
             let mut client = get_client();
