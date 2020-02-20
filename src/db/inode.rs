@@ -1,8 +1,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use postgres::Client;
+use postgres::Transaction;
 use crate::EXASTASH_VERSION;
-use crate::db::start_transaction;
 use crate::util;
 
 /// birth_time, birth_version, and birth_hostname for a dir/file/symlink
@@ -21,9 +20,9 @@ impl Birth {
     }
 }
 
-/// Create an entry for a directory in the database and return its id
-pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birth) -> Result<i64> {
-    let mut transaction = start_transaction(client)?;
+/// Create an entry for a directory in the database and return its id.
+/// Does not commit the transaction, you must do so yourself.
+pub(crate) fn create_dir(transaction: &mut Transaction, mtime: DateTime<Utc>, birth: &Birth) -> Result<i64> {
     let rows = transaction.query(
         "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
@@ -31,14 +30,13 @@ pub(crate) fn create_dir(client: &mut Client, mtime: DateTime<Utc>, birth: &Birt
     )?;
     let id: i64 = rows[0].get(0);
     assert!(id >= 1);
-    transaction.commit()?;
     Ok(id)
 }
 
-/// Create an entry for a file in the database and return its id
-pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: i64, executable: bool, birth: &Birth) -> Result<i64> {
+/// Create an entry for a file in the database and return its id.
+/// Does not commit the transaction, you must do so yourself.
+pub(crate) fn create_file(transaction: &mut Transaction, mtime: DateTime<Utc>, size: i64, executable: bool, birth: &Birth) -> Result<i64> {
     assert!(size >= 0, "size must be >= 0");
-    let mut transaction = start_transaction(client)?;
     let rows = transaction.query(
         "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
@@ -46,13 +44,12 @@ pub(crate) fn create_file(client: &mut Client, mtime: DateTime<Utc>, size: i64, 
     )?;
     let id: i64 = rows[0].get(0);
     assert!(id >= 1);
-    transaction.commit()?;
     Ok(id)
 }
 
-/// Create an entry for a symlink in the database and return its id
-pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<i64> {
-    let mut transaction = start_transaction(client)?;
+/// Create an entry for a symlink in the database and return its id.
+/// Does not commit the transaction, you must do so yourself.
+pub(crate) fn create_symlink(transaction: &mut Transaction, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<i64> {
     let rows = transaction.query(
         "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
@@ -60,7 +57,6 @@ pub(crate) fn create_symlink(client: &mut Client, mtime: DateTime<Utc>, target: 
     )?;
     let id: i64 = rows[0].get(0);
     assert!(id >= 1);
-    transaction.commit()?;
     Ok(id)
 }
 
@@ -72,6 +68,7 @@ mod tests {
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
+        use crate::db::start_transaction;
 
         /// Cannot TRUNCATE dirs, files, or symlinks tables
         #[test]
@@ -90,8 +87,8 @@ mod tests {
         #[test]
         fn test_can_change_dir_mutables() -> Result<()> {
             let mut client = get_client();
-            let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
             let mut transaction = start_transaction(&mut client)?;
+            let id = create_dir(&mut transaction, Utc::now(), &Birth::here_and_now())?;
             transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&id])?;
             transaction.commit()?;
             Ok(())
@@ -101,7 +98,9 @@ mod tests {
         #[test]
         fn test_cannot_change_dir_immutables() -> Result<()> {
             let mut client = get_client();
-            let id = create_dir(&mut client, Utc::now(), &Birth::here_and_now())?;
+            let mut transaction = start_transaction(&mut client)?;
+            let id = create_dir(&mut transaction, Utc::now(), &Birth::here_and_now())?;
+            transaction.commit()?;
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
@@ -114,10 +113,12 @@ mod tests {
         /// Can change size, mtime, and executable on a file
         #[test]
         fn test_can_change_file_mutables() -> Result<()> {
-            let mut client = get_client();
             let size = 0;
             let executable = false;
-            let id = create_file(&mut client, Utc::now(), size, executable, &Birth::here_and_now())?;
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let id = create_file(&mut transaction, Utc::now(), size, executable, &Birth::here_and_now())?;
+            transaction.commit()?;
             let mut transaction = start_transaction(&mut client)?;
             transaction.execute("UPDATE files SET mtime = now() WHERE id = $1::bigint", &[&id])?;
             transaction.commit()?;
@@ -133,10 +134,12 @@ mod tests {
         /// Cannot change id, birth_time, birth_version, or birth_hostname on a file
         #[test]
         fn test_cannot_change_file_immutables() -> Result<()> {
-            let mut client = get_client();
             let size = 0;
             let executable = false;
-            let id = create_file(&mut client, Utc::now(), size, executable, &Birth::here_and_now())?;
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let id = create_file(&mut transaction, Utc::now(), size, executable, &Birth::here_and_now())?;
+            transaction.commit()?;
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE files SET {} = {} WHERE id = $1::bigint", column, value);
@@ -149,9 +152,11 @@ mod tests {
         /// Can change mtime on a symlink
         #[test]
         fn test_can_change_symlink_mutables() -> Result<()> {
-            let mut client = get_client();
             let target = "old";
-            let id = create_symlink(&mut client, Utc::now(), target, &Birth::here_and_now())?;
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let id = create_symlink(&mut transaction, Utc::now(), target, &Birth::here_and_now())?;
+            transaction.commit()?;
             let mut transaction = start_transaction(&mut client)?;
             transaction.execute("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint", &[&id])?;
             transaction.commit()?;
@@ -161,9 +166,11 @@ mod tests {
         /// Cannot change id, symlink_target, birth_time, birth_version, or birth_hostname on a symlink
         #[test]
         fn test_cannot_change_symlink_immutables() -> Result<()> {
-            let mut client = get_client();
             let target = "old";
-            let id = create_symlink(&mut client, Utc::now(), target, &Birth::here_and_now())?;
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let id = create_symlink(&mut transaction, Utc::now(), target, &Birth::here_and_now())?;
+            transaction.commit()?;
             for (column, value) in [("id", "100"), ("symlink_target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE symlinks SET {} = {} WHERE id = $1::bigint", column, value);
