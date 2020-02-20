@@ -32,7 +32,6 @@ CREATE TABLE dirs (
     birth_version   smallint          NOT NULL REFERENCES exastash_versions (version_id),
     birth_hostname  hostname          NOT NULL
 );
-REVOKE TRUNCATE ON dirs FROM current_user;
 
 CREATE TABLE files (
     -- Limit of 2T can be raised if needed
@@ -44,7 +43,6 @@ CREATE TABLE files (
     executable      boolean           NOT NULL,
     birth_hostname  hostname          NOT NULL
 );
-REVOKE TRUNCATE ON files FROM current_user;
 
 CREATE TABLE symlinks (
     -- Limit of 2T can be raised if needed
@@ -55,7 +53,6 @@ CREATE TABLE symlinks (
     symlink_target  symlink_pathname  NOT NULL,
     birth_hostname  hostname          NOT NULL
 );
-REVOKE TRUNCATE ON symlinks FROM current_user;
 
 
 CREATE TRIGGER dirs_check_update
@@ -91,3 +88,16 @@ CREATE TRIGGER symlinks_check_update
         OLD.birth_hostname != NEW.birth_hostname
     )
     EXECUTE FUNCTION raise_exception('cannot change id, symlink_target, or birth_* columns');
+
+
+CREATE TRIGGER dirs_forbid_truncate
+    BEFORE TRUNCATE ON dirs
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
+CREATE TRIGGER files_forbid_truncate
+    BEFORE TRUNCATE ON files
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
+CREATE TRIGGER symlinks_forbid_truncate
+    BEFORE TRUNCATE ON symlinks
+    EXECUTE FUNCTION raise_exception('truncate is forbidden');
