@@ -9,6 +9,8 @@ fn postgres_client_production() -> Result<Client> {
     Ok(Client::connect(&database_uri, NoTls)?)
 }
 
+/// Returns a transaction with isolation level serializable and
+/// search_path set to stash.
 fn start_transaction(client: &mut Client) -> Result<Transaction> {
     // PostgreSQL's default Read Committed isolation level allows for too many
     // anomalies, e.g. "two successive SELECT commands can see different data"
