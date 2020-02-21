@@ -64,7 +64,7 @@ CREATE TRIGGER dirs_check_update
         OLD.birth_version  != NEW.birth_version  OR
         OLD.birth_hostname != NEW.birth_hostname
     )
-    EXECUTE FUNCTION raise_exception('cannot change id or birth_* columns');
+    EXECUTE FUNCTION raise_exception('cannot change id or birth_*');
 
 CREATE TRIGGER files_check_update
     BEFORE UPDATE ON files
@@ -75,7 +75,7 @@ CREATE TRIGGER files_check_update
         OLD.birth_version  != NEW.birth_version  OR
         OLD.birth_hostname != NEW.birth_hostname
     )
-    EXECUTE FUNCTION raise_exception('cannot change id or birth_* columns');
+    EXECUTE FUNCTION raise_exception('cannot change id or birth_*');
 
 CREATE TRIGGER symlinks_check_update
     BEFORE UPDATE ON symlinks
@@ -87,7 +87,7 @@ CREATE TRIGGER symlinks_check_update
         OLD.birth_version  != NEW.birth_version  OR
         OLD.birth_hostname != NEW.birth_hostname
     )
-    EXECUTE FUNCTION raise_exception('cannot change id, symlink_target, or birth_* columns');
+    EXECUTE FUNCTION raise_exception('cannot change id, symlink_target, or birth_*');
 
 
 CREATE TRIGGER dirs_forbid_truncate

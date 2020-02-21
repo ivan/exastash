@@ -117,5 +117,67 @@ mod tests {
 
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
+        use super::*;
+
+        /// Cannot have child_dir equal to parent
+        #[test]
+        fn test_cannot_have_child_dir_equal_to_parent() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            let result = create_dirent(&mut transaction, parent, &Dirent::new("self".to_owned(), parent));
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: new row for relation \"dirents\" violates check constraint \"dirents_check\"");
+
+            Ok(())
+        }
+
+        /// Cannot update
+        #[test]
+        fn test_cannot_update() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            create_dirent(&mut transaction, parent, &Dirent::new("child_dir".to_owned(), child_dir))?;
+            transaction.commit()?;
+
+            for (column, value) in [("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")].iter() {
+                let mut transaction = start_transaction(&mut client)?;
+                let query = format!("UPDATE dirents SET {} = {} WHERE parent = $1::bigint AND child_dir = $2::bigint", column, value);
+                let result = transaction.execute(query.as_str(), &[&parent.to_dir_id()?, &child_dir.to_dir_id()?]);
+                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change parent, basename, or child_*");
+            }
+
+            Ok(())
+        }
+
+        /// Cannot truncate
+        #[test]
+        fn test_cannot_truncate() -> Result<()> {
+            Ok(())
+        }
+
+        /// Directory cannot be a child of more than one parent
+        #[test]
+        fn test_directory_cannot_be_multiparented() -> Result<()> {
+            Ok(())
+        }
+
+        /// Basename cannot be "", "/", ".", or ".."
+        #[test]
+        fn test_basename_cannot_be_specials() -> Result<()> {
+            Ok(())
+        }
+
+        /// Basename cannot be > 255 bytes
+        #[test]
+        fn test_basename_cannot_be_too_long() -> Result<()> {
+            Ok(())
+        }
     }
 }
