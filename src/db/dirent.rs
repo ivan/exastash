@@ -135,7 +135,7 @@ mod tests {
             Ok(())
         }
 
-        /// Cannot update
+        /// Cannot UPDATE any row in dirents table
         #[test]
         fn test_cannot_update() -> Result<()> {
             let mut client = get_client();
@@ -156,15 +156,59 @@ mod tests {
             Ok(())
         }
 
-        /// Cannot truncate
+        /// Cannot TRUNCATE dirents table
         #[test]
         fn test_cannot_truncate() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            create_dirent(&mut transaction, parent, &Dirent::new("child_dir".to_owned(), child_dir))?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            let result = transaction.execute("TRUNCATE dirents", &[]);
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
+
+            Ok(())
+        }
+
+        /// Directory cannot be a child twice in some directory
+        #[test]
+        fn test_directory_cannot_have_more_than_one_basename() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            create_dirent(&mut transaction, parent, &Dirent::new("child_dir".to_owned(), child_dir))?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            let result = create_dirent(&mut transaction, parent, &Dirent::new("child_dir_again".to_owned(), child_dir));
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\"");
+
             Ok(())
         }
 
         /// Directory cannot be a child of more than one parent
         #[test]
         fn test_directory_cannot_be_multiparented() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let middle = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let child = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            create_dirent(&mut transaction, parent, &Dirent::new("middle".to_owned(), middle))?;
+            create_dirent(&mut transaction, middle, &Dirent::new("child".to_owned(), child))?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            let result = create_dirent(&mut transaction, parent, &Dirent::new("child".to_owned(), child));
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\"");
+
             Ok(())
         }
 
