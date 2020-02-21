@@ -213,14 +213,22 @@ mod tests {
         }
 
         /// Basename cannot be "", "/", ".", or ".."
-        #[test]
-        fn test_basename_cannot_be_specials() -> Result<()> {
-            Ok(())
-        }
-
         /// Basename cannot be > 255 bytes
         #[test]
-        fn test_basename_cannot_be_too_long() -> Result<()> {
+        fn test_basename_cannot_be_specials_or_too_long() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let child = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            transaction.commit()?;
+
+            for basename in ["", "/", ".", "..", &"x".repeat(256)].iter() {
+                let mut transaction = start_transaction(&mut client)?;
+                let result = create_dirent(&mut transaction, parent, &Dirent::new(basename.to_string(), child));
+                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: value for domain linux_basename violates check constraint \"linux_basename_check\"");
+            }
+
             Ok(())
         }
     }
