@@ -12,21 +12,21 @@ pub(crate) enum Inode {
 }
 
 impl Inode {
-    pub(crate) fn to_dir_id(self) -> Result<i64> {
+    pub(crate) fn dir_id(self) -> Result<i64> {
         match self {
             Inode::Dir(id) => Ok(id),
             _ => bail!("{:?} is not a dir", self),
         }
     }
 
-    pub(crate) fn to_file_id(self) -> Result<i64> {
+    pub(crate) fn file_id(self) -> Result<i64> {
         match self {
             Inode::File(id) => Ok(id),
             _ => bail!("{:?} is not a file", self),
         }
     }
 
-    pub(crate) fn to_symlink_id(self) -> Result<i64> {
+    pub(crate) fn symlink_id(self) -> Result<i64> {
         match self {
             Inode::Symlink(id) => Ok(id),
             _ => bail!("{:?} is not a symlink", self),
@@ -120,7 +120,7 @@ mod tests {
             let mut client = get_client();
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dir(&mut transaction, Utc::now(), &Birth::here_and_now())?;
-            transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&inode.to_dir_id()?])?;
+            transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&inode.dir_id()?])?;
             transaction.commit()?;
             Ok(())
         }
@@ -135,7 +135,7 @@ mod tests {
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&inode.to_dir_id()?]);
+                let result = transaction.execute(query.as_str(), &[&inode.dir_id()?]);
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_*");
             }
             Ok(())
@@ -151,13 +151,13 @@ mod tests {
             let inode = create_file(&mut transaction, Utc::now(), size, executable, &Birth::here_and_now())?;
             transaction.commit()?;
             let mut transaction = start_transaction(&mut client)?;
-            transaction.execute("UPDATE files SET mtime = now() WHERE id = $1::bigint", &[&inode.to_file_id()?])?;
+            transaction.execute("UPDATE files SET mtime = now() WHERE id = $1::bigint", &[&inode.file_id()?])?;
             transaction.commit()?;
             let mut transaction = start_transaction(&mut client)?;
-            transaction.execute("UPDATE files SET size = 100000 WHERE id = $1::bigint", &[&inode.to_file_id()?])?;
+            transaction.execute("UPDATE files SET size = 100000 WHERE id = $1::bigint", &[&inode.file_id()?])?;
             transaction.commit()?;
             let mut transaction = start_transaction(&mut client)?;
-            transaction.execute("UPDATE files SET executable = true WHERE id = $1::bigint", &[&inode.to_file_id()?])?;
+            transaction.execute("UPDATE files SET executable = true WHERE id = $1::bigint", &[&inode.file_id()?])?;
             transaction.commit()?;
             Ok(())
         }
@@ -174,7 +174,7 @@ mod tests {
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE files SET {} = {} WHERE id = $1::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&inode.to_file_id()?]);
+                let result = transaction.execute(query.as_str(), &[&inode.file_id()?]);
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_*");
             }
             Ok(())
@@ -189,7 +189,7 @@ mod tests {
             let inode = create_symlink(&mut transaction, Utc::now(), target, &Birth::here_and_now())?;
             transaction.commit()?;
             let mut transaction = start_transaction(&mut client)?;
-            transaction.execute("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint", &[&inode.to_symlink_id()?])?;
+            transaction.execute("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint", &[&inode.symlink_id()?])?;
             transaction.commit()?;
             Ok(())
         }
@@ -205,7 +205,7 @@ mod tests {
             for (column, value) in [("id", "100"), ("symlink_target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE symlinks SET {} = {} WHERE id = $1::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&inode.to_symlink_id()?]);
+                let result = transaction.execute(query.as_str(), &[&inode.symlink_id()?]);
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, symlink_target, or birth_*");
             }
             Ok(())

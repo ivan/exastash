@@ -1,5 +1,5 @@
 use crate::db::inode::Inode;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use postgres::Transaction;
 
 /// A (dir, file, symlink) tuple that is useful when interacting with
@@ -45,10 +45,7 @@ impl Dirent {
 /// Create a directory entry.
 /// Does not commit the transaction, you must do so yourself.
 pub(crate) fn create_dirent(transaction: &mut Transaction, parent: Inode, dirent: &Dirent) -> Result<()> {
-    let parent_id = match parent {
-        Inode::Dir(id) => id,
-        _ => bail!("parent must be a directory"),
-    };
+    let parent_id = parent.dir_id()?;
     let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode(dirent.child);
     transaction.execute(
         "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
@@ -60,14 +57,10 @@ pub(crate) fn create_dirent(transaction: &mut Transaction, parent: Inode, dirent
 
 /// Returns the children of a directory.
 pub(crate) fn list_dir(transaction: &mut Transaction, parent: Inode) -> Result<Vec<Dirent>> {
-    let parent_id = match parent {
-        Inode::Dir(id) => id,
-        _ => bail!("parent must be a directory"),
-    };
-
+    let parent_id = parent.dir_id()?;
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT basename, child_dir, child_file, child_symlink FROM dirents WHERE parent = $1::bigint", &[&parent_id])?;
-    let mut out = vec![];
+    let mut out = Vec::with_capacity(rows.len());
     for row in rows {
         let basename: String = row.get(0);
         let tuple = InodeTuple(row.get(1), row.get(2), row.get(3));
@@ -149,7 +142,7 @@ mod tests {
             for (column, value) in [("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE dirents SET {} = {} WHERE parent = $1::bigint AND child_dir = $2::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&parent.to_dir_id()?, &child_dir.to_dir_id()?]);
+                let result = transaction.execute(query.as_str(), &[&parent.dir_id()?, &child_dir.dir_id()?]);
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change parent, basename, or child_*");
             }
 
