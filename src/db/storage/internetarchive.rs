@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use postgres::Transaction;
 use crate::db::inode::Inode;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Storage {
     ia_item: String,
     pathname: String,
@@ -40,9 +41,16 @@ pub(crate) fn get_storage(transaction: &mut Transaction, inode: Inode) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::inode;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
+    use crate::db::inode::{create_file, Birth};
+
+    fn create_dummy_file(transaction: &mut Transaction) -> Result<Inode> {
+        let mtime = Utc::now();
+        let size = 0;
+        let executable = false;
+        create_file(transaction, mtime, size, executable, &Birth::here_and_now())
+    }
 
     mod api {
         use super::*;
@@ -52,6 +60,13 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            let storage = Storage { ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
+            create_storage(&mut transaction, inode, &storage)?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            assert_eq!(get_storage(&mut transaction, inode)?, vec![storage]);
 
             Ok(())
         }
@@ -60,14 +75,6 @@ mod tests {
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
-        use crate::db::inode::{create_file, Birth};
-
-        fn create_dummy_file(transaction: &mut Transaction) -> Result<Inode> {
-            let mtime = Utc::now();
-            let size = 0;
-            let executable = false;
-            create_file(transaction, mtime, size, executable, &Birth::here_and_now())
-        }
 
         /// Cannot TRUNCATE storage_internetarchive table
         #[test]
