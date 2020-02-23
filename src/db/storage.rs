@@ -16,8 +16,8 @@ pub(crate) enum Storage {
 pub(crate) fn get_storage(transaction: &mut Transaction, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id();
 
-    //let inline = inline::get_storage(transaction, inode)?;
-    //let gdrive = gdrive::get_storage(transaction, inode)?;
+    let inline = inline::get_storage(transaction, inode)?;
+    let gdrive = gdrive::get_storage(transaction, inode)?;
     let internetarchive = internetarchive::get_storage(transaction, inode)?;
 
     Ok(vec![])

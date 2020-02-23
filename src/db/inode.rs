@@ -92,10 +92,17 @@ pub(crate) fn create_symlink(transaction: &mut Transaction, mtime: DateTime<Utc>
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
+
+    pub(crate) fn create_dummy_file(transaction: &mut Transaction) -> Result<Inode> {
+        let mtime = Utc::now();
+        let size = 0;
+        let executable = false;
+        create_file(transaction, mtime, size, executable, &Birth::here_and_now())
+    }
 
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {

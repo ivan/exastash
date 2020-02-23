@@ -44,17 +44,25 @@ mod tests {
     use crate::util;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
-    use crate::db::inode::{create_file, Birth};
-
-    fn create_dummy_file(transaction: &mut Transaction) -> Result<Inode> {
-        let mtime = Utc::now();
-        let size = 0;
-        let executable = false;
-        create_file(transaction, mtime, size, executable, &Birth::here_and_now())
-    }
+    use crate::db::inode::tests::create_dummy_file;
 
     mod api {
         use super::*;
+
+        /// If there is no internetarchive storage for a file, get_storage returns an empty Vec
+        #[test]
+        fn test_no_storage() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            assert_eq!(get_storage(&mut transaction, inode)?, vec![]);
+
+            Ok(())
+        }
 
         /// If we add one internetarchive storage for a file, get_storage returns just that storage
         #[test]
