@@ -55,6 +55,7 @@ mod tests {
     mod api {
         use super::*;
 
+        /// If we add one internetarchive storage for a file, get_storage returns just that storage
         #[test]
         fn test_create_storage_and_get_storage() -> Result<()> {
             let mut client = get_client();
@@ -67,6 +68,25 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             assert_eq!(get_storage(&mut transaction, inode)?, vec![storage]);
+
+            Ok(())
+        }
+
+        /// If we add multiple internetarchive storage for a file, get_storage returns those storages
+        #[test]
+        fn test_multiple_create_storage_and_get_storage() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            let storage1 = Storage { ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None };
+            let storage2 = Storage { ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: None };
+            create_storage(&mut transaction, inode, &storage1)?;
+            create_storage(&mut transaction, inode, &storage2)?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            assert_eq!(get_storage(&mut transaction, inode)?, vec![storage1, storage2]);
 
             Ok(())
         }
