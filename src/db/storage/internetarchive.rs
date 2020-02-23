@@ -41,6 +41,7 @@ pub(crate) fn get_storage(transaction: &mut Transaction, inode: Inode) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::util;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
     use crate::db::inode::{create_file, Birth};
@@ -80,7 +81,7 @@ mod tests {
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
             let storage1 = Storage { ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None };
-            let storage2 = Storage { ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: None };
+            let storage2 = Storage { ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) };
             create_storage(&mut transaction, inode, &storage1)?;
             create_storage(&mut transaction, inode, &storage2)?;
             transaction.commit()?;
