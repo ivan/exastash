@@ -11,11 +11,11 @@ CREATE DOMAIN ia_pathname AS text
     );
 
 CREATE TABLE storage_internetarchive (
-    file_id       bigint       NOT NULL REFERENCES files,
-    ia_item       ia_item      NOT NULL,
-    pathname      ia_pathname  NOT NULL,
-    darked        boolean      NOT NULL DEFAULT false,
-    last_probed   timestamptz,
+    file_id      bigint       NOT NULL REFERENCES files,
+    ia_item      ia_item      NOT NULL,
+    pathname     ia_pathname  NOT NULL,
+    darked       boolean      NOT NULL DEFAULT false,
+    last_probed  timestamptz,
 
     -- We may know of more than one item that has the file.
     PRIMARY KEY (file_id, ia_item)
