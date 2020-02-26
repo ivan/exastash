@@ -77,7 +77,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain")?;
+            let owner_id = create_owner(&mut transaction, "me@domain1")?;
             let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner_id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
             let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) };
             create_gdrive_file(&mut transaction, &file1)?;
@@ -102,7 +102,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain1")?;
+            let owner_id = create_owner(&mut transaction, "me@domain2")?;
             let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;
@@ -124,7 +124,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain2")?;
+            let owner_id = create_owner(&mut transaction, "me@domain3")?;
             let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;
