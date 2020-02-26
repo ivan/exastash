@@ -109,7 +109,7 @@ CREATE TABLE gdrive_storage (
     gsuite_domain  smallint     NOT NULL REFERENCES gsuite_domains (id),
     -- An sequence of encrypted chunks stored in Google Drive
     --
-    -- Imagine a REFERENCES on on gdrive_files (file_id) here; PostgreSQL 12 doesn't
+    -- Imagine a REFERENCES on on gdrive_files (id) here; PostgreSQL 12 doesn't
     -- support it for array elements, so we have two triggers to emulate it.
     gdrive_ids     gdrive_id[]  NOT NULL CHECK (cardinality(gdrive_ids) >= 1),
 
