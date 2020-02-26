@@ -78,9 +78,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let owner_id = create_owner(&mut transaction, "me@domain")?;
-            let md5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-            let file1 = GdriveFile { id: "A".repeat(28), owner_id: Some(owner_id), md5: md5.clone(), crc32c: 0, size: 1, last_probed: None };
-            let file2 = GdriveFile { id: "A".repeat(160), owner_id: None, md5: md5.clone(), crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) };
+            let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner_id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
+            let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) };
             create_gdrive_file(&mut transaction, &file1)?;
             create_gdrive_file(&mut transaction, &file2)?;
             transaction.commit()?;
@@ -104,8 +103,7 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let owner_id = create_owner(&mut transaction, "me@domain1")?;
-            let md5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner_id), md5: md5.clone(), crc32c: 0, size: 1, last_probed: None };
+            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;
 
@@ -127,8 +125,7 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let owner_id = create_owner(&mut transaction, "me@domain2")?;
-            let md5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-            let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner_id), md5: md5.clone(), crc32c: 0, size: 1, last_probed: None };
+            let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;
 
