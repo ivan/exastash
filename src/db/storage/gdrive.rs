@@ -39,13 +39,11 @@ pub(crate) fn get_gdrive_files(transaction: &mut Transaction, ids: &[&str]) -> R
     let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids])?;
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
-        let md5: Md5 = row.get(2);
-        let crc32c: Crc32c = row.get(3);
         let file = GdriveFile {
             id: row.get(0),
             owner_id: row.get(1),
-            md5: md5.bytes,
-            crc32c: crc32c.v,
+            md5: row.get::<_, Md5>(2).bytes,
+            crc32c: row.get::<_, Crc32c>(3).v,
             size: row.get(4),
             last_probed: row.get(5),
         };
