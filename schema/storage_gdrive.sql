@@ -55,7 +55,7 @@ DECLARE
     sequence bigint;
 BEGIN
     -- TODO: make sure index is actually being used for this
-    sequence := (SELECT chunk_sequence FROM gdrive_storage WHERE files @> ARRAY[OLD.file_id] LIMIT 1);
+    sequence := (SELECT chunk_sequence FROM gdrive_storage WHERE gdrive_ids @> ARRAY[OLD.file_id] LIMIT 1);
     IF FOUND THEN
         RAISE EXCEPTION 'file_id still referenced by chunk_sequence=%', sequence;
     END IF;
@@ -111,23 +111,23 @@ CREATE TABLE gdrive_storage (
     --
     -- Imagine a REFERENCES on on gdrive_files (file_id) here; PostgreSQL 12 doesn't
     -- support it for array elements, so we have two triggers to emulate it.
-    files          gdrive_id[]  NOT NULL CHECK (cardinality(files) >= 1),
+    gdrive_ids     gdrive_id[]  NOT NULL CHECK (cardinality(gdrive_ids) >= 1),
 
     -- We don't need more than one of these per this triple.
     PRIMARY KEY (file_id, gsuite_domain, cipher)
 );
 
-CREATE INDEX gdrive_file_id_index ON gdrive_storage USING GIN (files);
+CREATE INDEX gdrive_gdrive_ids_index ON gdrive_storage USING GIN (gdrive_ids);
 
 CREATE OR REPLACE FUNCTION assert_files_exist_in_gdrive_files() RETURNS trigger AS $$
 DECLARE
     file_count integer;
 BEGIN
-    -- This catches not only missing files but also duplicate entries in NEW.files
-    file_count := (SELECT COUNT(id) FROM gdrive_files WHERE id IN (SELECT unnest(NEW.files)));
-    IF file_count != cardinality(NEW.files) THEN
-        RAISE EXCEPTION 'files array had % files: % but only % of these are in gdrive_files',
-            cardinality(NEW.files), NEW.files, file_count;
+    -- This catches not only missing gdrive_ids but also duplicate entries in NEW.gdrive_ids
+    file_count := (SELECT COUNT(id) FROM gdrive_files WHERE id IN (SELECT unnest(NEW.gdrive_ids)));
+    IF file_count != cardinality(NEW.gdrive_ids) THEN
+        RAISE EXCEPTION 'gdrive_ids had % ids: % but only % of these are in gdrive_files',
+            cardinality(NEW.gdrive_ids), NEW.gdrive_ids, file_count;
     END IF;
     RETURN NEW;
 END;
@@ -141,7 +141,7 @@ CREATE TRIGGER gdrive_storage_check_files
 CREATE TRIGGER gdrive_storage_check_update
     BEFORE UPDATE ON gdrive_storage
     FOR EACH ROW
-    EXECUTE FUNCTION raise_exception('cannot change file_id, gsuite_domain, cipher, cipher_key, or files');
+    EXECUTE FUNCTION raise_exception('cannot change file_id, gsuite_domain, cipher, cipher_key, or gdrive_ids');
 
 CREATE TRIGGER gdrive_storage_forbid_truncate
     BEFORE TRUNCATE ON gdrive_storage
