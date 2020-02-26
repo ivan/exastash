@@ -13,7 +13,7 @@ fn postgres_client_production() -> Result<Client> {
 
 /// Returns a transaction with isolation level serializable and
 /// search_path set to stash.
-fn start_transaction(client: &mut Client) -> Result<Transaction> {
+fn start_transaction(client: &mut Client) -> Result<Transaction<'_>> {
     // PostgreSQL's default Read Committed isolation level allows for too many
     // anomalies, e.g. "two successive SELECT commands can see different data"
     // https://www.postgresql.org/docs/12/transaction-iso.html

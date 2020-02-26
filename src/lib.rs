@@ -1,3 +1,6 @@
+//! exastash, a filesystem for archiving petabytes
+
+#![warn(missing_docs, rust_2018_idioms, clippy::all)]
 // TODO: remove after initial development
 #![allow(dead_code)]
 #![allow(unused_variables)]

@@ -11,7 +11,7 @@ pub(crate) struct Storage {
     last_probed: Option<DateTime<Utc>>,
 }
 
-pub(crate) fn create_storage(transaction: &mut Transaction, inode: Inode, storage: &Storage) -> Result<()> {
+pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
     transaction.execute(
         "INSERT INTO storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
@@ -21,7 +21,7 @@ pub(crate) fn create_storage(transaction: &mut Transaction, inode: Inode, storag
     Ok(())
 }
 
-pub(crate) fn get_storage(transaction: &mut Transaction, inode: Inode) -> Result<Vec<Storage>> {
+pub(crate) fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT ia_item, pathname, darked, last_probed FROM storage_internetarchive WHERE file_id = $1::bigint", &[&file_id])?;

@@ -7,7 +7,7 @@ pub(crate) struct Storage {
     content: Vec<u8>,
 }
 
-pub(crate) fn create_storage(transaction: &mut Transaction, inode: Inode, storage: &Storage) -> Result<()> {
+pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
     transaction.execute(
         "INSERT INTO storage_inline (file_id, content)
@@ -17,7 +17,7 @@ pub(crate) fn create_storage(transaction: &mut Transaction, inode: Inode, storag
     Ok(())
 }
 
-pub(crate) fn get_storage(transaction: &mut Transaction, inode: Inode) -> Result<Vec<Storage>> {
+pub(crate) fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT content FROM storage_inline WHERE file_id = $1::bigint", &[&file_id])?;

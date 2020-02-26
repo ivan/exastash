@@ -44,7 +44,7 @@ impl Dirent {
 
 /// Create a directory entry.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_dirent(transaction: &mut Transaction, parent: Inode, dirent: &Dirent) -> Result<()> {
+pub(crate) fn create_dirent(transaction: &mut Transaction<'_>, parent: Inode, dirent: &Dirent) -> Result<()> {
     let parent_id = parent.dir_id()?;
     let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode(dirent.child);
     transaction.execute(
@@ -56,7 +56,7 @@ pub(crate) fn create_dirent(transaction: &mut Transaction, parent: Inode, dirent
 }
 
 /// Returns the children of a directory.
-pub(crate) fn list_dir(transaction: &mut Transaction, parent: Inode) -> Result<Vec<Dirent>> {
+pub(crate) fn list_dir(transaction: &mut Transaction<'_>, parent: Inode) -> Result<Vec<Dirent>> {
     let parent_id = parent.dir_id()?;
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT basename, child_dir, child_file, child_symlink FROM dirents WHERE parent = $1::bigint", &[&parent_id])?;

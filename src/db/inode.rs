@@ -53,7 +53,7 @@ impl Birth {
 
 /// Create an entry for a directory in the database and return its id.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_dir(transaction: &mut Transaction, mtime: DateTime<Utc>, birth: &Birth) -> Result<Inode> {
+pub(crate) fn create_dir(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, birth: &Birth) -> Result<Inode> {
     let rows = transaction.query(
         "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
@@ -66,7 +66,7 @@ pub(crate) fn create_dir(transaction: &mut Transaction, mtime: DateTime<Utc>, bi
 
 /// Create an entry for a file in the database and return its id.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_file(transaction: &mut Transaction, mtime: DateTime<Utc>, size: i64, executable: bool, birth: &Birth) -> Result<Inode> {
+pub(crate) fn create_file(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, size: i64, executable: bool, birth: &Birth) -> Result<Inode> {
     assert!(size >= 0, "size must be >= 0");
     let rows = transaction.query(
         "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
@@ -80,7 +80,7 @@ pub(crate) fn create_file(transaction: &mut Transaction, mtime: DateTime<Utc>, s
 
 /// Create an entry for a symlink in the database and return its id.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_symlink(transaction: &mut Transaction, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<Inode> {
+pub(crate) fn create_symlink(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<Inode> {
     let rows = transaction.query(
         "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
@@ -97,7 +97,7 @@ pub(crate) mod tests {
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
 
-    pub(crate) fn create_dummy_file(transaction: &mut Transaction) -> Result<Inode> {
+    pub(crate) fn create_dummy_file(transaction: &mut Transaction<'_>) -> Result<Inode> {
         let mtime = Utc::now();
         let size = 0;
         let executable = false;

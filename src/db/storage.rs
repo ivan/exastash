@@ -13,7 +13,7 @@ pub(crate) enum Storage {
 }
 
 /// Returns a list of places where the data for a file can be retrieved
-pub(crate) fn get_storage(transaction: &mut Transaction, inode: Inode) -> Result<Vec<Storage>> {
+pub(crate) fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id();
 
     let inline = inline::get_storage(transaction, inode)?;

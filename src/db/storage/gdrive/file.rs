@@ -5,7 +5,7 @@ use crate::postgres::{Md5, Crc32c};
 
 /// Create a gdrive_owner in the database.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_owner(transaction: &mut Transaction, owner: &str) -> Result<i32> {
+pub(crate) fn create_owner(transaction: &mut Transaction<'_>, owner: &str) -> Result<i32> {
     let rows = transaction.query("INSERT INTO gdrive_owners (owner) VALUES ($1::text) RETURNING id", &[&owner])?;
     let id = rows.get(0).unwrap().get(0);
     Ok(id)
@@ -23,7 +23,7 @@ pub(crate) struct GdriveFile {
 
 /// Create a gdrive_file in the database.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_gdrive_file(transaction: &mut Transaction, file: &GdriveFile) -> Result<()> {
+pub(crate) fn create_gdrive_file(transaction: &mut Transaction<'_>, file: &GdriveFile) -> Result<()> {
     transaction.execute(
         "INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
          VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)",
@@ -33,7 +33,7 @@ pub(crate) fn create_gdrive_file(transaction: &mut Transaction, file: &GdriveFil
 }
 
 /// Returns gdrive files with matching ids.
-pub(crate) fn get_gdrive_files(transaction: &mut Transaction, ids: &[&str]) -> Result<Vec<GdriveFile>> {
+pub(crate) fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids])?;
     let mut out = Vec::with_capacity(rows.len());
