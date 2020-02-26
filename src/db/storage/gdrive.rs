@@ -94,4 +94,51 @@ mod tests {
             Ok(())
         }
     }
+
+    // Testing our .sql from Rust, not testing our Rust
+    mod schema_internals {
+        use super::*;
+
+        /// Cannot UPDATE any row in gdrive_files table
+        #[test]
+        fn test_cannot_update() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let owner_id = create_owner(&mut transaction, "me@domain1")?;
+            let md5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner_id), md5: md5.clone(), crc32c: 0, size: 1, last_probed: None };
+            create_gdrive_file(&mut transaction, &file)?;
+            transaction.commit()?;
+
+            let new_id = format!("'{}'", "C".repeat(28));
+            for (column, value) in [("id", new_id.as_str()), ("md5", "'0000-0000-0000-0000-0000-0000-0000-0001'::uuid"), ("crc32c", "1"), ("size", "2")].iter() {
+                let mut transaction = start_transaction(&mut client)?;
+                let query = format!("UPDATE gdrive_files SET {} = {} WHERE id = $1", column, value);
+                let result = transaction.execute(query.as_str(), &[&file.id]);
+                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, md5, crc32c, or size");
+            }
+
+            Ok(())
+        }
+
+        /// Cannot TRUNCATE gdrive_files table
+        #[test]
+        fn test_cannot_truncate() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let owner_id = create_owner(&mut transaction, "me@domain2")?;
+            let md5 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner_id), md5: md5.clone(), crc32c: 0, size: 1, last_probed: None };
+            create_gdrive_file(&mut transaction, &file)?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            let result = transaction.execute("TRUNCATE gdrive_files", &[]);
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
+
+            Ok(())
+        }
+    }
 }
