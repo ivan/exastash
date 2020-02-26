@@ -168,11 +168,15 @@ name = "exastash"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "byteorder",
+ "bytes",
  "chrono",
  "gethostname",
  "num",
  "once_cell",
  "postgres",
+ "postgres-protocol",
+ "postgres-types",
  "structopt",
  "tokio-postgres",
 ]

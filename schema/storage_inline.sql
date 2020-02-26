@@ -1,6 +1,7 @@
 CREATE TABLE storage_inline (
     file_id  bigint PRIMARY KEY REFERENCES files (id),
-    content  bytea  NOT NULL
+    -- check length > 0 because there is no need to store empty content
+    content  bytea  NOT NULL CHECK (length(content) > 0)
 );
 
 CREATE TRIGGER storage_inline_check_update
