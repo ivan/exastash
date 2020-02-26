@@ -150,11 +150,13 @@ CREATE TRIGGER gsuite_domains_forbid_truncate
 CREATE TABLE storage_gdrive (
     file_id         bigint    NOT NULL REFERENCES files (id),
     chunk_sequence  bigint    NOT NULL REFERENCES gdrive_chunk_sequences,
+    -- This is on storage_gdrive because we might want to store some files into
+    -- multiple gsuite domains for redundancy, and because we would have no need
+    -- to spread one chunk sequence across multiple accounts.
     gsuite_domain   smallint  NOT NULL REFERENCES gsuite_domains (id),
 
-    -- Include chunk_sequence in the key because we might want to reupload
-    -- some chunk sequences in a new format.
-    PRIMARY KEY (file_id, gsuite_domain, chunk_sequence)
+    -- We might have more than one chunk_sequence for a file.
+    PRIMARY KEY (file_id, chunk_sequence)
 );
 
 CREATE TRIGGER storage_gdrive_check_update
