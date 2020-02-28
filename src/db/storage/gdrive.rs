@@ -123,7 +123,10 @@ mod tests {
             create_domain(&mut transaction, "example.org")?;
             let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
             let result = create_storage(&mut transaction, inode, &storage);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: gdrive_ids had 1 ids: {FileNeverAddedToDatabase} but only 0 of these are in gdrive_files");
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: gdrive_ids had 1 ids: {FileNeverAddedToDatabase} but only 0 of these are in gdrive_files"
+            );
 
             Ok(())
         }
@@ -141,7 +144,10 @@ mod tests {
             create_domain(&mut transaction, "example.org")?;
             let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
             let result = create_storage(&mut transaction, inode, &storage);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: gdrive_ids had 2 ids: {FFFFFFFFFFFFFFFFFFFFFFFFFFFF,FileNeverAddedToDatabase} but only 1 of these are in gdrive_files");
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: gdrive_ids had 2 ids: {FFFFFFFFFFFFFFFFFFFFFFFFFFFF,FileNeverAddedToDatabase} but only 1 of these are in gdrive_files"
+            );
 
             Ok(())
         }
@@ -156,7 +162,10 @@ mod tests {
             create_domain(&mut transaction, "example.org")?;
             let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
             let result = create_storage(&mut transaction, inode, &storage);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: new row for relation \"storage_gdrive\" violates check constraint \"storage_gdrive_gdrive_ids_check\"");
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: new row for relation \"storage_gdrive\" violates check constraint \"storage_gdrive_gdrive_ids_check\""
+            );
 
             Ok(())
         }
@@ -196,7 +205,10 @@ mod tests {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE storage_gdrive SET {} = {} WHERE file_id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&inode.file_id()?]);
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id, gsuite_domain, cipher, cipher_key, or gdrive_ids");
+                assert_eq!(
+                    result.err().expect("expected an error").to_string(),
+                    "db error: ERROR: cannot change file_id, gsuite_domain, cipher, cipher_key, or gdrive_ids"
+                );
             }
 
             Ok(())
