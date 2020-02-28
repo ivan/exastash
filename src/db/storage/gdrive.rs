@@ -85,11 +85,11 @@ mod tests {
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
     use crate::db::inode::tests::create_dummy_file;
+    use file::{create_gdrive_file, GdriveFile};
     use crate::util;
 
     mod api {
         use super::*;
-        use file::{create_gdrive_file, GdriveFile};
 
         #[test]
         fn test_create_storage_get_storage() -> Result<()> {
@@ -97,8 +97,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
-            let file1 = GdriveFile { id: "Z".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
-            let file2 = GdriveFile { id: "Z".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None };
+            let file1 = GdriveFile { id: "X".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
+            let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None };
             create_gdrive_file(&mut transaction, &file1)?;
             create_gdrive_file(&mut transaction, &file2)?;
             create_domain(&mut transaction, "example.org")?;
@@ -108,6 +108,20 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             assert_eq!(get_storage(&mut transaction, inode)?, vec![storage]);
+
+            Ok(())
+        }
+
+        /// Cannot have empty gdrive_files
+        fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            create_domain(&mut transaction, "example.org")?;
+            let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
+            let result = create_storage(&mut transaction, inode, &storage);
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: xxx");
 
             Ok(())
         }
@@ -123,8 +137,32 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            let id1 = "Y".repeat(28);
+            let id2 = "Z".repeat(28);
+            let file1 = GdriveFile { id: id1.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            let file2 = GdriveFile { id: id2.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            create_gdrive_file(&mut transaction, &file1)?;
+            create_gdrive_file(&mut transaction, &file2)?;
+            create_domain(&mut transaction, "example2.org")?;
+            let storage = Storage { gsuite_domain: "example2.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
+            create_storage(&mut transaction, inode, &storage)?;
+            transaction.commit()?;
 
-            // TODO test stuff
+            let pairs = [
+                ("file_id", "100"),
+                ("gsuite_domain", "100"),
+                ("cipher", "'AES_128_CTR'::cipher"),
+                ("cipher_key", "'1111-1111-1111-1111-1111-1111-1111-1111'::uuid"),
+                ("gdrive_ids", &format!("'{{\"{}\",\"{}\"}}'::text[]", id1, id2))
+            ];
+
+            for (column, value) in pairs.iter() {
+                let mut transaction = start_transaction(&mut client)?;
+                let query = format!("UPDATE storage_gdrive SET {} = {} WHERE file_id = $1::bigint", column, value);
+                let result = transaction.execute(query.as_str(), &[&inode.file_id()?]);
+                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id, gsuite_domain, cipher, cipher_key, or gdrive_ids");
+            }
 
             Ok(())
         }
