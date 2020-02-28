@@ -5,22 +5,22 @@ use byteorder::{BigEndian, ReadBytesExt};
 use postgres_types::{Type, FromSql, ToSql, IsNull, accepts, to_sql_checked};
 use postgres_protocol::types;
 
-/// MD5 hash stored in a PostgreSQL uuid
+/// 16 bytes stored in a PostgreSQL uuid
 #[derive(Debug)]
-pub(crate) struct Md5 {
+pub(crate) struct SixteenBytes {
     pub bytes: [u8; 16]
 }
 
-impl<'a> FromSql<'a> for Md5 {
-    fn from_sql(_: &Type, raw: &[u8]) -> std::result::Result<Md5, Box<dyn std::error::Error + Sync + Send>> {
+impl<'a> FromSql<'a> for SixteenBytes {
+    fn from_sql(_: &Type, raw: &[u8]) -> std::result::Result<SixteenBytes, Box<dyn std::error::Error + Sync + Send>> {
         let bytes = types::uuid_from_sql(raw)?;
-        Ok(Md5 { bytes })
+        Ok(SixteenBytes { bytes })
     }
 
     accepts!(UUID);
 }
 
-impl ToSql for Md5 {
+impl ToSql for SixteenBytes {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
         types::uuid_to_sql(self.bytes, w);
         Ok(IsNull::No)

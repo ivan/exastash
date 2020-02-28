@@ -1,7 +1,8 @@
-use anyhow::Result;
+use std::collections::HashMap;
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use postgres::Transaction;
-use crate::postgres::{Md5, Crc32c};
+use crate::postgres::{SixteenBytes, Crc32c};
 
 /// Create a gdrive_owner in the database.
 /// Does not commit the transaction, you must do so yourself.
@@ -27,25 +28,30 @@ pub(crate) fn create_gdrive_file(transaction: &mut Transaction<'_>, file: &Gdriv
     transaction.execute(
         "INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
          VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)",
-        &[&file.id, &file.owner_id, &Md5 { bytes: file.md5 }, &Crc32c { v: file.crc32c }, &file.size, &file.last_probed]
+        &[&file.id, &file.owner_id, &SixteenBytes { bytes: file.md5 }, &Crc32c { v: file.crc32c }, &file.size, &file.last_probed]
     )?;
     Ok(())
 }
 
-/// Returns gdrive files with matching ids.
+/// Returns gdrive files with matching ids, in the same order as the ids.
 pub(crate) fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids])?;
+    let mut map: HashMap<String, GdriveFile> = HashMap::new();
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
         let file = GdriveFile {
             id: row.get(0),
             owner_id: row.get(1),
-            md5: row.get::<_, Md5>(2).bytes,
+            md5: row.get::<_, SixteenBytes>(2).bytes,
             crc32c: row.get::<_, Crc32c>(3).v,
             size: row.get(4),
             last_probed: row.get(5),
         };
+        map.insert(file.id.clone(), file);
+    }
+    for id in ids.iter() {
+        let file = map.remove(id.clone()).ok_or_else(|| anyhow!("duplicate id given"))?;
         out.push(file);
     }
     Ok(out)
@@ -75,7 +81,19 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let files = get_gdrive_files(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref()])?;
-            assert_eq!(files, vec![file1, file2]);
+            assert_eq!(files, vec![file1.clone(), file2.clone()]);
+
+            // Files are returned in the same order as ids
+            let files = get_gdrive_files(&mut transaction, &[file2.id.as_ref(), file1.id.as_ref()])?;
+            assert_eq!(files, vec![file2.clone(), file1.clone()]);
+
+            // Empty list is OK
+            let files = get_gdrive_files(&mut transaction, &[])?;
+            assert_eq!(files, vec![]);
+
+            // Duplicate id is not OK
+            let result = get_gdrive_files(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), file1.id.as_ref()]);
+            assert_eq!(result.err().expect("expected an error").to_string(), "duplicate id given");
 
             Ok(())
         }
