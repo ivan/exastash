@@ -112,6 +112,40 @@ mod tests {
             Ok(())
         }
 
+        /// Cannot reference a nonexistent gdrive file
+        #[test]
+        fn test_cannot_reference_nonexistent_gdrive_file() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            create_domain(&mut transaction, "example.org")?;
+            let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            let result = create_storage(&mut transaction, inode, &storage);
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: gdrive_ids had 1 ids: {FileNeverAddedToDatabase} but only 0 of these are in gdrive_files");
+
+            Ok(())
+        }
+
+        /// Cannot reference a nonexistent gdrive file even when other gdrive files do exist
+        #[test]
+        fn test_cannot_reference_nonexistent_gdrive_file_even_if_some_exist() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            let file1 = GdriveFile { id: "F".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            create_gdrive_file(&mut transaction, &file1)?;
+            let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            create_domain(&mut transaction, "example.org")?;
+            let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            let result = create_storage(&mut transaction, inode, &storage);
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: gdrive_ids had 2 ids: {FFFFFFFFFFFFFFFFFFFFFFFFFFFF,FileNeverAddedToDatabase} but only 1 of these are in gdrive_files");
+
+            Ok(())
+        }
+
         /// Cannot have empty gdrive_files
         #[test]
         fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
