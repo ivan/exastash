@@ -53,9 +53,9 @@ DECLARE
     sequence bigint;
 BEGIN
     -- TODO: make sure index is actually being used for this
-    sequence := (SELECT chunk_sequence FROM storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.file_id] LIMIT 1);
+    sequence := (SELECT file_id FROM storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.id] LIMIT 1);
     IF FOUND THEN
-        RAISE EXCEPTION 'file_id still referenced by chunk_sequence=%', sequence;
+        RAISE EXCEPTION 'gdrive_files=% is still referenced by storage_gdrive=%', OLD.id, file_id;
     END IF;
     RETURN OLD;
 END;
