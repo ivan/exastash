@@ -31,27 +31,27 @@ impl ToSql for SixteenBytes {
 }
 
 
-/// CRC32C stored in a PostgreSQL int
+/// u32 stored in a PostgreSQL int
 #[derive(Debug)]
-pub(crate) struct Crc32c {
-    pub v: u32
+pub(crate) struct UnsignedInt4 {
+    pub value: u32
 }
 
-impl<'a> FromSql<'a> for Crc32c {
-    fn from_sql(_: &Type, mut raw: &[u8]) -> std::result::Result<Crc32c, Box<dyn std::error::Error + Sync + Send>> {
+impl<'a> FromSql<'a> for UnsignedInt4 {
+    fn from_sql(_: &Type, mut raw: &[u8]) -> std::result::Result<UnsignedInt4, Box<dyn std::error::Error + Sync + Send>> {
         if raw.len() != 4 {
             return Err("invalid message length: crc32c size mismatch".into());
         }
-        let v = raw.read_u32::<BigEndian>()?;
-        Ok(Crc32c { v })
+        let value = raw.read_u32::<BigEndian>()?;
+        Ok(UnsignedInt4 { value })
     }
 
     accepts!(INT4);
 }
 
-impl ToSql for Crc32c {
+impl ToSql for UnsignedInt4 {
     fn to_sql(&self, _: &Type, w: &mut BytesMut) -> Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
-        w.put_u32(self.v);
+        w.put_u32(self.value);
         Ok(IsNull::No)
     }
 

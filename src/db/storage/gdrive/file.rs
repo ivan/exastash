@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use postgres::Transaction;
-use crate::postgres::{SixteenBytes, Crc32c};
+use crate::postgres::{SixteenBytes, UnsignedInt4};
 
 /// Create a gdrive_owner in the database.
 /// Does not commit the transaction, you must do so yourself.
@@ -28,7 +28,7 @@ pub(crate) fn create_gdrive_file(transaction: &mut Transaction<'_>, file: &Gdriv
     transaction.execute(
         "INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
          VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)",
-        &[&file.id, &file.owner_id, &SixteenBytes { bytes: file.md5 }, &Crc32c { v: file.crc32c }, &file.size, &file.last_probed]
+        &[&file.id, &file.owner_id, &SixteenBytes { bytes: file.md5 }, &UnsignedInt4 { value: file.crc32c }, &file.size, &file.last_probed]
     )?;
     Ok(())
 }
@@ -51,7 +51,7 @@ pub(crate) fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) 
             id: row.get(0),
             owner_id: row.get(1),
             md5: row.get::<_, SixteenBytes>(2).bytes,
-            crc32c: row.get::<_, Crc32c>(3).v,
+            crc32c: row.get::<_, UnsignedInt4>(3).value,
             size: row.get(4),
             last_probed: row.get(5),
         };
