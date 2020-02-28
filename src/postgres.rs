@@ -40,7 +40,7 @@ pub(crate) struct UnsignedInt4 {
 impl<'a> FromSql<'a> for UnsignedInt4 {
     fn from_sql(_: &Type, mut raw: &[u8]) -> std::result::Result<UnsignedInt4, Box<dyn std::error::Error + Sync + Send>> {
         if raw.len() != 4 {
-            return Err("invalid message length: crc32c size mismatch".into());
+            return Err("expected to get 4 bytes".into());
         }
         let value = raw.read_u32::<BigEndian>()?;
         Ok(UnsignedInt4 { value })
