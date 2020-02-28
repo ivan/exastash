@@ -86,11 +86,11 @@ mod tests {
     use crate::db::tests::get_client;
     use crate::db::inode::tests::create_dummy_file;
     use file::{create_gdrive_file, GdriveFile};
-    use crate::util;
 
     mod api {
         use super::*;
 
+        /// If we add a gdrive storage for a file, get_storage returns that storage
         #[test]
         fn test_create_storage_get_storage() -> Result<()> {
             let mut client = get_client();
@@ -113,6 +113,7 @@ mod tests {
         }
 
         /// Cannot have empty gdrive_files
+        #[test]
         fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
             let mut client = get_client();
 
@@ -121,7 +122,7 @@ mod tests {
             create_domain(&mut transaction, "example.org")?;
             let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
             let result = create_storage(&mut transaction, inode, &storage);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: xxx");
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: new row for relation \"storage_gdrive\" violates check constraint \"storage_gdrive_gdrive_ids_check\"");
 
             Ok(())
         }
@@ -173,8 +174,17 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            create_gdrive_file(&mut transaction, &file)?;
+            create_domain(&mut transaction, "example3.org")?;
+            let storage = Storage { gsuite_domain: "example3.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            create_storage(&mut transaction, inode, &storage)?;
+            transaction.commit()?;
 
-            // TODO test stuff
+            let mut transaction = start_transaction(&mut client)?;
+            let result = transaction.execute("TRUNCATE storage_gdrive", &[]);
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
 
             Ok(())
         }
