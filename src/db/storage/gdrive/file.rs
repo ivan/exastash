@@ -151,6 +151,10 @@ mod tests {
             let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             let domain = create_dummy_domain(&mut transaction)?;
+            // create_storage expects the domain to already be committed
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
             let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
             create_storage(&mut transaction, inode, &storage)?;
             transaction.commit()?;
