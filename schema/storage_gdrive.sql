@@ -50,12 +50,12 @@ CREATE TRIGGER gdrive_files_check_update
 
 CREATE OR REPLACE FUNCTION gdrive_files_not_referenced() RETURNS trigger AS $$
 DECLARE
-    sequence bigint;
+    file_id_ bigint;
 BEGIN
     -- TODO: make sure index is actually being used for this
-    sequence := (SELECT file_id FROM storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.id] LIMIT 1);
-    IF FOUND THEN
-        RAISE EXCEPTION 'gdrive_files=% is still referenced by storage_gdrive=%', OLD.id, file_id;
+    file_id_ := (SELECT file_id FROM storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.id] LIMIT 1);
+    IF file_id_ IS NOT NULL THEN
+        RAISE EXCEPTION 'gdrive_files=% is still referenced by storage_gdrive=%', OLD.id, file_id_;
     END IF;
     RETURN OLD;
 END;

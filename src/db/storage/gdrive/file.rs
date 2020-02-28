@@ -69,6 +69,8 @@ mod tests {
     use super::*;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
+    use crate::db::inode::tests::create_dummy_file;
+    use crate::db::storage::gdrive::{create_domain, create_storage, Storage, Cipher};
     use crate::util;
 
     mod api {
@@ -123,6 +125,31 @@ mod tests {
 
             Ok(())
         }
+
+        // Cannot remove gdrive files that are referenced by storage_gdrive
+        #[test]
+        fn test_cannot_remove_gdrive_files_still_referenced() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let inode = create_dummy_file(&mut transaction)?;
+            let owner_id = create_owner(&mut transaction, "me@domain3")?;
+            let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            create_gdrive_file(&mut transaction, &file)?;
+            create_domain(&mut transaction, "example.com")?;
+            let storage = Storage { gsuite_domain: "example.com".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
+            create_storage(&mut transaction, inode, &storage)?;
+            transaction.commit()?;
+
+            let mut transaction = start_transaction(&mut client)?;
+            let result = remove_gdrive_files(&mut transaction, &[&file.id]);
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                format!("db error: ERROR: gdrive_files={} is still referenced by storage_gdrive={}", file.id, inode.file_id()?)
+            );
+
+            Ok(())
+        }
     }
 
     // Testing our .sql from Rust, not testing our Rust
@@ -135,7 +162,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain3")?;
+            let owner_id = create_owner(&mut transaction, "me@domain4")?;
             let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;
@@ -157,7 +184,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain4")?;
+            let owner_id = create_owner(&mut transaction, "me@domain5")?;
             let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;
