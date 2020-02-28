@@ -55,7 +55,7 @@ DECLARE
     sequence bigint;
 BEGIN
     -- TODO: make sure index is actually being used for this
-    sequence := (SELECT chunk_sequence FROM gdrive_storage WHERE gdrive_ids @> ARRAY[OLD.file_id] LIMIT 1);
+    sequence := (SELECT chunk_sequence FROM storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.file_id] LIMIT 1);
     IF FOUND THEN
         RAISE EXCEPTION 'file_id still referenced by chunk_sequence=%', sequence;
     END IF;
@@ -101,7 +101,7 @@ CREATE TRIGGER gsuite_domains_forbid_truncate
 CREATE TYPE cipher AS ENUM ('AES_128_CTR', 'AES_128_GCM');
 
 -- Columns are ordered for optimal packing, be careful
-CREATE TABLE gdrive_storage (
+CREATE TABLE storage_gdrive (
     -- Not a UUID, just using uuid as a 128-bit field instead of bytea to save one byte
     cipher_key     uuid         NOT NULL,
     file_id        bigint       NOT NULL REFERENCES files (id),
@@ -111,13 +111,13 @@ CREATE TABLE gdrive_storage (
     --
     -- Imagine a REFERENCES on on gdrive_files (id) here; PostgreSQL 12 doesn't
     -- support it for array elements, so we have two triggers to emulate it.
-    gdrive_ids     gdrive_id[]  NOT NULL CHECK (cardinality(gdrive_ids) >= 1),
+    gdrive_ids     text[]       NOT NULL CHECK (cardinality(gdrive_ids) >= 1),
 
     -- We don't need more than one of these per this triple.
     PRIMARY KEY (file_id, gsuite_domain, cipher)
 );
 
-CREATE INDEX gdrive_gdrive_ids_index ON gdrive_storage USING GIN (gdrive_ids);
+CREATE INDEX gdrive_gdrive_ids_index ON storage_gdrive USING GIN (gdrive_ids);
 
 CREATE OR REPLACE FUNCTION assert_files_exist_in_gdrive_files() RETURNS trigger AS $$
 DECLARE
@@ -133,16 +133,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER gdrive_storage_check_files
-    BEFORE INSERT ON gdrive_storage
+CREATE TRIGGER storage_gdrive_check_files
+    BEFORE INSERT ON storage_gdrive
     FOR EACH ROW
     EXECUTE FUNCTION assert_files_exist_in_gdrive_files();
 
-CREATE TRIGGER gdrive_storage_check_update
-    BEFORE UPDATE ON gdrive_storage
+CREATE TRIGGER storage_gdrive_check_update
+    BEFORE UPDATE ON storage_gdrive
     FOR EACH ROW
     EXECUTE FUNCTION raise_exception('cannot change file_id, gsuite_domain, cipher, cipher_key, or gdrive_ids');
 
-CREATE TRIGGER gdrive_storage_forbid_truncate
-    BEFORE TRUNCATE ON gdrive_storage
+CREATE TRIGGER storage_gdrive_forbid_truncate
+    BEFORE TRUNCATE ON storage_gdrive
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
