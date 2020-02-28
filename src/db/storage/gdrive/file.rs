@@ -70,8 +70,22 @@ mod tests {
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
     use crate::db::inode::tests::create_dummy_file;
-    use crate::db::storage::gdrive::{create_domain, create_storage, Storage, Cipher};
+    use crate::db::storage::gdrive::tests::create_dummy_domain;
+    use crate::db::storage::gdrive::{create_storage, Storage, Cipher};
+    use atomic_counter::{AtomicCounter, RelaxedCounter};
+    use once_cell::sync::Lazy;
     use crate::util;
+
+    static OWNER_COUNTER: Lazy<RelaxedCounter> = Lazy::new(|| {
+        RelaxedCounter::new(1)
+    });
+
+
+    pub(crate) fn create_dummy_owner(mut transaction: &mut Transaction<'_>) -> Result<(i32, String)> {
+        let owner = format!("me-{}@example.com", OWNER_COUNTER.inc());
+        let owner_id = create_owner(&mut transaction, &owner)?;
+        Ok((owner_id, owner))
+    }
 
     mod api {
         use super::*;
@@ -82,7 +96,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain1")?;
+            let (owner_id, _) = create_dummy_owner(&mut transaction)?;
             let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner_id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
             let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) };
             create_gdrive_file(&mut transaction, &file1)?;
@@ -114,7 +128,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain2")?;
+            let (owner_id, _) = create_dummy_owner(&mut transaction)?;
             let file = GdriveFile { id: "Q".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;
@@ -133,11 +147,11 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
-            let owner_id = create_owner(&mut transaction, "me@domain3")?;
+            let (owner_id, _) = create_dummy_owner(&mut transaction)?;
             let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
-            create_domain(&mut transaction, "example.com")?;
-            let storage = Storage { gsuite_domain: "example.com".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
+            let domain = create_dummy_domain(&mut transaction)?;
+            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
             create_storage(&mut transaction, inode, &storage)?;
             transaction.commit()?;
 
@@ -162,7 +176,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain4")?;
+            let (owner_id, _) = create_dummy_owner(&mut transaction)?;
             let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;
@@ -184,7 +198,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let owner_id = create_owner(&mut transaction, "me@domain5")?;
+            let (owner_id, _) = create_dummy_owner(&mut transaction)?;
             let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             transaction.commit()?;

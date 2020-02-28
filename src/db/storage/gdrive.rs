@@ -86,6 +86,19 @@ mod tests {
     use crate::db::tests::get_client;
     use crate::db::inode::tests::create_dummy_file;
     use file::{create_gdrive_file, GdriveFile};
+    use atomic_counter::{AtomicCounter, RelaxedCounter};
+    use once_cell::sync::Lazy;
+
+    static DOMAIN_COUNTER: Lazy<RelaxedCounter> = Lazy::new(|| {
+        RelaxedCounter::new(1)
+    });
+
+
+    pub(crate) fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<String> {
+        let domain = format!("{}.example.com", DOMAIN_COUNTER.inc());
+        create_domain(&mut transaction, &domain)?;
+        Ok(domain)
+    }
 
     mod api {
         use super::*;
@@ -101,8 +114,8 @@ mod tests {
             let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None };
             create_gdrive_file(&mut transaction, &file1)?;
             create_gdrive_file(&mut transaction, &file2)?;
-            create_domain(&mut transaction, "example.org")?;
-            let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            let domain = create_dummy_domain(&mut transaction)?;
+            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
             create_storage(&mut transaction, inode, &storage)?;
             transaction.commit()?;
 
@@ -120,8 +133,8 @@ mod tests {
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
             let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_domain(&mut transaction, "example.org")?;
-            let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            let domain = create_dummy_domain(&mut transaction)?;
+            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
             let result = create_storage(&mut transaction, inode, &storage);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -141,8 +154,8 @@ mod tests {
             let file1 = GdriveFile { id: "F".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file1)?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_domain(&mut transaction, "example.org")?;
-            let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            let domain = create_dummy_domain(&mut transaction)?;
+            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
             let result = create_storage(&mut transaction, inode, &storage);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -159,8 +172,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
-            create_domain(&mut transaction, "example.org")?;
-            let storage = Storage { gsuite_domain: "example.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
+            let domain = create_dummy_domain(&mut transaction)?;
+            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
             let result = create_storage(&mut transaction, inode, &storage);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -188,8 +201,8 @@ mod tests {
             let file2 = GdriveFile { id: id2.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file1)?;
             create_gdrive_file(&mut transaction, &file2)?;
-            create_domain(&mut transaction, "example2.org")?;
-            let storage = Storage { gsuite_domain: "example2.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
+            let domain = create_dummy_domain(&mut transaction)?;
+            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
             create_storage(&mut transaction, inode, &storage)?;
             transaction.commit()?;
 
@@ -223,8 +236,8 @@ mod tests {
             let inode = create_dummy_file(&mut transaction)?;
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
-            create_domain(&mut transaction, "example3.org")?;
-            let storage = Storage { gsuite_domain: "example3.org".into(), cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            let domain = create_dummy_domain(&mut transaction)?;
+            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
             create_storage(&mut transaction, inode, &storage)?;
             transaction.commit()?;
 
