@@ -101,17 +101,17 @@ CREATE TYPE cipher AS ENUM ('AES_128_CTR', 'AES_128_GCM');
 -- Columns are ordered for optimal packing, be careful
 CREATE TABLE storage_gdrive (
     -- Not a UUID, just using uuid as a 128-bit field instead of bytea to save one byte
-    cipher_key     uuid         NOT NULL,
-    file_id        bigint       NOT NULL REFERENCES files (id),
-    cipher         cipher       NOT NULL,
-    gsuite_domain  smallint     NOT NULL REFERENCES gsuite_domains (id),
+    cipher_key     uuid      NOT NULL,
+    file_id        bigint    NOT NULL REFERENCES files (id),
+    cipher         cipher    NOT NULL,
+    gsuite_domain  smallint  NOT NULL REFERENCES gsuite_domains (id),
     -- An sequence of encrypted chunks stored in Google Drive
     --
     -- Imagine a REFERENCES on on gdrive_files (id) here; PostgreSQL 12 doesn't
     -- support it for array elements, so we have two triggers to emulate it.
     --
     -- Don't use an array of DOMAIN type here to avoid confusing rust-postgres
-    gdrive_ids     text[]       NOT NULL CHECK (cardinality(gdrive_ids) >= 1),
+    gdrive_ids     text[]    NOT NULL CHECK (cardinality(gdrive_ids) >= 1),
 
     -- We don't need more than one of these per this triple.
     PRIMARY KEY (file_id, gsuite_domain, cipher)
