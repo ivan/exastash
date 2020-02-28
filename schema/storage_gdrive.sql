@@ -22,10 +22,6 @@ CREATE TRIGGER gdrive_owners_forbid_truncate
 
 -- Google Drive files
 
--- The shortest gdrive_id we have is 28
--- The longest gdrive_id we have is 33, but allow up to 160 in case Google changes format
-CREATE DOMAIN gdrive_id AS text  CHECK (VALUE ~ '\A[-_0-9A-Za-z]{28,160}\Z');
-
 -- Columns are ordered for optimal packing, be careful
 CREATE TABLE gdrive_files (
     -- Not a UUID, just using uuid as a 128-bit field instead of bytea to save one byte
@@ -36,7 +32,9 @@ CREATE TABLE gdrive_files (
     crc32c       int          NOT NULL,
     -- Can be NULL because some of our old chunks have no recorded owner
     owner        int          REFERENCES gdrive_owners,
-    id           gdrive_id    PRIMARY KEY
+    -- The shortest gdrive_id we have is 28
+    -- The longest gdrive_id we have is 33, but allow up to 160 in case Google changes format
+    id           text         PRIMARY KEY CHECK (id ~ '\A[-_0-9A-Za-z]{28,160}\Z')
 );
 
 CREATE TRIGGER gdrive_files_check_update
@@ -111,6 +109,8 @@ CREATE TABLE storage_gdrive (
     --
     -- Imagine a REFERENCES on on gdrive_files (id) here; PostgreSQL 12 doesn't
     -- support it for array elements, so we have two triggers to emulate it.
+    --
+    -- Don't use an array of DOMAIN type here to avoid confusing rust-postgres
     gdrive_ids     text[]       NOT NULL CHECK (cardinality(gdrive_ids) >= 1),
 
     -- We don't need more than one of these per this triple.
