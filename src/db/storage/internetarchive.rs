@@ -108,18 +108,6 @@ mod tests {
     mod schema_internals {
         use super::*;
 
-        /// Cannot TRUNCATE storage_internetarchive table
-        #[test]
-        fn test_cannot_truncate() -> Result<()> {
-            let mut client = get_client();
-
-            let mut transaction = start_transaction(&mut client)?;
-            let result = transaction.execute("TRUNCATE storage_internetarchive", &[]);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
-
-            Ok(())
-        }
-
         /// Cannot UPDATE file_id, ia_item, or pathname on storage_internetarchive table
         #[test]
         fn test_cannot_change_immutables() -> Result<()> {
@@ -137,6 +125,18 @@ mod tests {
                 let result = transaction.execute(query.as_str(), &[&inode.file_id()?]);
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id, ia_item, or pathname");
             }
+
+            Ok(())
+        }
+
+        /// Cannot TRUNCATE storage_internetarchive table
+        #[test]
+        fn test_cannot_truncate() -> Result<()> {
+            let mut client = get_client();
+
+            let mut transaction = start_transaction(&mut client)?;
+            let result = transaction.execute("TRUNCATE storage_internetarchive", &[]);
+            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
 
             Ok(())
         }
