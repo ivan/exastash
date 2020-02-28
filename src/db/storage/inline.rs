@@ -4,9 +4,11 @@ use crate::db::inode::Inode;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Storage {
-    content: Vec<u8>,
+    pub content: Vec<u8>,
 }
 
+/// Creates an inline storage entity in the database.
+/// Does not commit the transaction, you must do so yourself.
 pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
     transaction.execute(
@@ -17,6 +19,7 @@ pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, st
     Ok(())
 }
 
+/// Returns a list of inline storage entities containing the data for a file.
 pub(crate) fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;

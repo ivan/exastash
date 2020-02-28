@@ -14,12 +14,12 @@ pub(crate) fn create_owner(transaction: &mut Transaction<'_>, owner: &str) -> Re
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GdriveFile {
-    id: String,
-    owner_id: Option<i32>,
-    md5: [u8; 16], // TODO: maybe [u32; 4]
-    crc32c: u32,
-    size: i64,
-    last_probed: Option<DateTime<Utc>>,
+    pub id: String,
+    pub owner_id: Option<i32>,
+    pub md5: [u8; 16], // TODO: maybe [u32; 4]
+    pub crc32c: u32,
+    pub size: i64,
+    pub last_probed: Option<DateTime<Utc>>,
 }
 
 /// Create a gdrive_file in the database.

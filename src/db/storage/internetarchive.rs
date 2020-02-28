@@ -5,12 +5,14 @@ use crate::db::inode::Inode;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Storage {
-    ia_item: String,
-    pathname: String,
-    darked: bool,
-    last_probed: Option<DateTime<Utc>>,
+    pub ia_item: String,
+    pub pathname: String,
+    pub darked: bool,
+    pub last_probed: Option<DateTime<Utc>>,
 }
 
+/// Creates an internetarchive storage entity in the database.
+/// Does not commit the transaction, you must do so yourself.
 pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
     transaction.execute(
@@ -21,6 +23,7 @@ pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, st
     Ok(())
 }
 
+/// Returns a list of internetarchive storage entities where the data for a file can be retrieved.
 pub(crate) fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;
