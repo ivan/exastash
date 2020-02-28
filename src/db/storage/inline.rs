@@ -80,6 +80,7 @@ mod tests {
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
+        use crate::db::tests::assert_cannot_truncate;
 
         /// Cannot UPDATE file_id on storage_inline table
         #[test]
@@ -108,8 +109,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let result = transaction.execute("TRUNCATE storage_inline", &[]);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
+            assert_cannot_truncate(&mut transaction, "storage_inline")?;
 
             Ok(())
         }

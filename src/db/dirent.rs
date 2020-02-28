@@ -111,6 +111,7 @@ mod tests {
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
+        use crate::db::tests::assert_cannot_truncate;
 
         /// Cannot have child_dir equal to parent
         #[test]
@@ -123,7 +124,10 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let result = create_dirent(&mut transaction, parent, &Dirent::new("self".to_owned(), parent));
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: new row for relation \"dirents\" violates check constraint \"dirents_check\"");
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: new row for relation \"dirents\" violates check constraint \"dirents_check\""
+            );
 
             Ok(())
         }
@@ -143,7 +147,10 @@ mod tests {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE dirents SET {} = {} WHERE parent = $1::bigint AND child_dir = $2::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&parent.dir_id()?, &child_dir.dir_id()?]);
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change parent, basename, or child_*");
+                assert_eq!(
+                    result.err().expect("expected an error").to_string(),
+                    "db error: ERROR: cannot change parent, basename, or child_*"
+                );
             }
 
             Ok(())
@@ -161,8 +168,7 @@ mod tests {
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let result = transaction.execute("TRUNCATE dirents", &[]);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
+            assert_cannot_truncate(&mut transaction, "dirents")?;
 
             Ok(())
         }
@@ -180,7 +186,10 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let result = create_dirent(&mut transaction, parent, &Dirent::new("child_dir_again".to_owned(), child_dir));
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\"");
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
+            );
 
             Ok(())
         }
@@ -200,7 +209,10 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let result = create_dirent(&mut transaction, parent, &Dirent::new("child".to_owned(), child));
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\"");
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
+            );
 
             Ok(())
         }
@@ -219,7 +231,10 @@ mod tests {
             for basename in ["", "/", ".", "..", &"x".repeat(256)].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let result = create_dirent(&mut transaction, parent, &Dirent::new(basename.to_string(), child));
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: value for domain linux_basename violates check constraint \"linux_basename_check\"");
+                assert_eq!(
+                    result.err().expect("expected an error").to_string(),
+                    "db error: ERROR: value for domain linux_basename violates check constraint \"linux_basename_check\""
+                );
             }
 
             Ok(())

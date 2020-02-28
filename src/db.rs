@@ -60,6 +60,18 @@ mod tests {
         Client::connect(uri, NoTls).unwrap()
     }
 
+    pub(crate) fn assert_cannot_truncate(transaction: &mut Transaction<'_>, table: &str) -> Result<()> {
+        let statement = format!("TRUNCATE {} CASCADE", table);
+        let result = transaction.execute(statement.as_str(), &[]);
+        let msg = result.err().expect("expected an error").to_string();
+        // Also allow "deadlock detected" because of concurrent transactions: the
+        // BEFORE TRUNCATE trigger does not run before PostgreSQL's lock checks
+        assert!(
+            msg == "db error: ERROR: truncate is forbidden" ||
+            msg == "db error: ERROR: deadlock detected", msg);
+        Ok(())
+    }
+
     #[test]
     fn test_start_transaction() -> Result<()> {
         let mut client = get_client();

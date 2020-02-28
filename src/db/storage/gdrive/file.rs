@@ -173,6 +173,7 @@ mod tests {
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
+        use crate::db::tests::assert_cannot_truncate;
 
         /// Cannot UPDATE any row in gdrive_files table
         #[test]
@@ -208,8 +209,7 @@ mod tests {
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let result = transaction.execute("TRUNCATE gdrive_files", &[]);
-            assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
+            assert_cannot_truncate(&mut transaction, "gdrive_files")?;
 
             Ok(())
         }

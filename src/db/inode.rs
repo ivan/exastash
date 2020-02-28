@@ -107,6 +107,7 @@ pub(crate) mod tests {
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
+        use crate::db::tests::assert_cannot_truncate;
 
         /// Cannot TRUNCATE dirs, files, or symlinks tables
         #[test]
@@ -114,9 +115,7 @@ pub(crate) mod tests {
             let mut client = get_client();
             for table in ["dirs", "files", "symlinks"].iter() {
                 let mut transaction = start_transaction(&mut client)?;
-                let query = format!("TRUNCATE {} CASCADE", table);
-                let result = transaction.execute(query.as_str(), &[]);
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: truncate is forbidden");
+                assert_cannot_truncate(&mut transaction, table)?;
             }
             Ok(())
         }
