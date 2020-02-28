@@ -121,10 +121,14 @@ CREATE INDEX gdrive_gdrive_ids_index ON storage_gdrive USING GIN (gdrive_ids);
 
 CREATE OR REPLACE FUNCTION assert_files_exist_in_gdrive_files() RETURNS trigger AS $$
 DECLARE
+    ids text[];
     file_count integer;
 BEGIN
+    -- Use FOR KEY SHARE to prevent another concurrent transaction from deleting the
+    -- gdrive files we're referencing from gdrive_ids.
+    ids := ARRAY(SELECT id FROM gdrive_files WHERE id IN (SELECT unnest(NEW.gdrive_ids)) FOR KEY SHARE);
     -- This catches not only missing gdrive_ids but also duplicate entries in NEW.gdrive_ids
-    file_count := (SELECT COUNT(id) FROM gdrive_files WHERE id IN (SELECT unnest(NEW.gdrive_ids)));
+    file_count := cardinality(ids);
     IF file_count != cardinality(NEW.gdrive_ids) THEN
         RAISE EXCEPTION 'gdrive_ids had % ids: % but only % of these are in gdrive_files',
             cardinality(NEW.gdrive_ids), NEW.gdrive_ids, file_count;

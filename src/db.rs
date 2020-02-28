@@ -3,7 +3,7 @@ mod dirent;
 mod storage;
 
 use anyhow::Result;
-use postgres::{Client, Transaction, NoTls, IsolationLevel};
+use postgres::{Client, Transaction, NoTls};
 use crate::util::env_var;
 
 fn postgres_client_production() -> Result<Client> {
@@ -11,18 +11,9 @@ fn postgres_client_production() -> Result<Client> {
     Ok(Client::connect(&database_uri, NoTls)?)
 }
 
-/// Returns a transaction with isolation level serializable and
-/// search_path set to stash.
+/// Returns a transaction with search_path set to 'stash'.
 fn start_transaction(client: &mut Client) -> Result<Transaction<'_>> {
-    // PostgreSQL's default Read Committed isolation level allows for too many
-    // anomalies, e.g. "two successive SELECT commands can see different data"
-    // https://www.postgresql.org/docs/12/transaction-iso.html
-    //
-    // The foreign-key-on-array-elements implementation in storage_gdrive.sql
-    // may require Serializable isolation; it hasn't been tested otherwise.
-    let mut transaction = client.build_transaction()
-        .isolation_level(IsolationLevel::Serializable)
-        .start()?;
+    let mut transaction = client.build_transaction().start()?;
     transaction.execute("SET search_path TO stash", &[])?;
     Ok(transaction)
 }
