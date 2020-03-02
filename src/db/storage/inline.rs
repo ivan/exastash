@@ -22,7 +22,6 @@ pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, st
 /// Returns a list of inline storage entities containing the data for a file.
 pub(crate) fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
-    transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT content FROM storage_inline WHERE file_id = $1::bigint", &[&file_id])?;
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {

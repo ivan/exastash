@@ -42,7 +42,6 @@ pub(crate) fn remove_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str
 
 /// Returns gdrive files with matching ids, in the same order as the ids.
 pub(crate) fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
-    transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids])?;
     let mut map: HashMap<String, GdriveFile> = HashMap::new();
     let mut out = Vec::with_capacity(rows.len());

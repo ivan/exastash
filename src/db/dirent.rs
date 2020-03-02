@@ -58,7 +58,6 @@ pub(crate) fn create_dirent(transaction: &mut Transaction<'_>, parent: Inode, di
 /// Returns the children of a directory.
 pub(crate) fn list_dir(transaction: &mut Transaction<'_>, parent: Inode) -> Result<Vec<Dirent>> {
     let parent_id = parent.dir_id()?;
-    transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT basename, child_dir, child_file, child_symlink FROM dirents WHERE parent = $1::bigint", &[&parent_id])?;
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {

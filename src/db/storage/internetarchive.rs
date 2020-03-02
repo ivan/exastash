@@ -26,7 +26,6 @@ pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, st
 /// Returns a list of internetarchive storage entities where the data for a file can be retrieved.
 pub(crate) fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
-    transaction.execute("SET TRANSACTION READ ONLY", &[])?;
     let rows = transaction.query("SELECT ia_item, pathname, darked, last_probed FROM storage_internetarchive WHERE file_id = $1::bigint", &[&file_id])?;
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
