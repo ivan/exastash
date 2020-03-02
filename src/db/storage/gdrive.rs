@@ -15,7 +15,7 @@ pub(crate) enum Cipher {
     Aes128Gcm,
 }
 
-/// Creates a gsuite domain entity in the database.
+/// Creates a gsuite domain entity in the database and returns its id.
 /// Does not commit the transaction, you must do so yourself.
 pub(crate) fn create_domain(transaction: &mut Transaction<'_>, domain: &str) -> Result<i16> {
     let rows = transaction.query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id", &[&domain])?;
@@ -25,26 +25,23 @@ pub(crate) fn create_domain(transaction: &mut Transaction<'_>, domain: &str) -> 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Storage {
-    pub gsuite_domain: String,
+    pub gsuite_domain: i16,
     pub cipher: Cipher,
     pub cipher_key: [u8; 16],
     pub gdrive_files: Vec<file::GdriveFile>,
 }
 
 /// Creates an gdrive storage entity in the database.
-/// Does not commit the transaction, you must do so yourself.
 /// Note that the gsuite domain must already exist.
 /// Note that you must call file::create_gdrive_file for each gdrive file beforehand.
+/// Does not commit the transaction, you must do so yourself.
 pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
     let gdrive_ids = storage.gdrive_files.iter().map(|f| f.id.clone()).collect::<Vec<_>>();
-    let domain: i16 = transaction.query_one(
-        "SELECT id from gsuite_domains WHERE domain = $1", &[&storage.gsuite_domain]
-    )?.get(0);
     transaction.execute(
         "INSERT INTO storage_gdrive (file_id, gsuite_domain, cipher, cipher_key, gdrive_ids)
          VALUES ($1::bigint, $2::smallint, $3::cipher, $4::uuid, $5::text[])",
-        &[&inode.file_id()?, &domain, &storage.cipher, &SixteenBytes { bytes: storage.cipher_key }, &gdrive_ids]
+        &[&inode.file_id()?, &storage.gsuite_domain, &storage.cipher, &SixteenBytes { bytes: storage.cipher_key }, &gdrive_ids]
     )?;
     Ok(())
 }
@@ -54,12 +51,7 @@ pub(crate) fn get_storage(mut transaction: &mut Transaction<'_>, inode: Inode) -
     let file_id = inode.file_id()?;
 
     transaction.execute("SET TRANSACTION READ ONLY", &[])?;
-    let rows = transaction.query("
-        SELECT    domain, cipher, cipher_key, gdrive_ids
-        FROM      storage_gdrive
-        LEFT JOIN gsuite_domains ON storage_gdrive.gsuite_domain = gsuite_domains.id
-        WHERE     file_id = $1
-    ", &[&file_id])?;
+    let rows = transaction.query("SELECT gsuite_domain, cipher, cipher_key, gdrive_ids FROM storage_gdrive WHERE file_id = $1", &[&file_id])?;
     if rows.len() == 0 {
         return Ok(vec![]);
     }
@@ -94,10 +86,10 @@ mod tests {
     });
 
 
-    pub(crate) fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<String> {
+    pub(crate) fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<i16> {
         let domain = format!("{}.example.com", DOMAIN_COUNTER.inc());
-        create_domain(&mut transaction, &domain)?;
-        Ok(domain)
+        let id = create_domain(&mut transaction, &domain)?;
+        Ok(id)
     }
 
     mod api {
