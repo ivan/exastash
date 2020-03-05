@@ -1,9 +1,9 @@
 CREATE TABLE exastash_versions (
-    version_id   smallint  PRIMARY KEY,
-    version_info text      UNIQUE NOT NULL CHECK (version_info ~ '\A.{3,64}\Z')
+    id       smallint  PRIMARY KEY,
+    version  text      UNIQUE NOT NULL CHECK (version ~ '\A.{3,64}\Z')
 );
 
-INSERT INTO exastash_versions (version_id, version_info) VALUES
+INSERT INTO exastash_versions (id, version) VALUES
     -- terastash
     (1,  '0.5.2D2015-09-19T04:35:32.070511779Z'),
     (2,  '0.5.2D2015-09-19T04:39:36.883634174Z'),
