@@ -1,3 +1,5 @@
+//! CRUD operations for storage_gdrive entities in PostgreSQL
+
 use anyhow::Result;
 use postgres::Transaction;
 use postgres_types::{ToSql, FromSql};
@@ -6,11 +8,14 @@ use crate::postgres::SixteenBytes;
 
 pub(crate) mod file;
 
+/// The encryption algorithm used to encrypt the chunks
 #[postgres(name = "cipher")]
-#[derive(Debug, Clone, PartialEq, Eq, ToSql, FromSql)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, ToSql, FromSql)]
 pub enum Cipher {
+    /// AES-128-CTR
     #[postgres(name = "AES_128_CTR")]
     Aes128Ctr,
+    /// AES-128-GCM
     #[postgres(name = "AES_128_GCM")]
     Aes128Gcm,
 }
@@ -23,11 +28,16 @@ pub fn create_domain(transaction: &mut Transaction<'_>, domain: &str) -> Result<
     Ok(id)
 }
 
+/// A storage_gdrive entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Storage {
+    /// The domain for the gsuite account
     pub gsuite_domain: i16,
+    /// The encryption algorithm used to encrypt the chunks in gdrive
     pub cipher: Cipher,
+    /// The cipher key used to encrypt the chunks in gdrive
     pub cipher_key: [u8; 16],
+    /// An ordered list of encrypted gdrive files which comprise the chunks
     pub gdrive_files: Vec<file::GdriveFile>,
 }
 

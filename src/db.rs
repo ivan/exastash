@@ -1,8 +1,8 @@
 //! CRUD operations for exastash entities in PostgreSQL
 
-mod inode;
-mod dirent;
-mod storage;
+pub mod inode;
+pub mod dirent;
+pub mod storage;
 
 use anyhow::Result;
 use postgres::{Client, Transaction, NoTls};

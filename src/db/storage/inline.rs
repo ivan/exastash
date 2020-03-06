@@ -1,9 +1,13 @@
+//! CRUD operations for storage_inline entities in PostgreSQL
+
 use anyhow::Result;
 use postgres::Transaction;
 use crate::db::inode::Inode;
 
+/// A storage_inline entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Storage {
+    /// The content for this file
     pub content: Vec<u8>,
 }
 

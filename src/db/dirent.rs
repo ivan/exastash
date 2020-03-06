@@ -1,3 +1,5 @@
+//! CRUD operations for dirent entities in PostgreSQL
+
 use crate::db::inode::Inode;
 use anyhow::Result;
 use postgres::Transaction;
@@ -30,6 +32,7 @@ impl InodeTuple {
     }
 }
 
+/// A directory entry
 #[derive(Debug, PartialEq, Eq)]
 pub struct Dirent {
     basename: String,
@@ -37,7 +40,8 @@ pub struct Dirent {
 }
 
 impl Dirent {
-    fn new(basename: String, child: Inode) -> Dirent {
+    /// Returns a `Dirent` with the given `basename` and `child` inode
+    pub fn new(basename: String, child: Inode) -> Dirent {
         Dirent { basename, child }
     }
 }

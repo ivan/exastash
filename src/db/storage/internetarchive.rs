@@ -1,13 +1,20 @@
+//! CRUD operations for storage_internetarchive entities in PostgreSQL
+
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use postgres::Transaction;
 use crate::db::inode::Inode;
 
+/// A storage_internetarchive entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Storage {
+    /// The Internet Archive item containing this file
     pub ia_item: String,
+    /// The path to the file inside the item
     pub pathname: String,
+    /// Whether the Internet Archive item is darked (inaccessible)
     pub darked: bool,
+    /// The time Internet Archive was last probed to check if this file is still accessible
     pub last_probed: Option<DateTime<Utc>>,
 }
 

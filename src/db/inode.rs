@@ -1,17 +1,24 @@
+//! CRUD operations for dir, file, and symlink entities in PostgreSQL
+
 use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
 use postgres::Transaction;
 use crate::EXASTASH_VERSION;
 use crate::util;
 
+/// A dir, file, or symlink
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Inode {
+    /// A directory
     Dir(i64),
+    /// A regular file
     File(i64),
+    /// A symbolic link
     Symlink(i64),
 }
 
 impl Inode {
+    /// Returns the directory id for this inode, if it is one
     pub fn dir_id(self) -> Result<i64> {
         match self {
             Inode::Dir(id) => Ok(id),
@@ -19,6 +26,7 @@ impl Inode {
         }
     }
 
+    /// Returns the file id for this inode, if it is one
     pub fn file_id(self) -> Result<i64> {
         match self {
             Inode::File(id) => Ok(id),
@@ -26,6 +34,7 @@ impl Inode {
         }
     }
 
+    /// Returns the symlink id for this inode, if it is one
     pub fn symlink_id(self) -> Result<i64> {
         match self {
             Inode::Symlink(id) => Ok(id),
@@ -46,6 +55,8 @@ pub struct Birth {
 }
 
 impl Birth {
+    /// Returns a `Birth` with time set to now, version set to the current exastash version,
+    /// and hostname set to the machine's hostname.
     pub fn here_and_now() -> Birth {
         Birth { time: Utc::now(), version: EXASTASH_VERSION, hostname: util::get_hostname() }
     }

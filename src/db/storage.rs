@@ -1,15 +1,21 @@
-mod inline;
-mod gdrive;
-mod internetarchive;
+//! CRUD operations for the storage_* entities in PostgreSQL
+
+pub mod inline;
+pub mod gdrive;
+pub mod internetarchive;
 
 use anyhow::Result;
 use postgres::Transaction;
 use crate::db::inode::Inode;
 
+/// A storage entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Storage {
+    /// A storage entity stored directly in the database
     Inline(inline::Storage),
+    /// A storage entity backed by Google Drive
     Gdrive(gdrive::Storage),
+    /// A storage entity backed by a file accessible at Internet Archive
     InternetArchive(internetarchive::Storage),
 }
 
