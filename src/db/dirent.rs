@@ -31,7 +31,7 @@ impl InodeTuple {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct Dirent {
+pub struct Dirent {
     basename: String,
     child: Inode
 }
@@ -44,7 +44,7 @@ impl Dirent {
 
 /// Create a directory entry.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_dirent(transaction: &mut Transaction<'_>, parent: Inode, dirent: &Dirent) -> Result<()> {
+pub fn create_dirent(transaction: &mut Transaction<'_>, parent: Inode, dirent: &Dirent) -> Result<()> {
     let parent_id = parent.dir_id()?;
     let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode(dirent.child);
     transaction.execute(
@@ -56,7 +56,7 @@ pub(crate) fn create_dirent(transaction: &mut Transaction<'_>, parent: Inode, di
 }
 
 /// Returns the children of a directory.
-pub(crate) fn list_dir(transaction: &mut Transaction<'_>, parent: Inode) -> Result<Vec<Dirent>> {
+pub fn list_dir(transaction: &mut Transaction<'_>, parent: Inode) -> Result<Vec<Dirent>> {
     let parent_id = parent.dir_id()?;
     let rows = transaction.query("SELECT basename, child_dir, child_file, child_symlink FROM dirents WHERE parent = $1::bigint", &[&parent_id])?;
     let mut out = Vec::with_capacity(rows.len());

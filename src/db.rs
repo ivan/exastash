@@ -16,7 +16,7 @@ pub fn postgres_client_production() -> Result<Client> {
 }
 
 /// Returns a transaction with search_path set to 'stash'.
-fn start_transaction(client: &mut Client) -> Result<Transaction<'_>> {
+pub fn start_transaction(client: &mut Client) -> Result<Transaction<'_>> {
     let mut transaction = client.build_transaction().start()?;
     transaction.execute("SET search_path TO stash", &[])?;
     Ok(transaction)

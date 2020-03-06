@@ -5,28 +5,28 @@ use crate::EXASTASH_VERSION;
 use crate::util;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum Inode {
+pub enum Inode {
     Dir(i64),
     File(i64),
     Symlink(i64),
 }
 
 impl Inode {
-    pub(crate) fn dir_id(self) -> Result<i64> {
+    pub fn dir_id(self) -> Result<i64> {
         match self {
             Inode::Dir(id) => Ok(id),
             _ => bail!("{:?} is not a dir", self),
         }
     }
 
-    pub(crate) fn file_id(self) -> Result<i64> {
+    pub fn file_id(self) -> Result<i64> {
         match self {
             Inode::File(id) => Ok(id),
             _ => bail!("{:?} is not a file", self),
         }
     }
 
-    pub(crate) fn symlink_id(self) -> Result<i64> {
+    pub fn symlink_id(self) -> Result<i64> {
         match self {
             Inode::Symlink(id) => Ok(id),
             _ => bail!("{:?} is not a symlink", self),
@@ -36,7 +36,7 @@ impl Inode {
 
 /// birth_time, birth_version, and birth_hostname for a dir/file/symlink
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Birth {
+pub struct Birth {
     /// The time at which a dir, file, or symlink was created
     time: DateTime<Utc>,
     /// The exastash version with which a dir, file, or symlink was a created
@@ -46,14 +46,14 @@ pub(crate) struct Birth {
 }
 
 impl Birth {
-    pub(crate) fn here_and_now() -> Birth {
+    pub fn here_and_now() -> Birth {
         Birth { time: Utc::now(), version: EXASTASH_VERSION, hostname: util::get_hostname() }
     }
 }
 
 /// Create an entry for a directory in the database and return its id.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_dir(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, birth: &Birth) -> Result<Inode> {
+pub fn create_dir(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, birth: &Birth) -> Result<Inode> {
     let rows = transaction.query(
         "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
@@ -66,7 +66,7 @@ pub(crate) fn create_dir(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>
 
 /// Create an entry for a file in the database and return its id.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_file(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, size: i64, executable: bool, birth: &Birth) -> Result<Inode> {
+pub fn create_file(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, size: i64, executable: bool, birth: &Birth) -> Result<Inode> {
     assert!(size >= 0, "size must be >= 0");
     let rows = transaction.query(
         "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
@@ -80,7 +80,7 @@ pub(crate) fn create_file(transaction: &mut Transaction<'_>, mtime: DateTime<Utc
 
 /// Create an entry for a symlink in the database and return its id.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_symlink(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<Inode> {
+pub fn create_symlink(transaction: &mut Transaction<'_>, mtime: DateTime<Utc>, target: &str, birth: &Birth) -> Result<Inode> {
     let rows = transaction.query(
         "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
          VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)

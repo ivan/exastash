@@ -4,7 +4,7 @@ use postgres::Transaction;
 use crate::db::inode::Inode;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Storage {
+pub struct Storage {
     pub ia_item: String,
     pub pathname: String,
     pub darked: bool,
@@ -13,7 +13,7 @@ pub(crate) struct Storage {
 
 /// Creates an internetarchive storage entity in the database.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: &Storage) -> Result<()> {
+pub fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
     transaction.execute(
         "INSERT INTO storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
@@ -24,7 +24,7 @@ pub(crate) fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, st
 }
 
 /// Returns a list of internetarchive storage entities where the data for a file can be retrieved.
-pub(crate) fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
+pub fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
     let rows = transaction.query("SELECT ia_item, pathname, darked, last_probed FROM storage_internetarchive WHERE file_id = $1::bigint", &[&file_id])?;
     let mut out = Vec::with_capacity(rows.len());

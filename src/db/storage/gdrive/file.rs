@@ -6,14 +6,14 @@ use crate::postgres::{SixteenBytes, UnsignedInt4};
 
 /// Create a gdrive_owner in the database.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_owner(transaction: &mut Transaction<'_>, owner: &str) -> Result<i32> {
+pub fn create_owner(transaction: &mut Transaction<'_>, owner: &str) -> Result<i32> {
     let rows = transaction.query("INSERT INTO gdrive_owners (owner) VALUES ($1::text) RETURNING id", &[&owner])?;
     let id = rows.get(0).unwrap().get(0);
     Ok(id)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GdriveFile {
+pub struct GdriveFile {
     pub id: String,
     pub owner_id: Option<i32>,
     pub md5: [u8; 16], // TODO: maybe [u32; 4]
@@ -24,7 +24,7 @@ pub(crate) struct GdriveFile {
 
 /// Create a gdrive_file in the database.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn create_gdrive_file(transaction: &mut Transaction<'_>, file: &GdriveFile) -> Result<()> {
+pub fn create_gdrive_file(transaction: &mut Transaction<'_>, file: &GdriveFile) -> Result<()> {
     transaction.execute(
         "INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
          VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)",
@@ -35,13 +35,13 @@ pub(crate) fn create_gdrive_file(transaction: &mut Transaction<'_>, file: &Gdriv
 
 /// Remove gdrive files in the database.
 /// Does not commit the transaction, you must do so yourself.
-pub(crate) fn remove_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<()> {
+pub fn remove_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<()> {
     transaction.execute("DELETE FROM gdrive_files WHERE id = ANY($1::text[])", &[&ids])?;
     Ok(())
 }
 
 /// Returns gdrive files with matching ids, in the same order as the ids.
-pub(crate) fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
+pub fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
     let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids])?;
     let mut map: HashMap<String, GdriveFile> = HashMap::new();
     let mut out = Vec::with_capacity(rows.len());
