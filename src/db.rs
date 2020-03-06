@@ -1,3 +1,5 @@
+//! CRUD operations for exastash entities in PostgreSQL
+
 mod inode;
 mod dirent;
 mod storage;
@@ -6,7 +8,9 @@ use anyhow::Result;
 use postgres::{Client, Transaction, NoTls};
 use crate::util::env_var;
 
-fn postgres_client_production() -> Result<Client> {
+/// Returns a `postgres::Client` connected to the `postgres://` URI in
+/// env var `EXASTASH_POSTGRESQL_URI`.
+pub fn postgres_client_production() -> Result<Client> {
     let database_uri = env_var("EXASTASH_POSTGRESQL_URI")?;
     Ok(Client::connect(&database_uri, NoTls)?)
 }
