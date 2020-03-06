@@ -72,7 +72,7 @@ pub fn get_storage(mut transaction: &mut Transaction<'_>, inode: Inode) -> Resul
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
