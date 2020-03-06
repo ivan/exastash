@@ -29,4 +29,4 @@ pub(crate) mod postgres;
 
 /// Rows in database will be created with birth_version set to this value.
 /// See exastash_versions.sql.
-pub(crate) const EXASTASH_VERSION: i16 = 41;
+pub const EXASTASH_VERSION: i16 = 41;
