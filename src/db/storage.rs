@@ -17,6 +17,7 @@ pub enum Storage {
 pub fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
     let file_id = inode.file_id();
 
+    // We want point-in-time consistency for all the queries below
     transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[])?;
     let inline = inline::get_storage(transaction, inode)?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
