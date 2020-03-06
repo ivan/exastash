@@ -47,11 +47,11 @@ impl Inode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Birth {
     /// The time at which a dir, file, or symlink was created
-    time: DateTime<Utc>,
+    pub time: DateTime<Utc>,
     /// The exastash version with which a dir, file, or symlink was a created
-    version: i16,
+    pub version: i16,
     /// The hostname of the machine on which a dir, file, or symlink was a created
-    hostname: String,
+    pub hostname: String,
 }
 
 impl Birth {

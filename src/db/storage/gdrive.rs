@@ -95,7 +95,6 @@ pub(crate) mod tests {
         RelaxedCounter::new(1)
     });
 
-
     pub(crate) fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<i16> {
         let domain = format!("{}.example.com", DOMAIN_COUNTER.inc());
         let id = create_domain(&mut transaction, &domain)?;
