@@ -6,7 +6,7 @@ use postgres_types::{ToSql, FromSql};
 use crate::db::inode::Inode;
 use crate::postgres::SixteenBytes;
 
-pub(crate) mod file;
+pub mod file;
 
 /// The encryption algorithm used to encrypt the chunks
 #[postgres(name = "cipher")]

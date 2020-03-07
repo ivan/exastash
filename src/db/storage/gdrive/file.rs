@@ -12,13 +12,20 @@ pub fn create_owner(transaction: &mut Transaction<'_>, owner: &str) -> Result<i3
     Ok(id)
 }
 
+/// A file in Google Drive, as Google understands it
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GdriveFile {
+    /// Google Drive's file_id
     pub id: String,
+    /// The email address of the owner, or other identifier like "teamdrive"
     pub owner_id: Option<i32>,
+    /// The MD5 hash
     pub md5: [u8; 16], // TODO: maybe [u32; 4]
+    /// The CRC32C
     pub crc32c: u32,
+    /// The size of this file in bytes
     pub size: i64,
+    /// The time the file was last confirmed to still exist and have correct metadata
     pub last_probed: Option<DateTime<Utc>>,
 }
 
