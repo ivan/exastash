@@ -29,3 +29,6 @@ atomic-counter = "1.0"
 # Reduce debug rebuild time
 # https://github.com/rust-gamedev/wg/issues/50#issuecomment-527160611
 debug = false
+
+[profile.release]
+overflow-checks = true
