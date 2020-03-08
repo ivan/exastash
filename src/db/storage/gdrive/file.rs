@@ -1,3 +1,5 @@
+//! CRUD operations for Google Drive files
+
 use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
