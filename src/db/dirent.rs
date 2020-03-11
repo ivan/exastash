@@ -7,7 +7,7 @@ use postgres::Transaction;
 /// A (dir, file, symlink) tuple that is useful when interacting with
 /// the dirents table.
 #[derive(Debug)]
-struct InodeTuple(Option<i64>, Option<i64>, Option<i64>);
+pub(crate) struct InodeTuple(Option<i64>, Option<i64>, Option<i64>);
 
 impl InodeTuple {
     /// Converts an InodeTuple to an Inode.
@@ -35,8 +35,10 @@ impl InodeTuple {
 /// A directory entry
 #[derive(Debug, PartialEq, Eq)]
 pub struct Dirent {
-    basename: String,
-    child: Inode
+    /// The basename (i.e. file name, not the whole path)
+    pub basename: String,
+    /// The inode the entry points to
+    pub child: Inode
 }
 
 impl Dirent {
