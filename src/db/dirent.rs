@@ -7,12 +7,12 @@ use postgres::Transaction;
 /// A (dir, file, symlink) tuple that is useful when interacting with
 /// the dirents table.
 #[derive(Debug)]
-pub(crate) struct InodeTuple(Option<i64>, Option<i64>, Option<i64>);
+pub(crate) struct InodeTuple(pub Option<i64>, pub Option<i64>, pub Option<i64>);
 
 impl InodeTuple {
     /// Converts an InodeTuple to an Inode.
     /// Exactly one value must be Some, else this panics.
-    fn to_inode(self) -> Inode {
+    pub(crate) fn to_inode(self) -> Inode {
         match self {
             InodeTuple(Some(id), None, None) => Inode::Dir(id),
             InodeTuple(None, Some(id), None) => Inode::File(id),
@@ -23,7 +23,7 @@ impl InodeTuple {
 
     /// Converts an Inode to an InodeTuple.
     /// One value will be Some, the rest will be None.
-    fn from_inode(inode: Inode) -> InodeTuple {
+    pub(crate) fn from_inode(inode: Inode) -> InodeTuple {
         match inode {
             Inode::Dir(id)     => InodeTuple(Some(id), None, None),
             Inode::File(id)    => InodeTuple(None, Some(id), None),

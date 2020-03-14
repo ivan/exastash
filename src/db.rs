@@ -3,6 +3,7 @@
 pub mod inode;
 pub mod dirent;
 pub mod storage;
+pub mod traversal;
 
 use anyhow::Result;
 use postgres::{Client, Transaction, NoTls};

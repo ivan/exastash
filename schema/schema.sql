@@ -18,3 +18,4 @@ $$ LANGUAGE plpgsql;
 \ir storage_gdrive.sql
 \ir storage_internetarchive.sql
 \ir dirents.sql
+\ir traversal.sql
