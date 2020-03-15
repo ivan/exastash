@@ -1,6 +1,6 @@
 //! Functions for walking a path from a base_dir
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 use postgres::Transaction;
 use crate::db::dirent::InodeTuple;
 use crate::db::inode::Inode;
@@ -31,7 +31,6 @@ mod tests {
     use super::*;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
-    use crate::db::inode::tests::create_dummy_file;
     use crate::db::dirent::{Dirent, create_dirent};
     use chrono::Utc;
     use crate::db::inode;
