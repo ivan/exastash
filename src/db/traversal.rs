@@ -39,7 +39,6 @@ mod tests {
     mod api {
         use super::*;
 
-        /// 
         #[test]
         fn test_walk_path() -> Result<()> {
             let mut client = get_client();
