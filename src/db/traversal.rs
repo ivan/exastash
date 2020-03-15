@@ -8,7 +8,7 @@ use crate::db::inode::Inode;
 /// Get the dir or file inode pointed to by a path.
 /// All symlinks are resolved, or if one is broken, an error is returned.
 /// 
-/// TODO: farm this out to a PL/pgSQL function
+/// TODO: speed this up by farming it out to a PL/pgSQL function
 pub fn walk_path(transaction: &mut Transaction<'_>, base_dir: Inode, path_components: &[&str]) -> Result<Inode> {
     // We want point-in-time consistency for all the queries below
     transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[])?;
@@ -24,13 +24,9 @@ pub fn walk_path(transaction: &mut Transaction<'_>, base_dir: Inode, path_compon
         let inode = InodeTuple(row.get(0), row.get(1), row.get(2)).to_inode();
         match inode {
             Inode::Symlink(id) => unimplemented!(),
-            Inode::Dir(id) => {
+            Inode::Dir(id) | Inode::File(id) => {
                 current_inode = inode;
             },
-            Inode::File(id) => {
-                current_inode = inode;
-                break;
-            }
         }
     }
     Ok(current_inode)
@@ -81,6 +77,18 @@ mod tests {
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
                     format!("no such dirent {:?} under dir {:?}", segments.last().unwrap(), parent.dir_id()?)
+                );
+            }
+
+            // walk_path returns an error if trying to walk a file
+            for (parent, not_a_dir, segments) in [
+                (child_file, child_file, vec!["further"]),
+                (root_dir, child_file, vec!["child_file", "further"]),
+            ].iter() {
+                let result = walk_path(&mut transaction, *parent, &segments);
+                assert_eq!(
+                    result.err().expect("expected an error").to_string(),
+                    format!("{:?} is not a dir", not_a_dir)
                 );
             }
 
