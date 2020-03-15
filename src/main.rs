@@ -93,7 +93,7 @@ fn main() -> Result<()> {
     match ExastashCommand::from_args() {
         ExastashCommand::Dir(dir) => {
             match dir {
-                DirCommand::Create { } => {
+                DirCommand::Create => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
                     let inode = db::inode::create_dir(&mut transaction, mtime, &birth)?;
