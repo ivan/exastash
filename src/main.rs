@@ -3,7 +3,7 @@ use structopt::StructOpt;
 use exastash::db;
 use chrono::Utc;
 use postgres::Transaction;
-use crate::db::inode::InodeId;
+use crate::db::inode::{InodeId, Inode};
 use crate::db::traversal::walk_path;
 
 #[derive(StructOpt, Debug)]
@@ -176,7 +176,8 @@ fn main() -> Result<()> {
         },
         ExastashCommand::Info { selector } => {
             let inode_id = selector.to_inode_id(&mut transaction)?;
-            
+            let inodes = Inode::find_by_inode_ids(&mut transaction, &[inode_id])?;
+            dbg!(inodes);
         },
     };
 

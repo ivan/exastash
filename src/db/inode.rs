@@ -291,6 +291,36 @@ impl NewSymlink {
     }
 }
 
+/// A dir, file, or symlink
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Inode {
+    /// A directory
+    Dir(Dir),
+    /// A file
+    File(File),
+    /// A symbolic link
+    Symlink(Symlink),
+}
+
+impl Inode {
+    /// Return a `Vec<Inode>` for the corresponding list of `InodeId`.
+    /// There is no error on missing inodes.
+    pub fn find_by_inode_ids(transaction: &mut Transaction<'_>, inode_ids: &[InodeId]) -> Result<Vec<Inode>> {
+        let mut out = Vec::with_capacity(inode_ids.len());
+
+        let dir_ids:     Vec<i64> = inode_ids.iter().filter_map(|inode_id| if let InodeId::Dir(id)     = inode_id { Some(*id) } else { None } ).collect();
+        let file_ids:    Vec<i64> = inode_ids.iter().filter_map(|inode_id| if let InodeId::File(id)    = inode_id { Some(*id) } else { None } ).collect();
+        let symlink_ids: Vec<i64> = inode_ids.iter().filter_map(|inode_id| if let InodeId::Symlink(id) = inode_id { Some(*id) } else { None } ).collect();
+
+        // TODO: run these in parallel
+        out.extend(Dir::find_by_ids(transaction, &dir_ids)?.into_iter().map(|d| Inode::Dir(d)));
+        out.extend(File::find_by_ids(transaction, &file_ids)?.into_iter().map(|d| Inode::File(d)));
+        out.extend(Symlink::find_by_ids(transaction, &symlink_ids)?.into_iter().map(|d| Inode::Symlink(d)));
+
+        Ok(out)
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
