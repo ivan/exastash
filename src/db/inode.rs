@@ -73,6 +73,32 @@ pub struct Dir {
     pub birth: Birth,
 }
 
+impl Dir {
+    fn find_by_ids(transaction: &mut Transaction<'_>, ids: &[i64]) -> Result<Vec<Dir>> {
+        let rows = transaction.query(
+            "SELECT id, mtime, birth_time, birth_version, birth_hostname
+             FROM dirs
+             WHERE id = ANY($1::bigint[])",
+            &[&ids]
+        )?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(
+                Dir {
+                    id: row.get(0),
+                    mtime: row.get(1),
+                    birth: Birth {
+                        time: row.get(2),
+                        version: row.get(3),
+                        hostname: row.get(4),
+                    }
+                }
+            );
+        }
+        Ok(out)
+    }
+}
+
 /// A new directory
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewDir {
@@ -202,6 +228,33 @@ pub struct Symlink {
     pub target: String,
 }
 
+impl Symlink {
+    fn find_by_ids(transaction: &mut Transaction<'_>, ids: &[i64]) -> Result<Vec<Symlink>> {
+        let rows = transaction.query(
+            "SELECT id, mtime, target, birth_time, birth_version, birth_hostname
+             FROM symlinks
+             WHERE id = ANY($1::bigint[])",
+            &[&ids]
+        )?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(
+                Symlink {
+                    id: row.get(0),
+                    mtime: row.get(1),
+                    target: row.get(2),
+                    birth: Birth {
+                        time: row.get(3),
+                        version: row.get(4),
+                        hostname: row.get(5),
+                    }
+                }
+            );
+        }
+        Ok(out)
+    }
+}
+
 /// A new symbolic link
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewSymlink {
@@ -218,7 +271,7 @@ impl NewSymlink {
     /// Does not commit the transaction, you must do so yourself.
     pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let rows = transaction.query(
-            "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
+            "INSERT INTO symlinks (mtime, target, birth_time, birth_version, birth_hostname)
              VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
              RETURNING id", &[&self.mtime, &self.target, &self.birth.time, &self.birth.version, &self.birth.hostname]
         )?;
@@ -253,9 +306,34 @@ pub(crate) mod tests {
         use super::*;
         use crate::util;
 
+        /// Dir::find_by_ids returns empty Vec when given no ids
+        #[test]
+        fn test_dir_find_by_ids_empty() -> Result<()> {
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let files = Dir::find_by_ids(&mut transaction, &[])?;
+            assert_eq!(files, vec![]);
+            Ok(())
+        }
+
+        /// Dir::find_by_ids returns Vec with `Dir`s for corresponding ids
+        #[test]
+        fn test_dir_find_by_ids_nonempty() -> Result<()> {
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let new = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() };
+            let id = new.create(&mut transaction)?.dir_id()?;
+            let nonexistent_id = 0;
+            let files = Dir::find_by_ids(&mut transaction, &[id, nonexistent_id])?;
+            assert_eq!(files, vec![
+                new.to_dir(id)
+            ]);
+            Ok(())
+        }
+
         /// File::find_by_ids returns empty Vec when given no ids
         #[test]
-        fn test_find_by_ids_empty() -> Result<()> {
+        fn test_file_find_by_ids_empty() -> Result<()> {
             let mut client = get_client();
             let mut transaction = start_transaction(&mut client)?;
             let files = File::find_by_ids(&mut transaction, &[])?;
@@ -265,15 +343,40 @@ pub(crate) mod tests {
 
         /// File::find_by_ids returns Vec with `File`s for corresponding ids
         #[test]
-        fn test_find_by_ids_nonempty() -> Result<()> {
+        fn test_file_find_by_ids_nonempty() -> Result<()> {
             let mut client = get_client();
             let mut transaction = start_transaction(&mut client)?;
-            let new_file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() };
-            let id = new_file.create(&mut transaction)?.file_id()?;
+            let new = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() };
+            let id = new.create(&mut transaction)?.file_id()?;
             let nonexistent_id = 0;
             let files = File::find_by_ids(&mut transaction, &[id, nonexistent_id])?;
             assert_eq!(files, vec![
-                new_file.to_file(id)
+                new.to_file(id)
+            ]);
+            Ok(())
+        }
+
+        /// Symlink::find_by_ids returns empty Vec when given no ids
+        #[test]
+        fn test_symlink_find_by_ids_empty() -> Result<()> {
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let files = Symlink::find_by_ids(&mut transaction, &[])?;
+            assert_eq!(files, vec![]);
+            Ok(())
+        }
+
+        /// Symlink::find_by_ids returns Vec with `Dir`s for corresponding ids
+        #[test]
+        fn test_symlink_find_by_ids_nonempty() -> Result<()> {
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let new = NewSymlink { target: "test".into(), mtime: util::now_no_nanos(), birth: Birth::here_and_now() };
+            let id = new.create(&mut transaction)?.symlink_id()?;
+            let nonexistent_id = 0;
+            let files = Symlink::find_by_ids(&mut transaction, &[id, nonexistent_id])?;
+            assert_eq!(files, vec![
+                new.to_symlink(id)
             ]);
             Ok(())
         }
@@ -383,11 +486,11 @@ pub(crate) mod tests {
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() };
             let inode = symlink.create(&mut transaction)?;
             transaction.commit()?;
-            for (column, value) in [("id", "100"), ("symlink_target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+            for (column, value) in [("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE symlinks SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&inode.symlink_id()?]);
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, symlink_target, or birth_*");
+                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, target, or birth_*");
             }
             Ok(())
         }

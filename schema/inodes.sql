@@ -48,7 +48,7 @@ CREATE TABLE symlinks (
     mtime           timestamptz       NOT NULL,
     birth_time      timestamptz       NOT NULL,
     birth_version   smallint          NOT NULL REFERENCES exastash_versions (id),
-    symlink_target  symlink_pathname  NOT NULL,
+    target          symlink_pathname  NOT NULL,
     birth_hostname  hostname          NOT NULL
 );
 
@@ -80,12 +80,12 @@ CREATE TRIGGER symlinks_check_update
     FOR EACH ROW
     WHEN (
         OLD.id             != NEW.id             OR
-        OLD.symlink_target != NEW.symlink_target OR
+        OLD.target         != NEW.target         OR
         OLD.birth_time     != NEW.birth_time     OR
         OLD.birth_version  != NEW.birth_version  OR
         OLD.birth_hostname != NEW.birth_hostname
     )
-    EXECUTE FUNCTION raise_exception('cannot change id, symlink_target, or birth_*');
+    EXECUTE FUNCTION raise_exception('cannot change id, target, or birth_*');
 
 
 CREATE TRIGGER dirs_forbid_truncate
