@@ -74,11 +74,10 @@ struct InodeSelector {
 }
 
 impl InodeSelector {
-    fn to_inode(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
+    fn to_inode_id(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let inode = match (self.dir.or(self.file).or(self.symlink), &self.path) {
             (Some(_), None) => {
-                let inode = db::dirent::InodeTuple(self.dir, self.file, self.symlink).to_inode_id()?;
-                inode
+                db::dirent::InodeTuple(self.dir, self.file, self.symlink).to_inode_id()?
             },
             (None, Some(path)) => {
                 let root = self.root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
@@ -88,8 +87,7 @@ impl InodeSelector {
                 } else {
                     path.split('/').collect()
                 };
-                let inode = walk_path(transaction, base_inode, &path_components)?;
-                inode
+                walk_path(transaction, base_inode, &path_components)?
             },
             _ => {
                 bail!("Either dir|file|symlink or path must be specified but not both");
@@ -170,14 +168,14 @@ fn main() -> Result<()> {
             }
         },
         ExastashCommand::Ls { just_names, selector } => {
-            let inode = selector.to_inode(&mut transaction)?;
-            let rows = db::dirent::list_dir(&mut transaction, inode)?;
+            let inode_id = selector.to_inode_id(&mut transaction)?;
+            let rows = db::dirent::list_dir(&mut transaction, inode_id)?;
             for row in rows {
                 dbg!(row.basename);
             }
         },
         ExastashCommand::Info { selector } => {
-            let inode = selector.to_inode(&mut transaction)?;
+            let inode_id = selector.to_inode_id(&mut transaction)?;
             
         },
     };

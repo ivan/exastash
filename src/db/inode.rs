@@ -88,8 +88,8 @@ impl NewDir {
     pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let rows = transaction.query(
             "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
-            VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
-            RETURNING id", &[&self.mtime, &self.birth.time, &self.birth.version, &self.birth.hostname]
+             VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
+             RETURNING id", &[&self.mtime, &self.birth.time, &self.birth.version, &self.birth.hostname]
         )?;
         let id: i64 = rows[0].get(0);
         assert!(id >= 1);
@@ -112,6 +112,34 @@ pub struct File {
     pub executable: bool,
 }
 
+impl File {
+    fn find_by_ids(transaction: &mut Transaction<'_>, ids: &[i64]) -> Result<Vec<File>> {
+        let rows = transaction.query(
+            "SELECT (id, mtime, size, executable, birth_time, birth_version, birth_hostname)
+             FROM files
+             WHERE id = ANY($1::bigint[])",
+            &[&ids]
+        )?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(
+                File {
+                    id: row.get(0),
+                    mtime: row.get(1),
+                    size: row.get(2),
+                    executable: row.get(3),
+                    birth: Birth {
+                        time: row.get(4),
+                        version: row.get(5),
+                        hostname: row.get(6),
+                    }
+                }
+            );
+        }
+        Ok(out)
+    }
+}
+
 /// A new file
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewFile {
@@ -132,8 +160,8 @@ impl NewFile {
         assert!(self.size >= 0, "size must be >= 0");
         let rows = transaction.query(
             "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
-            VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
-            RETURNING id", &[&self.mtime, &self.size, &self.executable, &self.birth.time, &self.birth.version, &self.birth.hostname]
+             VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
+             RETURNING id", &[&self.mtime, &self.size, &self.executable, &self.birth.time, &self.birth.version, &self.birth.hostname]
         )?;
         let id: i64 = rows[0].get(0);
         assert!(id >= 1);
@@ -171,8 +199,8 @@ impl NewSymlink {
     pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let rows = transaction.query(
             "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
-            VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
-            RETURNING id", &[&self.mtime, &self.target, &self.birth.time, &self.birth.version, &self.birth.hostname]
+             VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
+             RETURNING id", &[&self.mtime, &self.target, &self.birth.time, &self.birth.version, &self.birth.hostname]
         )?;
         let id: i64 = rows[0].get(0);
         assert!(id >= 1);
@@ -189,6 +217,20 @@ pub(crate) mod tests {
     pub(crate) fn create_dummy_file(transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let file = NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now() };
         file.create(transaction)
+    }
+
+    mod api {
+        use super::*;
+
+        /// File::find_by_ids returns empty Vec when given no ids
+        #[test]
+        fn test_find_by_ids_empty() -> Result<()> {
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let files = File::find_by_ids(&mut transaction, &[])?;
+            assert_eq!(files, vec![]);
+            Ok(())
+        }
     }
 
     // Testing our .sql from Rust, not testing our Rust
