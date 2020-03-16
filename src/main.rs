@@ -8,6 +8,8 @@ use crate::db::traversal::walk_path;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "es")]
+#[structopt(help_message = "Print help information")]
+#[structopt(version_message = "Print version information")]
 /// exastash
 enum ExastashCommand {
     /// Subcommands to work with dirs
