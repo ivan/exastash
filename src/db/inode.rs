@@ -58,7 +58,7 @@ impl Birth {
     /// Returns a `Birth` with time set to now, version set to the current exastash version,
     /// and hostname set to the machine's hostname.
     pub fn here_and_now() -> Birth {
-        Birth { time: Utc::now(), version: EXASTASH_VERSION, hostname: util::get_hostname() }
+        Birth { time: util::now_no_nanos(), version: EXASTASH_VERSION, hostname: util::get_hostname() }
     }
 }
 
@@ -95,6 +95,15 @@ impl NewDir {
         assert!(id >= 1);
         Ok(InodeId::Dir(id))
     }
+
+    /// Return a `Dir` based on this `NewDir` with the given `id`
+    pub fn to_dir(&self, id: i64) -> Dir {
+        Dir {
+            id,
+            mtime: self.mtime,
+            birth: self.birth.clone(),
+        }
+    }
 }
 
 /// A file
@@ -115,7 +124,7 @@ pub struct File {
 impl File {
     fn find_by_ids(transaction: &mut Transaction<'_>, ids: &[i64]) -> Result<Vec<File>> {
         let rows = transaction.query(
-            "SELECT (id, mtime, size, executable, birth_time, birth_version, birth_hostname)
+            "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname
              FROM files
              WHERE id = ANY($1::bigint[])",
             &[&ids]
@@ -167,6 +176,17 @@ impl NewFile {
         assert!(id >= 1);
         Ok(InodeId::File(id))
     }
+
+    /// Return a `File` based on this `NewFile` with the given `id`
+    pub fn to_file(&self, id: i64) -> File {
+        File {
+            id,
+            mtime: self.mtime,
+            birth: self.birth.clone(),
+            size: self.size,
+            executable: self.executable,
+        }
+    }
 }
 
 /// A symbolic link
@@ -206,6 +226,16 @@ impl NewSymlink {
         assert!(id >= 1);
         Ok(InodeId::Symlink(id))
     }
+
+    /// Return a `Symlink` based on this `NewSymlink` with the given `id`
+    pub fn to_symlink(&self, id: i64) -> Symlink {
+        Symlink {
+            id,
+            mtime: self.mtime,
+            birth: self.birth.clone(),
+            target: self.target.clone(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -221,6 +251,7 @@ pub(crate) mod tests {
 
     mod api {
         use super::*;
+        use crate::util;
 
         /// File::find_by_ids returns empty Vec when given no ids
         #[test]
@@ -229,6 +260,21 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client)?;
             let files = File::find_by_ids(&mut transaction, &[])?;
             assert_eq!(files, vec![]);
+            Ok(())
+        }
+
+        /// File::find_by_ids returns Vec with `File`s for corresponding ids
+        #[test]
+        fn test_find_by_ids_nonempty() -> Result<()> {
+            let mut client = get_client();
+            let mut transaction = start_transaction(&mut client)?;
+            let new_file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() };
+            let id = new_file.create(&mut transaction)?.file_id()?;
+            let nonexistent_id = 0;
+            let files = File::find_by_ids(&mut transaction, &[id, nonexistent_id])?;
+            assert_eq!(files, vec![
+                new_file.to_file(id)
+            ]);
             Ok(())
         }
     }
