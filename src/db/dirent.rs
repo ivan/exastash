@@ -35,6 +35,8 @@ impl InodeTuple {
 /// A directory entry
 #[derive(Debug, PartialEq, Eq)]
 pub struct Dirent {
+    /// The parent directory
+    pub parent: Inode,
     /// The basename (i.e. file name, not the whole path)
     pub basename: String,
     /// The inode the entry points to
@@ -43,34 +45,37 @@ pub struct Dirent {
 
 impl Dirent {
     /// Returns a `Dirent` with the given `basename` and `child` inode
-    pub fn new(basename: String, child: Inode) -> Dirent {
-        Dirent { basename, child }
+    pub fn new<S: Into<String>>(parent: Inode, basename: S, child: Inode) -> Dirent {
+        Dirent { parent, basename: basename.into(), child }
     }
-}
 
-/// Create a directory entry.
-/// Does not commit the transaction, you must do so yourself.
-pub fn create_dirent(transaction: &mut Transaction<'_>, parent: Inode, dirent: &Dirent) -> Result<()> {
-    let parent_id = parent.dir_id()?;
-    let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode(dirent.child);
-    transaction.execute(
-        "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
-         VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)",
-        &[&parent_id, &dirent.basename, &child_dir, &child_file, &child_symlink]
-    )?;
-    Ok(())
+    /// Create a directory entry.
+    /// Does not commit the transaction, you must do so yourself.
+    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+        let parent_id = self.parent.dir_id()?;
+        let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode(self.child);
+        transaction.execute(
+            "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
+             VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)",
+            &[&parent_id, &self.basename, &child_dir, &child_file, &child_symlink]
+        )?;
+        Ok(())
+    }
 }
 
 /// Returns the children of a directory.
 pub fn list_dir(transaction: &mut Transaction<'_>, parent: Inode) -> Result<Vec<Dirent>> {
     let parent_id = parent.dir_id()?;
-    let rows = transaction.query("SELECT basename, child_dir, child_file, child_symlink FROM dirents WHERE parent = $1::bigint", &[&parent_id])?;
+    let rows = transaction.query(
+        "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
+         WHERE parent = $1::bigint", &[&parent_id])?;
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
-        let basename: String = row.get(0);
-        let tuple = InodeTuple(row.get(1), row.get(2), row.get(3));
+        let parent: Inode = Inode::Dir(row.get(0));
+        let basename: String = row.get(1);
+        let tuple = InodeTuple(row.get(2), row.get(3), row.get(4));
         let inode = tuple.to_inode()?;
-        let dirent = Dirent::new(basename, inode);
+        let dirent = Dirent::new(parent, basename, inode);
         out.push(dirent);
     }
     Ok(out)
@@ -92,21 +97,22 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child_file = inode::create_file(&mut transaction, Utc::now(), 0, false, &inode::Birth::here_and_now())?;
-            let child_symlink = inode::create_symlink(&mut transaction, Utc::now(), "target", &inode::Birth::here_and_now())?;
-            create_dirent(&mut transaction, parent, &Dirent::new("child_dir".to_owned(), child_dir))?;
-            create_dirent(&mut transaction, parent, &Dirent::new("child_file".to_owned(), child_file))?;
-            create_dirent(&mut transaction, parent, &Dirent::new("child_symlink".to_owned(), child_symlink))?;
+            let birth = inode::Birth::here_and_now();
+            let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            Dirent::new(parent, "child_dir", child_dir).create(&mut transaction)?;
+            Dirent::new(parent, "child_file", child_file).create(&mut transaction)?;
+            Dirent::new(parent, "child_symlink", child_symlink).create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
             assert_eq!(list_dir(&mut transaction, child_dir)?, vec![]);
             assert_eq!(list_dir(&mut transaction, parent)?, vec![
-                Dirent::new("child_dir".to_owned(), child_dir),
-                Dirent::new("child_file".to_owned(), child_file),
-                Dirent::new("child_symlink".to_owned(), child_symlink),
+                Dirent::new(parent, "child_dir", child_dir),
+                Dirent::new(parent, "child_file", child_file),
+                Dirent::new(parent, "child_symlink", child_symlink),
             ]);
 
             Ok(())
@@ -124,11 +130,11 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let parent = inode::NewDir { mtime: Utc::now(), birth: inode::Birth::here_and_now() }.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let result = create_dirent(&mut transaction, parent, &Dirent::new("self".to_owned(), parent));
+            let result = Dirent::new(parent, "self", parent).create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: new row for relation \"dirents\" violates check constraint \"dirents_check\""
@@ -143,9 +149,10 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            create_dirent(&mut transaction, parent, &Dirent::new("child_dir".to_owned(), child_dir))?;
+            let birth = inode::Birth::here_and_now();
+            let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            Dirent::new(parent, "child_dir", child_dir).create(&mut transaction)?;
             transaction.commit()?;
 
             for (column, value) in [("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")].iter() {
@@ -167,9 +174,10 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            create_dirent(&mut transaction, parent, &Dirent::new("child_dir".to_owned(), child_dir))?;
+            let birth = inode::Birth::here_and_now();
+            let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            Dirent::new(parent, "child_dir", child_dir).create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
@@ -184,13 +192,14 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            create_dirent(&mut transaction, parent, &Dirent::new("child_dir".to_owned(), child_dir))?;
+            let birth = inode::Birth::here_and_now();
+            let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            Dirent::new(parent, "child_dir", child_dir).create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let result = create_dirent(&mut transaction, parent, &Dirent::new("child_dir_again".to_owned(), child_dir));
+            let result = Dirent::new(parent, "child_dir_again", child_dir).create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
@@ -205,15 +214,16 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let middle = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            create_dirent(&mut transaction, parent, &Dirent::new("middle".to_owned(), middle))?;
-            create_dirent(&mut transaction, middle, &Dirent::new("child".to_owned(), child))?;
+            let birth = inode::Birth::here_and_now();
+            let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let middle = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            Dirent::new(parent, "middle", middle).create(&mut transaction)?;
+            Dirent::new(middle, "child", child).create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let result = create_dirent(&mut transaction, parent, &Dirent::new("child".to_owned(), child));
+            let result = Dirent::new(parent, "child", child).create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
@@ -229,13 +239,14 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let parent = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
+            let birth = inode::Birth::here_and_now();
+            let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
             transaction.commit()?;
 
             for basename in ["", "/", ".", "..", &"x".repeat(256)].iter() {
                 let mut transaction = start_transaction(&mut client)?;
-                let result = create_dirent(&mut transaction, parent, &Dirent::new(basename.to_string(), child));
+                let result = Dirent::new(parent, basename.to_string(), child).create(&mut transaction);
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
                     "db error: ERROR: value for domain linux_basename violates check constraint \"linux_basename_check\""

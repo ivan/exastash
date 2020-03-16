@@ -31,7 +31,7 @@ mod tests {
     use super::*;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
-    use crate::db::dirent::{Dirent, create_dirent};
+    use crate::db::dirent::Dirent;
     use chrono::Utc;
     use crate::db::inode;
 
@@ -43,17 +43,18 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let root_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child_dir = inode::create_dir(&mut transaction, Utc::now(), &inode::Birth::here_and_now())?;
-            let child_file = inode::create_file(&mut transaction, Utc::now(), 0, false, &inode::Birth::here_and_now())?;
-            let child_symlink = inode::create_symlink(&mut transaction, Utc::now(), "target", &inode::Birth::here_and_now())?;
-            create_dirent(&mut transaction, root_dir, &Dirent::new("child_dir".to_owned(), child_dir))?;
-            create_dirent(&mut transaction, root_dir, &Dirent::new("child_file".to_owned(), child_file))?;
-            create_dirent(&mut transaction, root_dir, &Dirent::new("child_symlink".to_owned(), child_symlink))?;
+            let birth = inode::Birth::here_and_now();
+            let root_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction)?;
+            Dirent::new(root_dir, "child_dir", child_dir).create(&mut transaction)?;
+            Dirent::new(root_dir, "child_file", child_file).create(&mut transaction)?;
+            Dirent::new(root_dir, "child_symlink", child_symlink).create(&mut transaction)?;
             // Give child_file a second location as well
-            create_dirent(&mut transaction, child_dir, &Dirent::new("child_file".to_owned(), child_file))?;
+            Dirent::new(child_dir, "child_file", child_file).create(&mut transaction)?;
             // Give child_symlink a second location as well
-            create_dirent(&mut transaction, child_dir, &Dirent::new("child_symlink".to_owned(), child_symlink))?;
+            Dirent::new(child_dir, "child_symlink", child_symlink).create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;

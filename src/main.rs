@@ -147,7 +147,8 @@ fn main() -> Result<()> {
                 DirCommand::Create => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
-                    let inode = db::inode::create_dir(&mut transaction, mtime, &birth)?;
+                    let dir = db::inode::NewDir { mtime, birth };
+                    let inode = dir.create(&mut transaction)?;
                     transaction.commit()?;
                     println!("{}", inode.dir_id()?);
                 },
@@ -161,9 +162,9 @@ fn main() -> Result<()> {
             match dirent {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
                     let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode()?;
-                    let dirent = db::dirent::Dirent { basename, child };
                     let parent = db::inode::Inode::Dir(parent_dir_id);
-                    db::dirent::create_dirent(&mut transaction, parent, &dirent)?;
+                    let dirent = db::dirent::Dirent::new(parent, basename, child);
+                    dirent.create(&mut transaction)?;
                     transaction.commit()?;
                 }
             }
@@ -177,7 +178,7 @@ fn main() -> Result<()> {
         },
         ExastashCommand::Info { selector } => {
             let inode = selector.to_inode(&mut transaction)?;
-            // TODO
+            
         },
     };
 
