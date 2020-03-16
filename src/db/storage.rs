@@ -6,7 +6,7 @@ pub mod internetarchive;
 
 use anyhow::Result;
 use postgres::Transaction;
-use crate::db::inode::Inode;
+use crate::db::inode::InodeId;
 
 /// A storage entity
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,7 +20,7 @@ pub enum Storage {
 }
 
 /// Returns a list of places where the data for a file can be retrieved
-pub fn get_storage(transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
+pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
     let file_id = inode.file_id();
 
     // We want point-in-time consistency for all the queries below

@@ -3,7 +3,7 @@
 use anyhow::Result;
 use postgres::Transaction;
 use postgres_types::{ToSql, FromSql};
-use crate::db::inode::Inode;
+use crate::db::inode::InodeId;
 use crate::postgres::SixteenBytes;
 
 pub mod file;
@@ -45,7 +45,7 @@ pub struct Storage {
 /// Note that the gsuite domain must already exist.
 /// Note that you must call file::create_gdrive_file for each gdrive file beforehand.
 /// Does not commit the transaction, you must do so yourself.
-pub fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: &Storage) -> Result<()> {
+pub fn create_storage(transaction: &mut Transaction<'_>, inode: InodeId, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
     let gdrive_ids = storage.gdrive_files.iter().map(|f| f.id.clone()).collect::<Vec<_>>();
     transaction.execute(
@@ -57,7 +57,7 @@ pub fn create_storage(transaction: &mut Transaction<'_>, inode: Inode, storage: 
 }
 
 /// Returns a list of gdrive storage entities where the data for a file can be retrieved.
-pub fn get_storage(mut transaction: &mut Transaction<'_>, inode: Inode) -> Result<Vec<Storage>> {
+pub fn get_storage(mut transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
     let rows = transaction.query(
         "SELECT gsuite_domain, cipher, cipher_key, gdrive_ids FROM storage_gdrive WHERE file_id = $1",
         &[&inode.file_id()?]

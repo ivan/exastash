@@ -8,7 +8,7 @@ use crate::util;
 
 /// A dir, file, or symlink
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Inode {
+pub enum InodeId {
     /// A directory
     Dir(i64),
     /// A regular file
@@ -17,11 +17,11 @@ pub enum Inode {
     Symlink(i64),
 }
 
-impl Inode {
+impl InodeId {
     /// Returns the directory id for this inode, if it is one
     pub fn dir_id(self) -> Result<i64> {
         match self {
-            Inode::Dir(id) => Ok(id),
+            InodeId::Dir(id) => Ok(id),
             _ => bail!("{:?} is not a dir", self),
         }
     }
@@ -29,7 +29,7 @@ impl Inode {
     /// Returns the file id for this inode, if it is one
     pub fn file_id(self) -> Result<i64> {
         match self {
-            Inode::File(id) => Ok(id),
+            InodeId::File(id) => Ok(id),
             _ => bail!("{:?} is not a file", self),
         }
     }
@@ -37,7 +37,7 @@ impl Inode {
     /// Returns the symlink id for this inode, if it is one
     pub fn symlink_id(self) -> Result<i64> {
         match self {
-            Inode::Symlink(id) => Ok(id),
+            InodeId::Symlink(id) => Ok(id),
             _ => bail!("{:?} is not a symlink", self),
         }
     }
@@ -85,7 +85,7 @@ pub struct NewDir {
 impl NewDir {
     /// Create an entry for a directory in the database and return its id.
     /// Does not commit the transaction, you must do so yourself.
-    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<Inode> {
+    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let rows = transaction.query(
             "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
             VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
@@ -93,7 +93,7 @@ impl NewDir {
         )?;
         let id: i64 = rows[0].get(0);
         assert!(id >= 1);
-        Ok(Inode::Dir(id))
+        Ok(InodeId::Dir(id))
     }
 }
 
@@ -128,7 +128,7 @@ pub struct NewFile {
 impl NewFile {
     /// Create an entry for a file in the database and return its id.
     /// Does not commit the transaction, you must do so yourself.
-    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<Inode> {
+    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         assert!(self.size >= 0, "size must be >= 0");
         let rows = transaction.query(
             "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
@@ -137,7 +137,7 @@ impl NewFile {
         )?;
         let id: i64 = rows[0].get(0);
         assert!(id >= 1);
-        Ok(Inode::File(id))
+        Ok(InodeId::File(id))
     }
 }
 
@@ -168,7 +168,7 @@ pub struct NewSymlink {
 impl NewSymlink {
     /// Create an entry for a symlink in the database and return its id.
     /// Does not commit the transaction, you must do so yourself.
-    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<Inode> {
+    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let rows = transaction.query(
             "INSERT INTO symlinks (mtime, symlink_target, birth_time, birth_version, birth_hostname)
             VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
@@ -176,7 +176,7 @@ impl NewSymlink {
         )?;
         let id: i64 = rows[0].get(0);
         assert!(id >= 1);
-        Ok(Inode::Symlink(id))
+        Ok(InodeId::Symlink(id))
     }
 }
 
@@ -186,7 +186,7 @@ pub(crate) mod tests {
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
 
-    pub(crate) fn create_dummy_file(transaction: &mut Transaction<'_>) -> Result<Inode> {
+    pub(crate) fn create_dummy_file(transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let file = NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now() };
         file.create(transaction)
     }

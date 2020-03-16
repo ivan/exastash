@@ -3,7 +3,7 @@ use structopt::StructOpt;
 use exastash::db;
 use chrono::Utc;
 use postgres::Transaction;
-use crate::db::inode::Inode;
+use crate::db::inode::InodeId;
 use crate::db::traversal::walk_path;
 
 #[derive(StructOpt, Debug)]
@@ -74,15 +74,15 @@ struct InodeSelector {
 }
 
 impl InodeSelector {
-    fn to_inode(&self, transaction: &mut Transaction<'_>) -> Result<Inode> {
+    fn to_inode(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let inode = match (self.dir.or(self.file).or(self.symlink), &self.path) {
             (Some(_), None) => {
-                let inode = db::dirent::InodeTuple(self.dir, self.file, self.symlink).to_inode()?;
+                let inode = db::dirent::InodeTuple(self.dir, self.file, self.symlink).to_inode_id()?;
                 inode
             },
             (None, Some(path)) => {
                 let root = self.root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
-                let base_inode = db::inode::Inode::Dir(root);
+                let base_inode = db::inode::InodeId::Dir(root);
                 let path_components: Vec<&str> = if path == "" {
                     vec![]
                 } else {
@@ -161,8 +161,8 @@ fn main() -> Result<()> {
         ExastashCommand::Dirent(dirent) => {
             match dirent {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
-                    let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode()?;
-                    let parent = db::inode::Inode::Dir(parent_dir_id);
+                    let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode_id()?;
+                    let parent = db::inode::InodeId::Dir(parent_dir_id);
                     let dirent = db::dirent::Dirent::new(parent, basename, child);
                     dirent.create(&mut transaction)?;
                     transaction.commit()?;

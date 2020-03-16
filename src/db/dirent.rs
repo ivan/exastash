@@ -1,6 +1,6 @@
 //! CRUD operations for dirent entities in PostgreSQL
 
-use crate::db::inode::Inode;
+use crate::db::inode::InodeId;
 use anyhow::{bail, Result};
 use postgres::Transaction;
 
@@ -10,24 +10,24 @@ use postgres::Transaction;
 pub struct InodeTuple(pub Option<i64>, pub Option<i64>, pub Option<i64>);
 
 impl InodeTuple {
-    /// Converts an InodeTuple to an Inode.
+    /// Converts an InodeTuple to an InodeId.
     /// Exactly one value must be Some, else this returns an error.
-    pub fn to_inode(self) -> Result<Inode> {
+    pub fn to_inode_id(self) -> Result<InodeId> {
         match self {
-            InodeTuple(Some(id), None, None) => Ok(Inode::Dir(id)),
-            InodeTuple(None, Some(id), None) => Ok(Inode::File(id)),
-            InodeTuple(None, None, Some(id)) => Ok(Inode::Symlink(id)),
+            InodeTuple(Some(id), None, None) => Ok(InodeId::Dir(id)),
+            InodeTuple(None, Some(id), None) => Ok(InodeId::File(id)),
+            InodeTuple(None, None, Some(id)) => Ok(InodeId::Symlink(id)),
             _                                => bail!("tuple {:?} does not have exactly 1 Some", self),
         }
     }
 
-    /// Converts an Inode to an InodeTuple.
+    /// Converts an InodeId to an InodeTuple.
     /// One value will be Some, the rest will be None.
-    pub fn from_inode(inode: Inode) -> InodeTuple {
+    pub fn from_inode_id(inode: InodeId) -> InodeTuple {
         match inode {
-            Inode::Dir(id)     => InodeTuple(Some(id), None, None),
-            Inode::File(id)    => InodeTuple(None, Some(id), None),
-            Inode::Symlink(id) => InodeTuple(None, None, Some(id)),
+            InodeId::Dir(id)     => InodeTuple(Some(id), None, None),
+            InodeId::File(id)    => InodeTuple(None, Some(id), None),
+            InodeId::Symlink(id) => InodeTuple(None, None, Some(id)),
         }
     }
 }
@@ -36,16 +36,16 @@ impl InodeTuple {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Dirent {
     /// The parent directory
-    pub parent: Inode,
+    pub parent: InodeId,
     /// The basename (i.e. file name, not the whole path)
     pub basename: String,
     /// The inode the entry points to
-    pub child: Inode
+    pub child: InodeId
 }
 
 impl Dirent {
     /// Returns a `Dirent` with the given `basename` and `child` inode
-    pub fn new<S: Into<String>>(parent: Inode, basename: S, child: Inode) -> Dirent {
+    pub fn new<S: Into<String>>(parent: InodeId, basename: S, child: InodeId) -> Dirent {
         Dirent { parent, basename: basename.into(), child }
     }
 
@@ -53,7 +53,7 @@ impl Dirent {
     /// Does not commit the transaction, you must do so yourself.
     pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
         let parent_id = self.parent.dir_id()?;
-        let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode(self.child);
+        let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode_id(self.child);
         transaction.execute(
             "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
              VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)",
@@ -64,17 +64,17 @@ impl Dirent {
 }
 
 /// Returns the children of a directory.
-pub fn list_dir(transaction: &mut Transaction<'_>, parent: Inode) -> Result<Vec<Dirent>> {
+pub fn list_dir(transaction: &mut Transaction<'_>, parent: InodeId) -> Result<Vec<Dirent>> {
     let parent_id = parent.dir_id()?;
     let rows = transaction.query(
         "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
          WHERE parent = $1::bigint", &[&parent_id])?;
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
-        let parent: Inode = Inode::Dir(row.get(0));
+        let parent: InodeId = InodeId::Dir(row.get(0));
         let basename: String = row.get(1);
         let tuple = InodeTuple(row.get(2), row.get(3), row.get(4));
-        let inode = tuple.to_inode()?;
+        let inode = tuple.to_inode_id()?;
         let dirent = Dirent::new(parent, basename, inode);
         out.push(dirent);
     }

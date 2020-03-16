@@ -3,13 +3,13 @@
 use anyhow::{anyhow, Result};
 use postgres::Transaction;
 use crate::db::dirent::InodeTuple;
-use crate::db::inode::Inode;
+use crate::db::inode::InodeId;
 
 /// Returns the inode referenced by some path segments, starting from some base directory.
 /// Does not resolve symlinks.
 /// 
 /// TODO: speed this up by farming it out to a PL/pgSQL function
-pub fn walk_path(transaction: &mut Transaction<'_>, base_dir: Inode, path_components: &[&str]) -> Result<Inode> {
+pub fn walk_path(transaction: &mut Transaction<'_>, base_dir: InodeId, path_components: &[&str]) -> Result<InodeId> {
     // We want point-in-time consistency for all the queries below
     transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[])?;
 
@@ -21,7 +21,7 @@ pub fn walk_path(transaction: &mut Transaction<'_>, base_dir: Inode, path_compon
         assert!(rows.len() <= 1, "expected <= 1 rows");
         let dir_id = current_inode.dir_id()?;
         let row = rows.get(0).ok_or_else(|| anyhow!("no such dirent {:?} under dir {:?}", component, dir_id))?;
-        current_inode = InodeTuple(row.get(0), row.get(1), row.get(2)).to_inode()?;
+        current_inode = InodeTuple(row.get(0), row.get(1), row.get(2)).to_inode_id()?;
     }
     Ok(current_inode)
 }
@@ -62,14 +62,14 @@ mod tests {
             // walk_path returns the base_dir if there are no components to walk
             assert_eq!(walk_path(&mut transaction, root_dir, &[])?, root_dir);
 
-            // walk_path returns an Inode::Dir if segments point to a dir
+            // walk_path returns an InodeId::Dir if segments point to a dir
             assert_eq!(walk_path(&mut transaction, root_dir, &["child_dir"])?, child_dir);
 
-            // walk_path returns an Inode::File if segments point to a file
+            // walk_path returns an InodeId::File if segments point to a file
             assert_eq!(walk_path(&mut transaction, root_dir, &["child_file"])?, child_file);
             assert_eq!(walk_path(&mut transaction, root_dir, &["child_dir", "child_file"])?, child_file);
 
-            // walk_path returns an Inode::Symlink if segments point to a symlink
+            // walk_path returns an InodeId::Symlink if segments point to a symlink
             assert_eq!(walk_path(&mut transaction, root_dir, &["child_symlink"])?, child_symlink);
             assert_eq!(walk_path(&mut transaction, root_dir, &["child_dir", "child_symlink"])?, child_symlink);
 
