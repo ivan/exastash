@@ -18,7 +18,7 @@ pub enum InodeId {
 }
 
 impl InodeId {
-    /// Returns the directory id for this inode, if it is one
+    /// Return the directory id for this inode, if it is one
     pub fn dir_id(self) -> Result<i64> {
         match self {
             InodeId::Dir(id) => Ok(id),
@@ -26,7 +26,7 @@ impl InodeId {
         }
     }
 
-    /// Returns the file id for this inode, if it is one
+    /// Return the file id for this inode, if it is one
     pub fn file_id(self) -> Result<i64> {
         match self {
             InodeId::File(id) => Ok(id),
@@ -34,7 +34,7 @@ impl InodeId {
         }
     }
 
-    /// Returns the symlink id for this inode, if it is one
+    /// Return the symlink id for this inode, if it is one
     pub fn symlink_id(self) -> Result<i64> {
         match self {
             InodeId::Symlink(id) => Ok(id),
@@ -55,7 +55,7 @@ pub struct Birth {
 }
 
 impl Birth {
-    /// Returns a `Birth` with time set to now, version set to the current exastash version,
+    /// Return a `Birth` with time set to now, version set to the current exastash version,
     /// and hostname set to the machine's hostname.
     pub fn here_and_now() -> Birth {
         Birth { time: util::now_no_nanos(), version: EXASTASH_VERSION, hostname: util::get_hostname() }

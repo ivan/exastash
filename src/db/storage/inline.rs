@@ -11,7 +11,7 @@ pub struct Storage {
     pub content: Vec<u8>,
 }
 
-/// Creates an inline storage entity in the database.
+/// Create an inline storage entity in the database.
 /// Does not commit the transaction, you must do so yourself.
 pub fn create_storage(transaction: &mut Transaction<'_>, inode: InodeId, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
@@ -23,7 +23,7 @@ pub fn create_storage(transaction: &mut Transaction<'_>, inode: InodeId, storage
     Ok(())
 }
 
-/// Returns a list of inline storage entities containing the data for a file.
+/// Return a list of inline storage entities containing the data for a file.
 pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
     let rows = transaction.query("SELECT content FROM storage_inline WHERE file_id = $1::bigint", &[&file_id])?;

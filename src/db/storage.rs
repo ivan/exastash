@@ -19,7 +19,7 @@ pub enum Storage {
     InternetArchive(internetarchive::Storage),
 }
 
-/// Returns a list of places where the data for a file can be retrieved
+/// Return a list of places where the data for a file can be retrieved
 pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
     let file_id = inode.file_id();
 

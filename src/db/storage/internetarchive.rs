@@ -18,7 +18,7 @@ pub struct Storage {
     pub last_probed: Option<DateTime<Utc>>,
 }
 
-/// Creates an internetarchive storage entity in the database.
+/// Create an internetarchive storage entity in the database.
 /// Does not commit the transaction, you must do so yourself.
 pub fn create_storage(transaction: &mut Transaction<'_>, inode: InodeId, storage: &Storage) -> Result<()> {
     let file_id = inode.file_id()?;
@@ -30,7 +30,7 @@ pub fn create_storage(transaction: &mut Transaction<'_>, inode: InodeId, storage
     Ok(())
 }
 
-/// Returns a list of internetarchive storage entities where the data for a file can be retrieved.
+/// Return a list of internetarchive storage entities where the data for a file can be retrieved.
 pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
     let file_id = inode.file_id()?;
     let rows = transaction.query("SELECT ia_item, pathname, darked, last_probed FROM storage_internetarchive WHERE file_id = $1::bigint", &[&file_id])?;

@@ -44,7 +44,7 @@ pub struct Dirent {
 }
 
 impl Dirent {
-    /// Returns a `Dirent` with the given `basename` and `child` inode
+    /// Return a `Dirent` with the given `basename` and `child` inode
     pub fn new<S: Into<String>>(parent: InodeId, basename: S, child: InodeId) -> Dirent {
         Dirent { parent, basename: basename.into(), child }
     }
@@ -63,7 +63,7 @@ impl Dirent {
     }
 }
 
-/// Returns the children of a directory.
+/// Return the children of a directory.
 pub fn list_dir(transaction: &mut Transaction<'_>, parent: InodeId) -> Result<Vec<Dirent>> {
     let parent_id = parent.dir_id()?;
     let rows = transaction.query(

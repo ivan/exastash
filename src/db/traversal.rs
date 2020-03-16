@@ -5,7 +5,7 @@ use postgres::Transaction;
 use crate::db::dirent::InodeTuple;
 use crate::db::inode::InodeId;
 
-/// Returns the inode referenced by some path segments, starting from some base directory.
+/// Return the inode referenced by some path segments, starting from some base directory.
 /// Does not resolve symlinks.
 /// 
 /// TODO: speed this up by farming it out to a PL/pgSQL function

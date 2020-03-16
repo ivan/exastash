@@ -49,7 +49,7 @@ pub fn remove_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> R
     Ok(())
 }
 
-/// Returns gdrive files with matching ids, in the same order as the ids.
+/// Return gdrive files with matching ids, in the same order as the ids.
 pub fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
     let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids])?;
     let mut map: HashMap<String, GdriveFile> = HashMap::new();

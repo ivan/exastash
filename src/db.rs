@@ -9,14 +9,14 @@ use anyhow::Result;
 use postgres::{Client, Transaction, NoTls};
 use crate::util::env_var;
 
-/// Returns a `postgres::Client` connected to the `postgres://` URI in
+/// Return a `postgres::Client` connected to the `postgres://` URI in
 /// env var `EXASTASH_POSTGRES_URI`.
 pub fn postgres_client_production() -> Result<Client> {
     let database_uri = env_var("EXASTASH_POSTGRES_URI")?;
     Ok(Client::connect(&database_uri, NoTls)?)
 }
 
-/// Returns a transaction with search_path set to 'stash'.
+/// Return a transaction with search_path set to 'stash'.
 pub fn start_transaction(client: &mut Client) -> Result<Transaction<'_>> {
     let mut transaction = client.build_transaction().start()?;
     transaction.execute("SET search_path TO stash", &[])?;
