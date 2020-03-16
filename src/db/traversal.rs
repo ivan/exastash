@@ -21,7 +21,7 @@ pub fn walk_path(transaction: &mut Transaction<'_>, base_dir: Inode, path_compon
         assert!(rows.len() <= 1, "expected <= 1 rows");
         let dir_id = current_inode.dir_id()?;
         let row = rows.get(0).ok_or_else(|| anyhow!("no such dirent {:?} under dir {:?}", component, dir_id))?;
-        current_inode = InodeTuple(row.get(0), row.get(1), row.get(2)).to_inode();
+        current_inode = InodeTuple(row.get(0), row.get(1), row.get(2)).to_inode()?;
     }
     Ok(current_inode)
 }

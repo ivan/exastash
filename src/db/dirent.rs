@@ -1,7 +1,7 @@
 //! CRUD operations for dirent entities in PostgreSQL
 
 use crate::db::inode::Inode;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use postgres::Transaction;
 
 /// A (dir, file, symlink) tuple that is useful when interacting with
@@ -11,13 +11,13 @@ pub struct InodeTuple(pub Option<i64>, pub Option<i64>, pub Option<i64>);
 
 impl InodeTuple {
     /// Converts an InodeTuple to an Inode.
-    /// Exactly one value must be Some, else this panics.
-    pub fn to_inode(self) -> Inode {
+    /// Exactly one value must be Some, else this returns an error.
+    pub fn to_inode(self) -> Result<Inode> {
         match self {
-            InodeTuple(Some(id), None, None) => Inode::Dir(id),
-            InodeTuple(None, Some(id), None) => Inode::File(id),
-            InodeTuple(None, None, Some(id)) => Inode::Symlink(id),
-            _                                => panic!("tuple {:?} does not have exactly 1 Some", self),
+            InodeTuple(Some(id), None, None) => Ok(Inode::Dir(id)),
+            InodeTuple(None, Some(id), None) => Ok(Inode::File(id)),
+            InodeTuple(None, None, Some(id)) => Ok(Inode::Symlink(id)),
+            _                                => bail!("tuple {:?} does not have exactly 1 Some", self),
         }
     }
 
@@ -69,7 +69,7 @@ pub fn list_dir(transaction: &mut Transaction<'_>, parent: Inode) -> Result<Vec<
     for row in rows {
         let basename: String = row.get(0);
         let tuple = InodeTuple(row.get(1), row.get(2), row.get(3));
-        let inode = tuple.to_inode();
+        let inode = tuple.to_inode()?;
         let dirent = Dirent::new(basename, inode);
         out.push(dirent);
     }

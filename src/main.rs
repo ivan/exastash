@@ -2,6 +2,8 @@ use anyhow::{anyhow, bail, Result};
 use structopt::StructOpt;
 use exastash::db;
 use chrono::Utc;
+use postgres::Transaction;
+use crate::db::inode::Inode;
 use crate::db::traversal::walk_path;
 
 #[derive(StructOpt, Debug)]
@@ -23,6 +25,78 @@ enum ExastashCommand {
     /// Subcommands to work with dirents
     #[structopt(name = "dirent")]
     Dirent(DirentCommand),
+
+    #[structopt(name = "info")]
+    /// Show info for a dir, file, or symlink
+    Info {
+        #[structopt(flatten)]
+        selector: InodeSelector,
+    },
+
+    #[structopt(name = "ls")]
+    /// List a dir, file, or symlink
+    Ls {
+        #[structopt(short = "j")]
+        /// Print just the filenames
+        just_names: bool,
+
+        #[structopt(flatten)]
+        selector: InodeSelector,
+    }
+}
+
+#[derive(StructOpt, Debug)]
+struct InodeSelector {
+    /// directory id.
+    /// Only one of the four (dir, file, symlink, path) can be given.
+    #[structopt(long, short = "d")]
+    dir: Option<i64>,
+
+    /// file id.
+    /// Only one of the four (dir, file, symlink, path) can be given.
+    #[structopt(long, short = "f")]
+    file: Option<i64>,
+
+    /// symlink id.
+    /// Only one of the four (dir, file, symlink, path) can be given.
+    #[structopt(long, short = "s")]
+    symlink: Option<i64>,
+
+    /// Path consisting only of slash-separated basenames, no leading / or . or ..
+    /// Only one of the four (dir, file, symlink, path) can be given.
+    #[structopt(long, short = "p")]
+    path: Option<String>,
+
+    /// A directory id specifying the dir from which to start path traversal.
+    /// Must be provided if path is provided.
+    #[structopt(long, short = "r")]
+    root: Option<i64>,
+}
+
+impl InodeSelector {
+    fn to_inode(&self, transaction: &mut Transaction<'_>) -> Result<Inode> {
+        let inode = match (self.dir.or(self.file).or(self.symlink), &self.path) {
+            (Some(_), None) => {
+                let inode = db::dirent::InodeTuple(self.dir, self.file, self.symlink).to_inode()?;
+                inode
+            },
+            (None, Some(path)) => {
+                let root = self.root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
+                let base_inode = db::inode::Inode::Dir(root);
+                let path_components: Vec<&str> = if path == "" {
+                    vec![]
+                } else {
+                    path.split('/').collect()
+                };
+                let inode = walk_path(transaction, base_inode, &path_components)?;
+                inode
+            },
+            _ => {
+                bail!("Either dir|file|symlink or path must be specified but not both");
+            }
+        };
+        Ok(inode)
+    }
 }
 
 #[derive(StructOpt, Debug)]
@@ -30,29 +104,6 @@ enum DirCommand {
     /// Create an unparented directory (for e.g. use as a root inode) and print its id to stdout
     #[structopt(name = "create")]
     Create,
-
-    #[structopt(name = "ls")]
-    /// List files in a stash directory
-    Ls {
-        #[structopt(short = "j")]
-        /// Print just the filenames
-        just_names: bool,
-
-        /// Directory id to list.
-        /// Either this or path must be provided, not both.
-        #[structopt(long, short = "d")]
-        dir_id: Option<i64>,
-
-        /// Path to list (path = slash-separated basenames).
-        /// Either this or directory id must be provided, not both.
-        #[structopt(long, short = "p")]
-        path: Option<String>,
-
-        /// Treat this as the root directory for path traversal
-        /// Must be provided if path is provided.
-        #[structopt(long, short = "r")]
-        root: Option<i64>,
-    }
 }
 
 #[derive(StructOpt, Debug)]
@@ -100,34 +151,6 @@ fn main() -> Result<()> {
                     transaction.commit()?;
                     println!("{}", inode.dir_id()?);
                 },
-                DirCommand::Ls { just_names, dir_id, path, root } => {
-                    match (dir_id, path) {
-                        (Some(id), None) => {
-                            let inode = db::inode::Inode::Dir(id);
-                            let rows = db::dirent::list_dir(&mut transaction, inode)?;
-                            for row in rows {
-                                dbg!(row.basename);
-                            }
-                        },
-                        (None, Some(path)) => {
-                            let base_dir_id = root.ok_or_else(|| anyhow!("If specifying path, a root dir id must also be provided"))?;
-                            let base_inode = db::inode::Inode::Dir(base_dir_id);
-                            let path_components: Vec<&str> = if path == "" {
-                                vec![]
-                            } else {
-                                path.split('/').collect()
-                            };
-                            let inode = walk_path(&mut transaction, base_inode, &path_components)?;
-                            let rows = db::dirent::list_dir(&mut transaction, inode)?;
-                            for row in rows {
-                                dbg!(row.basename);
-                            }
-                        },
-                        _ => {
-                            bail!("One of id or path must be specified");
-                        },
-                    }
-                },
             }
         },
         ExastashCommand::File(file) => {
@@ -137,7 +160,7 @@ fn main() -> Result<()> {
         ExastashCommand::Dirent(dirent) => {
             match dirent {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
-                    let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode();
+                    let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode()?;
                     let dirent = db::dirent::Dirent { basename, child };
                     let parent = db::inode::Inode::Dir(parent_dir_id);
                     db::dirent::create_dirent(&mut transaction, parent, &dirent)?;
@@ -145,6 +168,18 @@ fn main() -> Result<()> {
                 }
             }
         },
-    }
+        ExastashCommand::Ls { just_names, selector } => {
+            let inode = selector.to_inode(&mut transaction)?;
+            let rows = db::dirent::list_dir(&mut transaction, inode)?;
+            for row in rows {
+                dbg!(row.basename);
+            }
+        },
+        ExastashCommand::Info { selector } => {
+            let inode = selector.to_inode(&mut transaction)?;
+            // TODO
+        },
+    };
+
     Ok(())
 }
