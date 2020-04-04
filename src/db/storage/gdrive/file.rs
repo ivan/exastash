@@ -66,7 +66,7 @@ pub fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Resu
         map.insert(file.id.clone(), file);
     }
     for id in ids.iter() {
-        let file = map.remove(id.clone()).ok_or_else(|| anyhow!("duplicate id given"))?;
+        let file = map.remove(&(*id).to_string()).ok_or_else(|| anyhow!("duplicate id given"))?;
         out.push(file);
     }
     Ok(out)

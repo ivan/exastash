@@ -10,7 +10,7 @@ use postgres::Transaction;
 pub struct InodeTuple(pub Option<i64>, pub Option<i64>, pub Option<i64>);
 
 impl InodeTuple {
-    /// Converts an InodeTuple to an InodeId.
+    /// Converts an `InodeTuple` to an `InodeId`.
     /// Exactly one value must be Some, else this returns an error.
     pub fn to_inode_id(self) -> Result<InodeId> {
         match self {
@@ -21,7 +21,7 @@ impl InodeTuple {
         }
     }
 
-    /// Converts an InodeId to an InodeTuple.
+    /// Converts an `InodeId` to an `InodeTuple`.
     /// One value will be Some, the rest will be None.
     pub fn from_inode_id(inode: InodeId) -> InodeTuple {
         match inode {

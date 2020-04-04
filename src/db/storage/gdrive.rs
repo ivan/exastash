@@ -62,7 +62,7 @@ pub fn get_storage(mut transaction: &mut Transaction<'_>, inode: InodeId) -> Res
         "SELECT gsuite_domain, cipher, cipher_key, gdrive_ids FROM storage_gdrive WHERE file_id = $1",
         &[&inode.file_id()?]
     )?;
-    if rows.len() == 0 {
+    if rows.is_empty() {
         return Ok(vec![]);
     }
 

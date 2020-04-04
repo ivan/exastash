@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn test_decayer_u64() {
-        let mut decayer: Decayer<u64, u64> = Decayer::new(1u64, 2u64, 20u64);
+        let mut decayer: Decayer<u64, u64> = Decayer::new(1, 2, 20);
         assert_eq!(decayer.decay(), 1);
         assert_eq!(decayer.decay(), 2);
         assert_eq!(decayer.decay(), 4);

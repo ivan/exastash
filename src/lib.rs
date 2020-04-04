@@ -14,7 +14,6 @@
 	unused_import_braces,
 	unused_lifetimes,
 	variant_size_differences,
-	clippy::pedantic
 )]
 // TODO: remove after initial development
 #![allow(dead_code)]
@@ -28,5 +27,5 @@ pub mod db;
 pub(crate) mod postgres;
 
 /// Rows in database will be created with birth_version set to this value.
-/// See exastash_versions.sql.
+/// See `exastash_versions.sql`.
 pub const EXASTASH_VERSION: i16 = 41;

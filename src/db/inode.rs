@@ -313,9 +313,9 @@ impl Inode {
         let symlink_ids: Vec<i64> = inode_ids.iter().filter_map(|inode_id| if let InodeId::Symlink(id) = inode_id { Some(*id) } else { None } ).collect();
 
         // TODO: run these in parallel
-        out.extend(Dir::find_by_ids(transaction, &dir_ids)?.into_iter().map(|d| Inode::Dir(d)));
-        out.extend(File::find_by_ids(transaction, &file_ids)?.into_iter().map(|d| Inode::File(d)));
-        out.extend(Symlink::find_by_ids(transaction, &symlink_ids)?.into_iter().map(|d| Inode::Symlink(d)));
+        out.extend(Dir::find_by_ids(transaction, &dir_ids)?.into_iter().map(Inode::Dir));
+        out.extend(File::find_by_ids(transaction, &file_ids)?.into_iter().map(Inode::File));
+        out.extend(Symlink::find_by_ids(transaction, &symlink_ids)?.into_iter().map(Inode::Symlink));
 
         Ok(out)
     }

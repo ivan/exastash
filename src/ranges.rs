@@ -1,6 +1,6 @@
 use std::cmp::{min, max};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Range {
     start: u64,
     end: u64
