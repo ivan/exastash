@@ -173,7 +173,7 @@ fn main() -> Result<()> {
             let inode_id = selector.to_inode_id(&mut transaction)?;
             let rows = db::dirent::list_dir(&mut transaction, inode_id)?;
             for row in rows {
-                dbg!(row.basename);
+                println!("{}", row.basename);
             }
         },
         ExastashCommand::Info { selector } => {
