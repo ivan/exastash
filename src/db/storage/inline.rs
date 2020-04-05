@@ -2,39 +2,44 @@
 
 use anyhow::Result;
 use postgres::Transaction;
-use crate::db::inode::InodeId;
 
 /// A storage_inline entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Storage {
+    /// The id of the exastash file for which this storage exists
+    pub file_id: i64,
     /// The content for this file
     pub content: Vec<u8>,
 }
 
-/// Create an inline storage entity in the database.
-/// Does not commit the transaction, you must do so yourself.
-pub fn create_storage(transaction: &mut Transaction<'_>, inode: InodeId, storage: &Storage) -> Result<()> {
-    let file_id = inode.file_id()?;
-    transaction.execute(
-        "INSERT INTO storage_inline (file_id, content)
-         VALUES ($1::bigint, $2::bytea)",
-        &[&file_id, &storage.content]
-    )?;
-    Ok(())
-}
-
-/// Return a list of inline storage entities containing the data for a file.
-pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
-    let file_id = inode.file_id()?;
-    let rows = transaction.query("SELECT content FROM storage_inline WHERE file_id = $1::bigint", &[&file_id])?;
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        let storage = Storage {
-            content: row.get(0),
-        };
-        out.push(storage);
+impl Storage {
+    /// Create an inline storage entity in the database.
+    /// Does not commit the transaction, you must do so yourself.
+    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+        transaction.execute(
+            "INSERT INTO storage_inline (file_id, content)
+             VALUES ($1::bigint, $2::bytea)",
+            &[&self.file_id, &self.content]
+        )?;
+        Ok(())
     }
-    Ok(out)
+
+    /// Return a list of inline storage entities containing the data for a file.
+    pub fn find_by_file_ids(transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+        let rows = transaction.query(
+            "SELECT file_id, content FROM storage_inline
+             WHERE file_id = ANY($1::bigint[])", &[&file_ids]
+        )?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let storage = Storage {
+                file_id: row.get(0),
+                content: row.get(1),
+            };
+            out.push(storage);
+        }
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
@@ -47,7 +52,7 @@ mod tests {
     mod api {
         use super::*;
 
-        /// If there is no inline storage for a file, get_storage returns an empty Vec
+        /// If there is no inline storage for a file, find_by_file_ids returns an empty Vec
         #[test]
         fn test_no_storage() -> Result<()> {
             let mut client = get_client();
@@ -57,24 +62,26 @@ mod tests {
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(get_storage(&mut transaction, inode)?, vec![]);
+            let file_ids = &[inode.file_id()?];
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![]);
 
             Ok(())
         }
 
-        /// If we add an inline storage for a file, get_storage returns that storage
+        /// If we add an inline storage for a file, find_by_file_ids returns that storage
         #[test]
         fn test_create_storage_and_get_storage() -> Result<()> {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
-            let storage = Storage { content: "some content".into() };
-            create_storage(&mut transaction, inode, &storage)?;
+            let storage = Storage { file_id: inode.file_id()?, content: "some content".into() };
+            storage.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(get_storage(&mut transaction, inode)?, vec![storage]);
+            let file_ids = &[inode.file_id()?];
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![storage]);
 
             Ok(())
         }
@@ -92,8 +99,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
-            let storage = Storage { content: "hello".into() };
-            create_storage(&mut transaction, inode, &storage)?;
+            let storage = Storage { file_id: inode.file_id()?, content: "hello".into() };
+            storage.create(&mut transaction)?;
             transaction.commit()?;
 
             for (column, value) in [("file_id", "100")].iter() {

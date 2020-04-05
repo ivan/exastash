@@ -66,7 +66,7 @@ mod tests {
     mod api {
         use super::*;
 
-        /// If there is no internetarchive storage for a file, get_storage returns an empty Vec
+        /// If there is no internetarchive storage for a file, find_by_file_ids returns an empty Vec
         #[test]
         fn test_no_storage() -> Result<()> {
             let mut client = get_client();
@@ -82,7 +82,7 @@ mod tests {
             Ok(())
         }
 
-        /// If we add one internetarchive storage for a file, get_storage returns just that storage
+        /// If we add one internetarchive storage for a file, find_by_file_ids returns just that storage
         #[test]
         fn test_create_storage_and_get_storage() -> Result<()> {
             let mut client = get_client();
@@ -100,7 +100,7 @@ mod tests {
             Ok(())
         }
 
-        /// If we add multiple internetarchive storage for a file, get_storage returns those storages
+        /// If we add multiple internetarchive storage for a file, find_by_file_ids returns those storages
         #[test]
         fn test_multiple_create_storage_and_get_storage() -> Result<()> {
             let mut client = get_client();

@@ -25,11 +25,12 @@ pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<
 
     // We want point-in-time consistency for all the queries below
     transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[])?;
-    let inline = inline::get_storage(transaction, inode)?
+    let file_ids = &[inode.file_id()?];
+    let inline = inline::Storage::find_by_file_ids(transaction, file_ids)?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
     let gdrive = gdrive::get_storage(transaction, inode)?
         .into_iter().map(Storage::Gdrive).collect::<Vec<_>>();
-    let internetarchive = internetarchive::Storage::find_by_file_ids(transaction, &[inode.file_id()?])?
+    let internetarchive = internetarchive::Storage::find_by_file_ids(transaction, file_ids)?
         .into_iter().map(Storage::InternetArchive).collect::<Vec<_>>();
 
     Ok([
@@ -87,8 +88,8 @@ mod tests {
             gdrive::create_storage(&mut transaction, inode, &storage3)?;
 
             // inline
-            let storage4 = inline::Storage { content: "hello".into() };
-            inline::create_storage(&mut transaction, inode, &storage4)?;
+            let storage4 = inline::Storage { file_id: inode.file_id()?, content: "hello".into() };
+            storage4.create(&mut transaction)?;
 
             transaction.commit()?;
 
