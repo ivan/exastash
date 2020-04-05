@@ -29,7 +29,7 @@ pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
     let gdrive = gdrive::get_storage(transaction, inode)?
         .into_iter().map(Storage::Gdrive).collect::<Vec<_>>();
-    let internetarchive = internetarchive::get_storage(transaction, inode)?
+    let internetarchive = internetarchive::Storage::find_by_file_ids(transaction, &[inode.file_id()?])?
         .into_iter().map(Storage::InternetArchive).collect::<Vec<_>>();
 
     Ok([
@@ -74,10 +74,10 @@ mod tests {
             
             // internetarchive
             let inode = create_dummy_file(&mut transaction)?;
-            let storage1 = internetarchive::Storage { ia_item: "item1".into(), pathname: "path1".into(), darked: false, last_probed: None };
-            let storage2 = internetarchive::Storage { ia_item: "item2".into(), pathname: "path2".into(), darked: true, last_probed: None };
-            internetarchive::create_storage(&mut transaction, inode, &storage1)?;
-            internetarchive::create_storage(&mut transaction, inode, &storage2)?;
+            let storage1 = internetarchive::Storage { file_id: inode.file_id()?, ia_item: "item1".into(), pathname: "path1".into(), darked: false, last_probed: None };
+            let storage2 = internetarchive::Storage { file_id: inode.file_id()?, ia_item: "item2".into(), pathname: "path2".into(), darked: true, last_probed: None };
+            storage1.create(&mut transaction)?;
+            storage2.create(&mut transaction)?;
 
             // gdrive
             let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };

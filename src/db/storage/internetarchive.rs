@@ -3,11 +3,12 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use postgres::Transaction;
-use crate::db::inode::InodeId;
 
 /// A storage_internetarchive entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Storage {
+    /// The id of the exastash file for which this storage exists
+    pub file_id: i64,
     /// The Internet Archive item containing this file
     pub ia_item: String,
     /// The path to the file inside the item
@@ -18,33 +19,40 @@ pub struct Storage {
     pub last_probed: Option<DateTime<Utc>>,
 }
 
-/// Create an internetarchive storage entity in the database.
-/// Does not commit the transaction, you must do so yourself.
-pub fn create_storage(transaction: &mut Transaction<'_>, inode: InodeId, storage: &Storage) -> Result<()> {
-    let file_id = inode.file_id()?;
-    transaction.execute(
-        "INSERT INTO storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
-         VALUES ($1::bigint, $2::text, $3::text, $4::boolean, $5::timestamptz)",
-        &[&file_id, &storage.ia_item, &storage.pathname, &storage.darked, &storage.last_probed]
-    )?;
-    Ok(())
-}
-
-/// Return a list of internetarchive storage entities where the data for a file can be retrieved.
-pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
-    let file_id = inode.file_id()?;
-    let rows = transaction.query("SELECT ia_item, pathname, darked, last_probed FROM storage_internetarchive WHERE file_id = $1::bigint", &[&file_id])?;
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        let storage = Storage {
-            ia_item: row.get(0),
-            pathname: row.get(1),
-            darked: row.get(2),
-            last_probed: row.get(3),
-        };
-        out.push(storage);
+impl Storage {
+    /// Create an internetarchive storage entity in the database.
+    /// Does not commit the transaction, you must do so yourself.
+    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+        transaction.execute(
+            "INSERT INTO storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
+             VALUES ($1::bigint, $2::text, $3::text, $4::boolean, $5::timestamptz)",
+            &[&self.file_id, &self.ia_item, &self.pathname, &self.darked, &self.last_probed]
+        )?;
+        Ok(())
     }
-    Ok(out)
+
+    /// Get internetarchive storage entities by exastash file ids.
+    /// Entities which are not found will not be included in the resulting `Vec`.
+    pub fn find_by_file_ids(transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+        let rows = transaction.query(
+            "SELECT file_id, ia_item, pathname, darked, last_probed
+             FROM storage_internetarchive
+             WHERE file_id = ANY($1::bigint[])",
+             &[&file_ids]
+        )?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let storage = Storage {
+                file_id: row.get(0),
+                ia_item: row.get(1),
+                pathname: row.get(2),
+                darked: row.get(3),
+                last_probed: row.get(4),
+            };
+            out.push(storage);
+        }
+        Ok(out)    
+    }
 }
 
 #[cfg(test)]
@@ -68,7 +76,8 @@ mod tests {
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(get_storage(&mut transaction, inode)?, vec![]);
+            let file_ids = &[inode.file_id()?];
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![]);
 
             Ok(())
         }
@@ -80,12 +89,13 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
-            let storage = Storage { ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
-            create_storage(&mut transaction, inode, &storage)?;
+            let storage = Storage { file_id: inode.file_id()?, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
+            storage.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(get_storage(&mut transaction, inode)?, vec![storage]);
+            let file_ids = &[inode.file_id()?];
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![storage]);
 
             Ok(())
         }
@@ -97,14 +107,15 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
-            let storage1 = Storage { ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None };
-            let storage2 = Storage { ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) };
-            create_storage(&mut transaction, inode, &storage1)?;
-            create_storage(&mut transaction, inode, &storage2)?;
+            let storage1 = Storage { file_id: inode.file_id()?, ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None };
+            let storage2 = Storage { file_id: inode.file_id()?, ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) };
+            storage1.create(&mut transaction)?;
+            storage2.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(get_storage(&mut transaction, inode)?, vec![storage1, storage2]);
+            let file_ids = &[inode.file_id()?];
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![storage1, storage2]);
 
             Ok(())
         }
@@ -122,8 +133,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
-            let storage = Storage { ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
-            create_storage(&mut transaction, inode, &storage)?;
+            let storage = Storage { file_id: inode.file_id()?, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
+            storage.create(&mut transaction)?;
             transaction.commit()?;
 
             for (column, value) in [("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")].iter() {
