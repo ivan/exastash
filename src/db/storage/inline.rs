@@ -58,12 +58,11 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let file_ids = &[inode.file_id()?];
-            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![]);
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[file_id])?, vec![]);
 
             Ok(())
         }
@@ -74,14 +73,13 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
-            let storage = Storage { file_id: inode.file_id()?, content: "some content".into() };
+            let file_id = create_dummy_file(&mut transaction)?;
+            let storage = Storage { file_id, content: "some content".into() };
             storage.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let file_ids = &[inode.file_id()?];
-            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![storage]);
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[file_id])?, vec![storage]);
 
             Ok(())
         }
@@ -98,15 +96,15 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
-            let storage = Storage { file_id: inode.file_id()?, content: "hello".into() };
+            let file_id = create_dummy_file(&mut transaction)?;
+            let storage = Storage { file_id, content: "hello".into() };
             storage.create(&mut transaction)?;
             transaction.commit()?;
 
             for (column, value) in [("file_id", "100")].iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE storage_inline SET {} = {} WHERE file_id = $1::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&inode.file_id()?]);
+                let result = transaction.execute(query.as_str(), &[&file_id]);
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id");
             }
 

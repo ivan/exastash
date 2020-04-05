@@ -83,13 +83,12 @@ impl InodeSelector {
             },
             (None, Some(path)) => {
                 let root = self.root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
-                let base_inode = db::inode::InodeId::Dir(root);
                 let path_components: Vec<&str> = if path == "" {
                     vec![]
                 } else {
                     path.split('/').collect()
                 };
-                walk_path(transaction, base_inode, &path_components)?
+                walk_path(transaction, root, &path_components)?
             },
             _ => {
                 bail!("Either dir|file|symlink or path must be specified but not both");
@@ -147,10 +146,9 @@ fn main() -> Result<()> {
                 DirCommand::Create => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
-                    let dir = db::inode::NewDir { mtime, birth };
-                    let inode = dir.create(&mut transaction)?;
+                    let dir_id = db::inode::NewDir { mtime, birth }.create(&mut transaction)?;
                     transaction.commit()?;
-                    println!("{}", inode.dir_id()?);
+                    println!("{}", dir_id);
                 },
             }
         },
@@ -162,8 +160,7 @@ fn main() -> Result<()> {
             match dirent {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
                     let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode_id()?;
-                    let parent = db::inode::InodeId::Dir(parent_dir_id);
-                    let dirent = db::dirent::Dirent::new(parent, basename, child);
+                    let dirent = db::dirent::Dirent::new(parent_dir_id, basename, child);
                     dirent.create(&mut transaction)?;
                     transaction.commit()?;
                 }
@@ -171,7 +168,7 @@ fn main() -> Result<()> {
         },
         ExastashCommand::Ls { just_names, selector } => {
             let inode_id = selector.to_inode_id(&mut transaction)?;
-            let rows = db::dirent::list_dir(&mut transaction, inode_id)?;
+            let rows = db::dirent::list_dir(&mut transaction, inode_id.dir_id()?)?;
             for row in rows {
                 println!("{}", row.basename);
             }

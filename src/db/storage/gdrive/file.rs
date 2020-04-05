@@ -154,7 +154,7 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             let (owner_id, _) = create_dummy_owner(&mut transaction)?;
             let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
@@ -163,7 +163,7 @@ mod tests {
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
+            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
             storage.create(&mut transaction)?;
             transaction.commit()?;
 
@@ -171,7 +171,7 @@ mod tests {
             let result = remove_gdrive_files(&mut transaction, &[&file.id]);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                format!("db error: ERROR: gdrive_files={} is still referenced by storage_gdrive={}", file.id, inode.file_id()?)
+                format!("db error: ERROR: gdrive_files={} is still referenced by storage_gdrive={}", file.id, file_id)
             );
 
             Ok(())

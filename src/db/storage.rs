@@ -6,7 +6,6 @@ pub mod internetarchive;
 
 use anyhow::Result;
 use postgres::Transaction;
-use crate::db::inode::InodeId;
 
 /// A storage entity
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,12 +19,9 @@ pub enum Storage {
 }
 
 /// Return a list of places where the data for a file can be retrieved
-pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
-    let file_id = inode.file_id();
-
+pub fn get_storage(transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
     // We want point-in-time consistency for all the queries below
     transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[])?;
-    let file_ids = &[inode.file_id()?];
     let inline = inline::Storage::find_by_file_ids(transaction, file_ids)?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
     let gdrive = gdrive::Storage::find_by_file_ids(transaction, file_ids)?
@@ -56,11 +52,11 @@ mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(get_storage(&mut transaction, inode)?, vec![]);
+            assert_eq!(get_storage(&mut transaction, &[file_id])?, vec![]);
 
             Ok(())
         }
@@ -74,9 +70,9 @@ mod tests {
             let mut transaction = start_transaction(&mut client)?;
             
             // internetarchive
-            let inode = create_dummy_file(&mut transaction)?;
-            let storage1 = internetarchive::Storage { file_id: inode.file_id()?, ia_item: "item1".into(), pathname: "path1".into(), darked: false, last_probed: None };
-            let storage2 = internetarchive::Storage { file_id: inode.file_id()?, ia_item: "item2".into(), pathname: "path2".into(), darked: true, last_probed: None };
+            let file_id = create_dummy_file(&mut transaction)?;
+            let storage1 = internetarchive::Storage { file_id, ia_item: "item1".into(), pathname: "path1".into(), darked: false, last_probed: None };
+            let storage2 = internetarchive::Storage { file_id, ia_item: "item2".into(), pathname: "path2".into(), darked: true, last_probed: None };
             storage1.create(&mut transaction)?;
             storage2.create(&mut transaction)?;
 
@@ -84,17 +80,17 @@ mod tests {
             let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             gdrive::file::create_gdrive_file(&mut transaction, &gdrive_file)?;
             let domain = gdrive::tests::create_dummy_domain(&mut transaction)?;
-            let storage3 = gdrive::Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![gdrive_file] };
+            let storage3 = gdrive::Storage { file_id, gsuite_domain: domain, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![gdrive_file] };
             storage3.create(&mut transaction)?;
 
             // inline
-            let storage4 = inline::Storage { file_id: inode.file_id()?, content: "hello".into() };
+            let storage4 = inline::Storage { file_id, content: "hello".into() };
             storage4.create(&mut transaction)?;
 
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(get_storage(&mut transaction, inode)?, vec![
+            assert_eq!(get_storage(&mut transaction, &[file_id])?, vec![
                 Storage::Inline(storage4),
                 Storage::Gdrive(storage3),
                 Storage::InternetArchive(storage1),

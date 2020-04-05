@@ -114,19 +114,18 @@ pub(crate) mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             let file1 = GdriveFile { id: "X".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
             let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None };
             create_gdrive_file(&mut transaction, &file1)?;
             create_gdrive_file(&mut transaction, &file2)?;
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
             storage.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let file_ids = &[inode.file_id()?];
-            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![storage]);
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[file_id])?, vec![storage]);
 
             Ok(())
         }
@@ -137,10 +136,10 @@ pub(crate) mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
             let result = storage.create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -156,12 +155,12 @@ pub(crate) mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             let file1 = GdriveFile { id: "F".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file1)?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
             let result = storage.create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -177,9 +176,9 @@ pub(crate) mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
+            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
             let result = storage.create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -201,7 +200,7 @@ pub(crate) mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             let id1 = "Y".repeat(28);
             let id2 = "Z".repeat(28);
             let file1 = GdriveFile { id: id1.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
@@ -209,7 +208,7 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1)?;
             create_gdrive_file(&mut transaction, &file2)?;
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
+            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
             storage.create(&mut transaction)?;
             transaction.commit()?;
 
@@ -224,7 +223,7 @@ pub(crate) mod tests {
             for (column, value) in pairs.iter() {
                 let mut transaction = start_transaction(&mut client)?;
                 let query = format!("UPDATE storage_gdrive SET {} = {} WHERE file_id = $1::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&inode.file_id()?]);
+                let result = transaction.execute(query.as_str(), &[&file_id]);
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
                     "db error: ERROR: cannot change file_id, gsuite_domain, cipher, cipher_key, or gdrive_ids"
@@ -240,11 +239,11 @@ pub(crate) mod tests {
             let mut client = get_client();
 
             let mut transaction = start_transaction(&mut client)?;
-            let inode = create_dummy_file(&mut transaction)?;
+            let file_id = create_dummy_file(&mut transaction)?;
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
             storage.create(&mut transaction)?;
             transaction.commit()?;
 
