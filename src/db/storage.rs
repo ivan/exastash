@@ -28,7 +28,7 @@ pub fn get_storage(transaction: &mut Transaction<'_>, inode: InodeId) -> Result<
     let file_ids = &[inode.file_id()?];
     let inline = inline::Storage::find_by_file_ids(transaction, file_ids)?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
-    let gdrive = gdrive::get_storage(transaction, inode)?
+    let gdrive = gdrive::Storage::find_by_file_ids(transaction, file_ids)?
         .into_iter().map(Storage::Gdrive).collect::<Vec<_>>();
     let internetarchive = internetarchive::Storage::find_by_file_ids(transaction, file_ids)?
         .into_iter().map(Storage::InternetArchive).collect::<Vec<_>>();
@@ -84,8 +84,8 @@ mod tests {
             let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             gdrive::file::create_gdrive_file(&mut transaction, &gdrive_file)?;
             let domain = gdrive::tests::create_dummy_domain(&mut transaction)?;
-            let storage3 = gdrive::Storage { gsuite_domain: domain, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![gdrive_file] };
-            gdrive::create_storage(&mut transaction, inode, &storage3)?;
+            let storage3 = gdrive::Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![gdrive_file] };
+            storage3.create(&mut transaction)?;
 
             // inline
             let storage4 = inline::Storage { file_id: inode.file_id()?, content: "hello".into() };

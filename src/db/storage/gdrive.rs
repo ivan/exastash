@@ -3,7 +3,6 @@
 use anyhow::Result;
 use postgres::Transaction;
 use postgres_types::{ToSql, FromSql};
-use crate::db::inode::InodeId;
 use crate::postgres::SixteenBytes;
 
 pub mod file;
@@ -31,6 +30,8 @@ pub fn create_domain(transaction: &mut Transaction<'_>, domain: &str) -> Result<
 /// A storage_gdrive entity
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Storage {
+    /// The id of the exastash file for which this storage exists
+    pub file_id: i64,
     /// The domain for the gsuite account
     pub gsuite_domain: i16,
     /// The encryption algorithm used to encrypt the chunks in gdrive
@@ -41,44 +42,47 @@ pub struct Storage {
     pub gdrive_files: Vec<file::GdriveFile>,
 }
 
-/// Create an gdrive storage entity in the database.
-/// Note that the gsuite domain must already exist.
-/// Note that you must call file::create_gdrive_file for each gdrive file beforehand.
-/// Does not commit the transaction, you must do so yourself.
-pub fn create_storage(transaction: &mut Transaction<'_>, inode: InodeId, storage: &Storage) -> Result<()> {
-    let file_id = inode.file_id()?;
-    let gdrive_ids = storage.gdrive_files.iter().map(|f| f.id.clone()).collect::<Vec<_>>();
-    transaction.execute(
-        "INSERT INTO storage_gdrive (file_id, gsuite_domain, cipher, cipher_key, gdrive_ids)
-         VALUES ($1::bigint, $2::smallint, $3::cipher, $4::uuid, $5::text[])",
-        &[&inode.file_id()?, &storage.gsuite_domain, &storage.cipher, &SixteenBytes { bytes: storage.cipher_key }, &gdrive_ids]
-    )?;
-    Ok(())
-}
-
-/// Return a list of gdrive storage entities where the data for a file can be retrieved.
-pub fn get_storage(mut transaction: &mut Transaction<'_>, inode: InodeId) -> Result<Vec<Storage>> {
-    let rows = transaction.query(
-        "SELECT gsuite_domain, cipher, cipher_key, gdrive_ids FROM storage_gdrive WHERE file_id = $1",
-        &[&inode.file_id()?]
-    )?;
-    if rows.is_empty() {
-        return Ok(vec![]);
+impl Storage {
+    /// Create an gdrive storage entity in the database.
+    /// Note that the gsuite domain must already exist.
+    /// Note that you must call file::create_gdrive_file for each gdrive file beforehand.
+    /// Does not commit the transaction, you must do so yourself.
+    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+        let gdrive_ids = self.gdrive_files.iter().map(|f| f.id.clone()).collect::<Vec<_>>();
+        transaction.execute(
+            "INSERT INTO storage_gdrive (file_id, gsuite_domain, cipher, cipher_key, gdrive_ids)
+             VALUES ($1::bigint, $2::smallint, $3::cipher, $4::uuid, $5::text[])",
+            &[&self.file_id, &self.gsuite_domain, &self.cipher, &SixteenBytes { bytes: self.cipher_key }, &gdrive_ids]
+        )?;
+        Ok(())
     }
 
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        let gdrive_file_ids: Vec<&str> = row.get(3);
-        let gdrive_files = file::get_gdrive_files(&mut transaction, &gdrive_file_ids[..])?;
-        let file = Storage {
-            gsuite_domain: row.get(0),
-            cipher: row.get(1),
-            cipher_key: row.get::<_, SixteenBytes>(2).bytes,
-            gdrive_files
-        };
-        out.push(file);
+    /// Return a list of gdrive storage entities where the data for a file can be retrieved.
+    pub fn find_by_file_ids(mut transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+        let rows = transaction.query(
+            "SELECT file_id, gsuite_domain, cipher, cipher_key, gdrive_ids
+             FROM storage_gdrive
+             WHERE file_id = ANY($1::bigint[])", &[&file_ids]
+        )?;
+        if rows.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let gdrive_file_ids: Vec<&str> = row.get(4);
+            let gdrive_files = file::get_gdrive_files(&mut transaction, &gdrive_file_ids[..])?;
+            let file = Storage {
+                file_id: row.get(0),
+                gsuite_domain: row.get(1),
+                cipher: row.get(2),
+                cipher_key: row.get::<_, SixteenBytes>(3).bytes,
+                gdrive_files
+            };
+            out.push(file);
+        }
+        Ok(out)
     }
-    Ok(out)
 }
 
 #[cfg(test)]
@@ -116,12 +120,13 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1)?;
             create_gdrive_file(&mut transaction, &file2)?;
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
-            create_storage(&mut transaction, inode, &storage)?;
+            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            storage.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(get_storage(&mut transaction, inode)?, vec![storage]);
+            let file_ids = &[inode.file_id()?];
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, file_ids)?, vec![storage]);
 
             Ok(())
         }
@@ -135,8 +140,8 @@ pub(crate) mod tests {
             let inode = create_dummy_file(&mut transaction)?;
             let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
-            let result = create_storage(&mut transaction, inode, &storage);
+            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            let result = storage.create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: gdrive_ids had 1 ids: {FileNeverAddedToDatabase} but only 0 of these are in gdrive_files"
@@ -156,8 +161,8 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1)?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
-            let result = create_storage(&mut transaction, inode, &storage);
+            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            let result = storage.create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: gdrive_ids had 2 ids: {FFFFFFFFFFFFFFFFFFFFFFFFFFFF,FileNeverAddedToDatabase} but only 1 of these are in gdrive_files"
@@ -174,8 +179,8 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client)?;
             let inode = create_dummy_file(&mut transaction)?;
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
-            let result = create_storage(&mut transaction, inode, &storage);
+            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
+            let result = storage.create(&mut transaction);
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: new row for relation \"storage_gdrive\" violates check constraint \"storage_gdrive_gdrive_ids_check\""
@@ -204,8 +209,8 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1)?;
             create_gdrive_file(&mut transaction, &file2)?;
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
-            create_storage(&mut transaction, inode, &storage)?;
+            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
+            storage.create(&mut transaction)?;
             transaction.commit()?;
 
             let pairs = [
@@ -239,8 +244,8 @@ pub(crate) mod tests {
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file)?;
             let domain = create_dummy_domain(&mut transaction)?;
-            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
-            create_storage(&mut transaction, inode, &storage)?;
+            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            storage.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;

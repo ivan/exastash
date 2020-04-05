@@ -79,7 +79,7 @@ mod tests {
     use crate::db::tests::get_client;
     use crate::db::inode::tests::create_dummy_file;
     use crate::db::storage::gdrive::tests::create_dummy_domain;
-    use crate::db::storage::gdrive::{create_storage, Storage, Cipher};
+    use crate::db::storage::gdrive::{Storage, Cipher};
     use atomic_counter::{AtomicCounter, RelaxedCounter};
     use once_cell::sync::Lazy;
     use crate::util;
@@ -163,8 +163,8 @@ mod tests {
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
-            let storage = Storage { gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
-            create_storage(&mut transaction, inode, &storage)?;
+            let storage = Storage { file_id: inode.file_id()?, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
+            storage.create(&mut transaction)?;
             transaction.commit()?;
 
             let mut transaction = start_transaction(&mut client)?;
