@@ -53,7 +53,7 @@ DECLARE
     file_id_ bigint;
 BEGIN
     -- TODO: make sure index is actually being used for this
-    file_id_ := (SELECT file_id FROM storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.id] LIMIT 1);
+    file_id_ := (SELECT file_id FROM stash.storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.id] LIMIT 1);
     IF file_id_ IS NOT NULL THEN
         RAISE EXCEPTION 'gdrive_files=% is still referenced by storage_gdrive=%', OLD.id, file_id_;
     END IF;
@@ -126,7 +126,7 @@ DECLARE
 BEGIN
     -- Use FOR KEY SHARE to prevent another concurrent transaction from deleting the
     -- gdrive files we're referencing from gdrive_ids.
-    ids := ARRAY(SELECT id FROM gdrive_files WHERE id IN (SELECT unnest(NEW.gdrive_ids)) FOR KEY SHARE);
+    ids := ARRAY(SELECT id FROM stash.gdrive_files WHERE id IN (SELECT unnest(NEW.gdrive_ids)) FOR KEY SHARE);
     -- This catches not only missing gdrive_ids but also duplicate entries in NEW.gdrive_ids
     file_count := cardinality(ids);
     IF file_count != cardinality(NEW.gdrive_ids) THEN
