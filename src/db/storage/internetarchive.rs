@@ -38,7 +38,7 @@ impl Storage {
             "SELECT file_id, ia_item, pathname, darked, last_probed
              FROM storage_internetarchive
              WHERE file_id = ANY($1::bigint[])",
-             &[&file_ids]
+            &[&file_ids]
         )?;
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
