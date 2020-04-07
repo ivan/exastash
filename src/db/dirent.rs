@@ -72,8 +72,8 @@ pub fn list_dir(transaction: &mut Transaction<'_>, parent: i64) -> Result<Vec<Di
         let parent = row.get(0);
         let basename: String = row.get(1);
         let tuple = InodeTuple(row.get(2), row.get(3), row.get(4));
-        let inode = tuple.to_inode_id()?;
-        let dirent = Dirent::new(parent, basename, inode);
+        let inode_id = tuple.to_inode_id()?;
+        let dirent = Dirent::new(parent, basename, inode_id);
         out.push(dirent);
     }
     Ok(out)
