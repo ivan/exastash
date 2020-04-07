@@ -44,7 +44,15 @@ enum ExastashCommand {
 
         #[structopt(flatten)]
         selector: InodeSelector,
-    }
+    },
+
+    #[structopt(name = "find")]
+    /// Recursively list a dir, like `find`
+    /// This cannot start at a file or symlink because it may have multiple names.
+    Find {
+        #[structopt(flatten)]
+        selector: InodeSelector,
+    },
 }
 
 #[derive(StructOpt, Debug)]
@@ -137,6 +145,22 @@ enum DirentCommand {
     },
 }
 
+fn find(transaction: &mut Transaction, segments: &[&str], dir_id: i64) -> Result<()> {
+    let path_string = match segments {
+        [] => "".into(),
+        parts => format!("{}/", parts.join("/")),
+    };
+    let dirents = db::dirent::list_dir(transaction, dir_id)?;
+    for dirent in dirents {
+        println!("{}{}", path_string, dirent.basename);
+        if let InodeId::Dir(dir_id) = dirent.child {
+            let segments = [segments, &[&dirent.basename]].concat();
+            find(transaction, &segments, dir_id)?;
+        }
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let mut client = db::postgres_client_production()?;
     let mut transaction = db::start_transaction(&mut client)?;
@@ -168,10 +192,14 @@ fn main() -> Result<()> {
         },
         ExastashCommand::Ls { just_names, selector } => {
             let inode_id = selector.to_inode_id(&mut transaction)?;
-            let rows = db::dirent::list_dir(&mut transaction, inode_id.dir_id()?)?;
-            for row in rows {
-                println!("{}", row.basename);
+            let dirents = db::dirent::list_dir(&mut transaction, inode_id.dir_id()?)?;
+            for dirent in dirents {
+                println!("{}", dirent.basename);
             }
+        },
+        ExastashCommand::Find { selector } => {
+            let dir_id = selector.to_inode_id(&mut transaction)?.dir_id()?;
+            find(&mut transaction, &[], dir_id)?;
         },
         ExastashCommand::Info { selector } => {
             let inode_id = selector.to_inode_id(&mut transaction)?;
