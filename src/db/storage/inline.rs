@@ -30,6 +30,7 @@ impl Storage {
             "SELECT file_id, content FROM storage_inline
              WHERE file_id = ANY($1::bigint[])", &[&file_ids]
         )?;
+        assert!(rows.len() <= file_ids.len(), "received more rows than expected");
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
             let storage = Storage {

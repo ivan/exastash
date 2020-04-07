@@ -34,6 +34,7 @@ impl Storage {
     /// Get internetarchive storage entities by exastash file ids.
     /// Entities which are not found will not be included in the resulting `Vec`.
     pub fn find_by_file_ids(transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+        // Note that we can get more than one row per unique file_id
         let rows = transaction.query(
             "SELECT file_id, ia_item, pathname, darked, last_probed
              FROM storage_internetarchive

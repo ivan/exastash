@@ -59,6 +59,7 @@ impl Storage {
 
     /// Return a list of gdrive storage entities where the data for a file can be retrieved.
     pub fn find_by_file_ids(mut transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+        // Note that we can get more than one row per unique file_id
         let rows = transaction.query(
             "SELECT file_id, gsuite_domain, cipher, cipher_key, gdrive_ids
              FROM storage_gdrive
