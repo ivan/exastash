@@ -173,13 +173,13 @@ fn main() -> Result<()> {
                     let dir_id = db::inode::NewDir { mtime, birth }.create(&mut transaction)?;
                     transaction.commit()?;
                     println!("{}", dir_id);
-                },
+                }
             }
-        },
+        }
         ExastashCommand::File(file) => {
-        },
+        }
         ExastashCommand::Symlink(symlink) => {
-        },
+        }
         ExastashCommand::Dirent(dirent) => {
             match dirent {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
@@ -189,18 +189,18 @@ fn main() -> Result<()> {
                     transaction.commit()?;
                 }
             }
-        },
+        }
         ExastashCommand::Ls { just_names, selector } => {
             let inode_id = selector.to_inode_id(&mut transaction)?;
             let dirents = db::dirent::list_dir(&mut transaction, inode_id.dir_id()?)?;
             for dirent in dirents {
                 println!("{}", dirent.basename);
             }
-        },
+        }
         ExastashCommand::Find { selector } => {
             let dir_id = selector.to_inode_id(&mut transaction)?.dir_id()?;
             find(&mut transaction, &[], dir_id)?;
-        },
+        }
         ExastashCommand::Info { selector } => {
             let inode_id = selector.to_inode_id(&mut transaction)?;
             let inodes = Inode::find_by_inode_ids(&mut transaction, &[inode_id])?;
@@ -211,7 +211,7 @@ fn main() -> Result<()> {
                 let inode = inodes.get(0).unwrap();
                 println!("{:#?}", inode);
             }
-        },
+        }
     };
 
     Ok(())
