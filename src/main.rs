@@ -176,9 +176,9 @@ fn main() -> Result<()> {
                 }
             }
         }
-        ExastashCommand::File(file) => {
+        ExastashCommand::File(_file) => {
         }
-        ExastashCommand::Symlink(symlink) => {
+        ExastashCommand::Symlink(_symlink) => {
         }
         ExastashCommand::Dirent(dirent) => {
             match dirent {
@@ -194,7 +194,12 @@ fn main() -> Result<()> {
             let inode_id = selector.to_inode_id(&mut transaction)?;
             let dirents = db::dirent::list_dir(&mut transaction, inode_id.dir_id()?)?;
             for dirent in dirents {
-                println!("{}", dirent.basename);
+                if just_names {
+                    println!("{}", dirent.basename);
+                } else {
+                    // TODO: print: size, mtime, filename[decoration]
+                    println!("{}", dirent.basename);
+                }
             }
         }
         ExastashCommand::Find { selector } => {
