@@ -34,6 +34,7 @@ CREATE TABLE gdrive_files (
     owner        int          REFERENCES gdrive_owners,
     -- The shortest gdrive_id we have is 28
     -- The longest gdrive_id we have is 33, but allow up to 160 in case Google changes format
+    -- The regexp here should match gdrive.rs
     id           text         PRIMARY KEY CHECK (id ~ '\A[-_0-9A-Za-z]{28,160}\Z')
 );
 
