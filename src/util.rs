@@ -22,6 +22,8 @@ pub(crate) fn now_no_nanos() -> DateTime<Utc> {
 }
 
 // Copied from https://github.com/qryxip/snowchains/blob/dcd76c1dbb87eea239ba17f28b44ee11fdd3fd80/src/macros.rs
+
+/// Return a Lazy<Regex> for the given regexp string
 #[macro_export]
 macro_rules! lazy_regex {
     ($expr:expr) => {{

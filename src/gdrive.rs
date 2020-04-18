@@ -16,7 +16,8 @@ async fn get_token_for_service_account<P: AsRef<Path>>(json_path: P) -> Result<A
     Ok(sa.token(scopes).await?)
 }
 
-// Take AsRef<str> because AccessToken has private fields and we can't construct a fake one in tests
+// Take AsRef<str> instead of AccessToken because AccessToken has private fields
+// and we can't construct a fake one in tests
 async fn stream_gdrive_file<T: AsRef<str> + Display>(access_token: T, file_id: &str) -> Result<()> {
     static FILE_ID_RE: &Lazy<Regex> = lazy_regex!(r#"\A[-_0-9A-Za-z]{28,160}\z"#);
     if let None = FILE_ID_RE.captures(file_id) {
