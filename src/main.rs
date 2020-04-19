@@ -210,17 +210,17 @@ fn main() -> Result<()> {
         ExastashCommand::Info { selector } => {
             let inode_id = selector.to_inode_id(&mut transaction)?;
 
-            let inodes = Inode::find_by_inode_ids(&mut transaction, &[inode_id])?;
+            let mut inodes = Inode::find_by_inode_ids(&mut transaction, &[inode_id])?;
             assert!(inodes.len() <= 1);
             if inodes.is_empty() {
                 bail!("inode {:?} does not exist in database", inode_id);
             }
-            let inode = inodes.get(0).unwrap();
+            let inode = inodes.pop().unwrap();
             println!("{:#?}", inode);
 
             // Only files may have storages
             if let Inode::File(File { id, .. }) = inode {
-                for s in storage::get_storage(&mut transaction, &[*id])?.iter() {
+                for s in storage::get_storage(&mut transaction, &[id])?.iter() {
                     println!("{:#?}", s);
                 }
             }
