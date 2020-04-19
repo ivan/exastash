@@ -10,6 +10,7 @@ pub struct Storage {
     /// The id of the exastash file for which this storage exists
     pub file_id: i64,
     /// The content for this file
+    #[serde(skip_serializing)]
     pub content: Vec<u8>,
 }
 
