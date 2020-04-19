@@ -3,19 +3,22 @@
 use anyhow::Result;
 use postgres::Transaction;
 use postgres_types::{ToSql, FromSql};
+use serde::Serialize;
 use crate::postgres::SixteenBytes;
 
 pub mod file;
 
 /// The encryption algorithm used to encrypt the chunks
 #[postgres(name = "cipher")]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, ToSql, FromSql)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, ToSql, FromSql, Serialize)]
 pub enum Cipher {
     /// AES-128-CTR
     #[postgres(name = "AES_128_CTR")]
+    #[serde(rename = "AES_128_CTR")]
     Aes128Ctr,
     /// AES-128-GCM
     #[postgres(name = "AES_128_GCM")]
+    #[serde(rename = "AES_128_GCM")]
     Aes128Gcm,
 }
 
@@ -28,7 +31,7 @@ pub fn create_domain(transaction: &mut Transaction<'_>, domain: &str) -> Result<
 }
 
 /// A storage_gdrive entity
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Storage {
     /// The id of the exastash file for which this storage exists
     pub file_id: i64,

@@ -3,8 +3,10 @@ use structopt::StructOpt;
 use exastash::db;
 use chrono::Utc;
 use postgres::Transaction;
-use crate::db::storage;
-use crate::db::inode::{InodeId, Inode, File};
+use serde::Serialize;
+use chrono::{DateTime};
+use crate::db::storage::{Storage, get_storage};
+use crate::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
 use crate::db::traversal::walk_path;
 
 #[derive(StructOpt, Debug)]
@@ -216,14 +218,46 @@ fn main() -> Result<()> {
                 bail!("inode {:?} does not exist in database", inode_id);
             }
             let inode = inodes.pop().unwrap();
-            println!("{:#?}", inode);
 
-            // Only files may have storages
-            if let Inode::File(File { id, .. }) = inode {
-                for s in storage::get_storage(&mut transaction, &[id])?.iter() {
-                    println!("{:#?}", s);
-                }
+            #[derive(Serialize)]
+            struct FileWithStorages {
+                id: i64,
+                mtime: DateTime<Utc>,
+                birth: Birth,
+                size: i64,
+                executable: bool,
+                storages: Vec<Storage>,
             }
+
+            #[derive(Serialize)]
+            #[serde(tag = "type")]
+            enum InodeWithStorages {
+                #[serde(rename = "dir")]
+                Dir(Dir),
+                #[serde(rename = "file")]
+                File(FileWithStorages),
+                #[serde(rename = "symlink")]
+                Symlink(Symlink),
+            }
+
+            let inode = match inode {
+                Inode::File(file) => {
+                    let storages = get_storage(&mut transaction, &[file.id])?;
+                    InodeWithStorages::File(FileWithStorages {
+                        id: file.id,
+                        mtime: file.mtime,
+                        birth: file.birth,
+                        size: file.size,
+                        executable: file.executable,
+                        storages,
+                    })
+                }
+                Inode::Dir(dir) => InodeWithStorages::Dir(dir),
+                Inode::Symlink(symlink) => InodeWithStorages::Symlink(symlink),
+            };
+
+            let j = serde_json::to_string_pretty(&inode)?;
+            println!("{}", j);
         }
     };
 

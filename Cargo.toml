@@ -22,6 +22,8 @@ postgres = { version = "0.17.1", features = ["with-chrono-0_4"] }
 postgres-protocol = "0.5.0"
 postgres-types = { version = "0.1.0", features = ["derive"] }
 yup-oauth2 = "4.0"
+serde = "1.0"
+serde_json = "1.0"
 tokio = { version = "0.2", features = ["macros", "rt-core", "fs", "io-util", "io-driver"] }
 tokio-util = { version = "0.3", features = ["compat"] }
 tokio-postgres = "0.5"

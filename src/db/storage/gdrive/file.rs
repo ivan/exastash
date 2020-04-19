@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use postgres::Transaction;
+use serde::Serialize;
 use crate::postgres::{SixteenBytes, UnsignedInt4};
 
 /// Create a gdrive_owner in the database.
@@ -15,7 +16,7 @@ pub fn create_owner(transaction: &mut Transaction<'_>, owner: &str) -> Result<i3
 }
 
 /// A file in Google Drive, as Google understands it
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GdriveFile {
     /// Google Drive's file_id
     pub id: String,

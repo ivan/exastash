@@ -2,9 +2,10 @@
 
 use anyhow::Result;
 use postgres::Transaction;
+use serde::Serialize;
 
 /// A storage_inline entity
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Storage {
     /// The id of the exastash file for which this storage exists
     pub file_id: i64,

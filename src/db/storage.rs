@@ -6,15 +6,20 @@ pub mod internetarchive;
 
 use anyhow::Result;
 use postgres::Transaction;
+use serde::Serialize;
 
 /// A storage entity
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type")]
 pub enum Storage {
     /// A storage entity stored directly in the database
+    #[serde(rename = "inline")]
     Inline(inline::Storage),
     /// A storage entity backed by Google Drive
+    #[serde(rename = "gdrive")]
     Gdrive(gdrive::Storage),
     /// A storage entity backed by a file accessible at Internet Archive
+    #[serde(rename = "internetarchive")]
     InternetArchive(internetarchive::Storage),
 }
 

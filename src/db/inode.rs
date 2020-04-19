@@ -3,6 +3,7 @@
 use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
 use postgres::Transaction;
+use serde::Serialize;
 use crate::EXASTASH_VERSION;
 use crate::util;
 
@@ -44,7 +45,7 @@ impl InodeId {
 }
 
 /// birth_time, birth_version, and birth_hostname for a dir/file/symlink
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Birth {
     /// The time at which a dir, file, or symlink was created
     pub time: DateTime<Utc>,
@@ -63,7 +64,7 @@ impl Birth {
 }
 
 /// A directory
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Dir {
     /// ID
     pub id: i64,
@@ -133,7 +134,7 @@ impl NewDir {
 }
 
 /// A file
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct File {
     /// ID
     pub id: i64,
@@ -216,7 +217,7 @@ impl NewFile {
 }
 
 /// A symbolic link
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Symlink {
     /// ID
     pub id: i64,
@@ -292,7 +293,7 @@ impl NewSymlink {
 }
 
 /// A dir, file, or symlink
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum Inode {
     /// A directory
     Dir(Dir),
