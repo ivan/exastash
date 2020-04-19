@@ -6,7 +6,7 @@ use postgres::Transaction;
 use serde::Serialize;
 use chrono::{DateTime};
 use crate::db::storage::{Storage, get_storage};
-use crate::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
+use crate::db::inode::{InodeId, Inode, Dir, Symlink, Birth};
 use crate::db::traversal::walk_path;
 
 #[derive(StructOpt, Debug)]
