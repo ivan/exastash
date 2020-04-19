@@ -3,7 +3,8 @@ use structopt::StructOpt;
 use exastash::db;
 use chrono::Utc;
 use postgres::Transaction;
-use crate::db::inode::{InodeId, Inode};
+use crate::db::storage;
+use crate::db::inode::{InodeId, Inode, File};
 use crate::db::traversal::walk_path;
 
 #[derive(StructOpt, Debug)]
@@ -208,13 +209,20 @@ fn main() -> Result<()> {
         }
         ExastashCommand::Info { selector } => {
             let inode_id = selector.to_inode_id(&mut transaction)?;
+
             let inodes = Inode::find_by_inode_ids(&mut transaction, &[inode_id])?;
             assert!(inodes.len() <= 1);
             if inodes.is_empty() {
                 bail!("inode {:?} does not exist in database", inode_id);
-            } else {
-                let inode = inodes.get(0).unwrap();
-                println!("{:#?}", inode);
+            }
+            let inode = inodes.get(0).unwrap();
+            println!("{:#?}", inode);
+
+            // Only files may have storages
+            if let Inode::File(File { id, .. }) = inode {
+                for s in storage::get_storage(&mut transaction, &[*id])?.iter() {
+                    println!("{:#?}", s);
+                }
             }
         }
     };
