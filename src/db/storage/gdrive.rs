@@ -4,6 +4,7 @@ use anyhow::Result;
 use postgres::Transaction;
 use postgres_types::{ToSql, FromSql};
 use serde::Serialize;
+use serde_hex::{SerHex, Strict};
 use crate::postgres::SixteenBytes;
 
 pub mod file;
@@ -40,6 +41,7 @@ pub struct Storage {
     /// The encryption algorithm used to encrypt the chunks in gdrive
     pub cipher: Cipher,
     /// The cipher key used to encrypt the chunks in gdrive
+    #[serde(with = "SerHex::<Strict>")]
     pub cipher_key: [u8; 16],
     /// An ordered list of encrypted gdrive files which comprise the chunks
     pub gdrive_files: Vec<file::GdriveFile>,

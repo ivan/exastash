@@ -5,6 +5,7 @@ use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use postgres::Transaction;
 use serde::Serialize;
+use serde_hex::{SerHex, Strict};
 use crate::postgres::{SixteenBytes, UnsignedInt4};
 
 /// Create a gdrive_owner in the database.
@@ -23,6 +24,7 @@ pub struct GdriveFile {
     /// The email address of the owner, or other identifier like "teamdrive"
     pub owner_id: Option<i32>,
     /// The MD5 hash
+    #[serde(with = "SerHex::<Strict>")]
     pub md5: [u8; 16], // TODO: maybe [u32; 4]
     /// The CRC32C
     pub crc32c: u32,
