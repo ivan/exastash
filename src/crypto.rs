@@ -2,20 +2,25 @@ use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, WriteBytesExt};
 use ring::aead::{LessSafeKey, Nonce, Aad, Tag};
 
-pub(crate) fn iv_for_block_number(block_number: u64) -> Box<[u8; 12]> {
-    let mut iv = Box::new([0; 12]);
-    (&mut iv[4..]).write_u64::<BigEndian>(block_number).unwrap();
-    iv
+#[inline(always)]
+pub(crate) fn write_gcm_iv_for_block_number(buf: &mut [u8; 12], block_number: u64) {
+    (&mut buf[4..]).write_u64::<BigEndian>(block_number).unwrap();
 }
 
+#[inline]
 fn gcm_encrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8]) -> Result<Tag> {
-    let nonce = Nonce::assume_unique_for_key(*iv_for_block_number(block_number));
+    let mut iv = [0; 12];
+    write_gcm_iv_for_block_number(&mut iv, block_number);
+    let nonce = Nonce::assume_unique_for_key(iv);
     let tag = key.seal_in_place_separate_tag(nonce, Aad::empty(), in_out).map_err(|_| anyhow!("Failed to seal"))?;
     Ok(tag)
 }
 
+#[inline]
 fn gcm_decrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8], tag: &Tag) -> Result<()> {
-    let nonce = Nonce::assume_unique_for_key(*iv_for_block_number(block_number));
+    let mut iv = [0; 12];
+    write_gcm_iv_for_block_number(&mut iv, block_number);
+    let nonce = Nonce::assume_unique_for_key(iv);
     key.open_in_place_separate_tag(nonce, Aad::empty(), in_out, tag).map_err(|_| anyhow!("Failed to open"))?;
     Ok(())
 }
@@ -25,13 +30,19 @@ mod tests {
     use super::*;
     use ring::aead::{UnboundKey, AES_128_GCM};
 
+    fn iv_for_block_number(block_number: u64) -> Vec<u8> {
+        let mut iv = [0; 12];
+        write_gcm_iv_for_block_number(&mut iv, block_number);
+        iv.to_vec()
+    }
+
     #[test]
-	fn test_iv_for_block_number() {
-        assert_eq!(iv_for_block_number(0).to_vec(),                 b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
-        assert_eq!(iv_for_block_number(1).to_vec(),                 b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01");
-        assert_eq!(iv_for_block_number(100).to_vec(),               b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x64");
-        assert_eq!(iv_for_block_number(2_u64.pow(53) - 1).to_vec(), b"\x00\x00\x00\x00\x00\x1f\xff\xff\xff\xff\xff\xff");
-        assert_eq!(iv_for_block_number(u64::MAX).to_vec(),          b"\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff");
+	fn test_write_gcm_iv_for_block_number() {
+        assert_eq!(iv_for_block_number(0),                 b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
+        assert_eq!(iv_for_block_number(1),                 b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01");
+        assert_eq!(iv_for_block_number(100),               b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x64");
+        assert_eq!(iv_for_block_number(2_u64.pow(53) - 1), b"\x00\x00\x00\x00\x00\x1f\xff\xff\xff\xff\xff\xff");
+        assert_eq!(iv_for_block_number(u64::MAX),          b"\x00\x00\x00\x00\xff\xff\xff\xff\xff\xff\xff\xff");
     }
 
     #[test]
