@@ -18,7 +18,8 @@ num = "0.2"
 regex = "1.0"
 gethostname = "0.2"
 structopt = "0.3"
-ring = "0.16"
+# Waiting for https://github.com/briansmith/ring/pull/909
+ring = { git = "https://github.com/ludios/ring", branch = "prime" }
 postgres = { version = "0.17.1", features = ["with-chrono-0_4"] }
 postgres-protocol = "0.5.0"
 postgres-types = { version = "0.1.0", features = ["derive"] }
@@ -34,6 +35,11 @@ futures = "0.3"
 
 [dev-dependencies]
 atomic-counter = "1.0"
+
+[patch.crates-io]
+# Need a matching version for the ring in
+# reqwest -> hyper-rustls -> rustls -> ring
+ring = { git = "https://github.com/ludios/ring", branch = "prime" }
 
 [profile.dev]
 # Reduce debug rebuild time

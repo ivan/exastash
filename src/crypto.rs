@@ -14,6 +14,12 @@ fn gcm_encrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8]) ->
     Ok(tag)
 }
 
+fn gcm_decrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8], tag: &Tag) -> Result<()> {
+    let nonce = Nonce::assume_unique_for_key(*iv_for_block_number(block_number));
+    key.open_in_place_separate_tag(nonce, Aad::empty(), in_out, tag).map_err(|_| anyhow!("Failed to open"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -41,4 +47,19 @@ mod tests {
         assert_eq!(in_out, [3, 136, 218, 206, 96, 182, 163, 146, 243, 40]);
         Ok(())
     }
+    
+    #[test]
+	fn test_gcm_decrypt_block() -> Result<()> {
+        let key = LessSafeKey::new(
+            UnboundKey::new(&AES_128_GCM, &[0; 16])
+                .map_err(|_| anyhow!("ring failed to create key"))?
+        );
+        let block_number = 0;
+        let tag = Tag::new(&[216, 233, 87, 141, 195, 160, 86, 118, 56, 169, 213, 238, 142, 121, 81, 181]).expect("tag of wrong length?");
+        let mut in_out = vec![3, 136, 218, 206, 96, 182, 163, 146, 243, 40];
+        gcm_decrypt_block(&key, block_number, &mut in_out, &tag)?;
+        assert_eq!(in_out, [0; 10]);
+        Ok(())
+    }
+
 }
