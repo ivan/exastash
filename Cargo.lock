@@ -280,6 +280,7 @@ dependencies = [
  "postgres-types",
  "regex",
  "reqwest",
+ "ring",
  "serde",
  "serde-hex",
  "serde_json",
