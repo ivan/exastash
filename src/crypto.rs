@@ -1,14 +1,20 @@
-use anyhow::{anyhow, bail, Result, Error};
+use anyhow::{anyhow, bail, ensure, Result, Error};
 use byteorder::{BigEndian, WriteBytesExt};
-use ring::aead::{LessSafeKey, Nonce, Aad, Tag};
+use ring::aead::{LessSafeKey, Nonce, Aad, Tag, UnboundKey, AES_128_GCM};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tokio_util::codec::{Decoder, Encoder};
-use tokio_util::codec::{FramedRead, FramedWrite};
-use futures::stream::StreamExt;
 
 #[inline(always)]
 pub(crate) fn write_gcm_iv_for_block_number(buf: &mut [u8; 12], block_number: u64) {
     (&mut buf[4..]).write_u64::<BigEndian>(block_number).unwrap();
+}
+
+fn gcm_create_key(bytes: [u8; 16]) -> Result<LessSafeKey> {
+    let key = LessSafeKey::new(
+        UnboundKey::new(&AES_128_GCM, &bytes)
+            .map_err(|_| anyhow!("ring failed to create key"))?
+    );
+    Ok(key)
 }
 
 #[inline]
@@ -31,6 +37,8 @@ fn gcm_decrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8], ta
 
 const GCM_TAG_LENGTH: usize = 16;
 
+/// Decodes a stream of bytes to a stream of GCM blocks, one `Bytes` per GCM block
+#[derive(Debug)]
 struct GCMDecoder {
     block_size: usize,
     key: LessSafeKey,
@@ -84,14 +92,41 @@ impl Decoder for GCMDecoder {
     }
 }
 
-struct GCMEncoder;
+/// Encodes a stream of GCM blocks (one `Bytes` per block) to a stream of bytes.
+///
+/// All `Bytes` must be of length block_size, except for the last `Bytes` which
+/// may be shorter.
+#[derive(Debug)]
+struct GCMEncoder {
+    block_size: usize,
+    key: LessSafeKey,
+    block_number: u64,
+    finalized: bool,
+}
+
+impl GCMEncoder {
+    fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
+        GCMEncoder { block_size, key, block_number: first_block_number, finalized: false }
+    }
+}
 
 impl Encoder<Bytes> for GCMEncoder {
     type Error = Error;
-    
-    fn encode(&mut self, item: Bytes, dst: &mut BytesMut) -> Result<(), Self::Error> {
 
-        dst.put_slice(&item);
+    fn encode(&mut self, item: Bytes, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        ensure!(item.len() <= self.block_size, "AES-GCM block must be shorter or same length as block size");
+        ensure!(item.len() > 0, "AES-GCM block must not be 0 bytes");
+        if self.finalized {
+            bail!("Cannot encode another AES-GCM block after encoding a block shorter than the block size");
+        }
+        if item.len() < self.block_size {
+            self.finalized = true;
+        }
+        let mut in_out = BytesMut::from(item.as_ref());
+        let tag = gcm_encrypt_block(&self.key, self.block_number, &mut in_out)?;
+        self.block_number += 1;
+        dst.put_slice(tag.as_ref());
+        dst.put_slice(in_out.as_ref());
         Ok(())
     }
 }
@@ -99,7 +134,8 @@ impl Encoder<Bytes> for GCMEncoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ring::aead::{UnboundKey, AES_128_GCM};
+    use tokio_util::codec::{FramedRead, FramedWrite};
+    use futures::stream::{self, StreamExt};
 
     fn iv_for_block_number(block_number: u64) -> Vec<u8> {
         let mut iv = [0; 12];
@@ -118,10 +154,7 @@ mod tests {
 
     #[test]
 	fn test_gcm_encrypt_block() -> Result<()> {
-        let key = LessSafeKey::new(
-            UnboundKey::new(&AES_128_GCM, &[0; 16])
-                .map_err(|_| anyhow!("ring failed to create key"))?
-        );
+        let key = gcm_create_key([0; 16])?;
         let mut in_out = vec![0; 10];
         let block_number = 0;
         let tag = gcm_encrypt_block(&key, block_number, &mut in_out)?;
@@ -132,10 +165,7 @@ mod tests {
     
     #[test]
 	fn test_gcm_decrypt_block() -> Result<()> {
-        let key = LessSafeKey::new(
-            UnboundKey::new(&AES_128_GCM, &[0; 16])
-                .map_err(|_| anyhow!("ring failed to create key"))?
-        );
+        let key = gcm_create_key([0; 16])?;
         let block_number = 0;
         let tag = Tag::new(&[216, 233, 87, 141, 195, 160, 86, 118, 56, 169, 213, 238, 142, 121, 81, 181]).expect("tag of wrong length?");
         let mut in_out = vec![3, 136, 218, 206, 96, 182, 163, 146, 243, 40];
@@ -144,7 +174,29 @@ mod tests {
         Ok(())
     }
 
-    fn test_gcm_decrypt_readable() -> Result<()> {
+    #[tokio::test]
+    async fn test_gcmencoder_gcmdecoder() -> Result<()> {
+        let block_size = 7;
+        let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let encoder = GCMEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let decoder = GCMDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let blocks = vec![
+            Bytes::from_static(b"hellowo"),
+            Bytes::from_static(b"testone"),
+            Bytes::from_static(b"testtwo"),
+        ];
+        let blocks_s = stream::iter(blocks.clone().into_iter()).map(Ok);
+
+        let mut frame_data = vec![];
+        let frame_writer = FramedWrite::new(&mut frame_data, encoder);
+        blocks_s.forward(frame_writer).await?;
+
+        let mut out: Vec<Bytes> = vec![];
+        let mut frame_reader = FramedRead::new(frame_data.as_ref(), decoder);
+        while let Some(result) = frame_reader.next().await {
+            out.push(result.unwrap());
+        }
+        assert_eq!(out, blocks);
 
         Ok(())
     }
