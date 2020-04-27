@@ -82,7 +82,7 @@ impl Decoder for GCMDecoder {
             bail!("AES-GCM stream ended after a tag followed by no data");
         }
         let tag = src.split_to(GCM_TAG_LENGTH);
-        let mut data = src.split_to(self.block_size);
+        let mut data = src;
         // data should be shorter than block_size, else it would have been handled in decode()
         assert!(data.len() < self.block_size);
         let tag = Tag::new(tag.as_ref()).unwrap();
@@ -176,27 +176,44 @@ mod tests {
 
     #[tokio::test]
     async fn test_gcmencoder_gcmdecoder() -> Result<()> {
-        let block_size = 7;
-        let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let encoder = GCMEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
-        let decoder = GCMDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
-        let blocks = vec![
-            Bytes::from_static(b"hellowo"),
-            Bytes::from_static(b"testone"),
-            Bytes::from_static(b"testtwo"),
+        let block_sequences = [
+            vec![
+                Bytes::from_static(b"hellowo"),
+                Bytes::from_static(b"testone"),
+                Bytes::from_static(b"testtwo"),
+            ],
+            // Shorter final block is OK
+            vec![
+                Bytes::from_static(b"hellowo"),
+                Bytes::from_static(b"testone"),
+                Bytes::from_static(b"short"),
+            ],
+            // 1-byte final block is OK
+            vec![
+                Bytes::from_static(b"hellowo"),
+                Bytes::from_static(b"testone"),
+                Bytes::from_static(b"1"),
+            ],
         ];
-        let blocks_s = stream::iter(blocks.clone().into_iter()).map(Ok);
 
-        let mut frame_data = vec![];
-        let frame_writer = FramedWrite::new(&mut frame_data, encoder);
-        blocks_s.forward(frame_writer).await?;
+        for blocks in block_sequences.iter() {
+            let block_size = 7;
+            let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+            let encoder = GCMEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+            let decoder = GCMDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+            let blocks_s = stream::iter(blocks.clone().into_iter()).map(Ok);
 
-        let mut out: Vec<Bytes> = vec![];
-        let mut frame_reader = FramedRead::new(frame_data.as_ref(), decoder);
-        while let Some(result) = frame_reader.next().await {
-            out.push(result.unwrap());
+            let mut frame_data = vec![];
+            let frame_writer = FramedWrite::new(&mut frame_data, encoder);
+            blocks_s.forward(frame_writer).await?;
+
+            let mut out: Vec<Bytes> = vec![];
+            let mut frame_reader = FramedRead::new(frame_data.as_ref(), decoder);
+            while let Some(result) = frame_reader.next().await {
+                out.push(result.unwrap());
+            }
+            assert_eq!(out, *blocks);
         }
-        assert_eq!(out, blocks);
 
         Ok(())
     }
