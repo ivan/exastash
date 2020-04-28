@@ -39,20 +39,20 @@ const GCM_TAG_LENGTH: usize = 16;
 
 /// Decodes a stream of bytes to a stream of GCM blocks, one `Bytes` per GCM block
 #[derive(Debug)]
-struct GCMDecoder {
+struct GcmDecoder {
     block_size: usize,
     key: LessSafeKey,
     block_number: u64,
 }
 
-impl GCMDecoder {
+impl GcmDecoder {
     fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
         assert!(block_size > 0, "block size must be > 0");
-        GCMDecoder { block_size, key, block_number: first_block_number }
+        GcmDecoder { block_size, key, block_number: first_block_number }
     }
 }
 
-impl Decoder for GCMDecoder {
+impl Decoder for GcmDecoder {
     type Item = Bytes;
     type Error = Error;
 
@@ -98,21 +98,21 @@ impl Decoder for GCMDecoder {
 /// All `Bytes` must be of length block_size, except for the last `Bytes` which
 /// may be shorter.
 #[derive(Debug)]
-struct GCMEncoder {
+struct GcmEncoder {
     block_size: usize,
     key: LessSafeKey,
     block_number: u64,
     finalized: bool,
 }
 
-impl GCMEncoder {
+impl GcmEncoder {
     fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
         assert!(block_size > 0, "block size must be > 0");
-        GCMEncoder { block_size, key, block_number: first_block_number, finalized: false }
+        GcmEncoder { block_size, key, block_number: first_block_number, finalized: false }
     }
 }
 
-impl Encoder<Bytes> for GCMEncoder {
+impl Encoder<Bytes> for GcmEncoder {
     type Error = Error;
 
     fn encode(&mut self, item: Bytes, dst: &mut BytesMut) -> Result<(), Self::Error> {
@@ -201,8 +201,8 @@ mod tests {
         for blocks in block_sequences.iter() {
             let block_size = 7;
             let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-            let encoder = GCMEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
-            let decoder = GCMDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+            let encoder = GcmEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+            let decoder = GcmDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
             let blocks_s = stream::iter(blocks.clone().into_iter()).map(Ok);
 
             let mut frame_data = vec![];
@@ -224,7 +224,7 @@ mod tests {
     async fn test_gcmencoder_cannot_encode_zero_sized_block() -> Result<()> {
         let block_size = 7;
         let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let mut encoder = GCMEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let mut encoder = GcmEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
         let mut dst = BytesMut::new();
 
         let result = encoder.encode(Bytes::from_static(b""), &mut dst);
@@ -237,7 +237,7 @@ mod tests {
     async fn test_gcmencoder_cannot_encode_oversized_block() -> Result<()> {
         let block_size = 7;
         let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let mut encoder = GCMEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let mut encoder = GcmEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
         let mut dst = BytesMut::new();
 
         let result = encoder.encode(Bytes::from_static(b"too long"), &mut dst);
