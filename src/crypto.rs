@@ -22,7 +22,9 @@ fn gcm_encrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8]) ->
     let mut iv = [0; 12];
     write_gcm_iv_for_block_number(&mut iv, block_number);
     let nonce = Nonce::assume_unique_for_key(iv);
-    let tag = key.seal_in_place_separate_tag(nonce, Aad::empty(), in_out).map_err(|_| anyhow!("Failed to seal"))?;
+    let tag = key
+        .seal_in_place_separate_tag(nonce, Aad::empty(), in_out)
+        .map_err(|_| anyhow!("AES-GCM encryption failed with unexpected internal error"))?;
     Ok(tag)
 }
 
@@ -31,7 +33,9 @@ fn gcm_decrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8], ta
     let mut iv = [0; 12];
     write_gcm_iv_for_block_number(&mut iv, block_number);
     let nonce = Nonce::assume_unique_for_key(iv);
-    key.open_in_place_separate_tag(nonce, Aad::empty(), in_out, tag).map_err(|_| anyhow!("Failed to open"))?;
+    key
+        .open_in_place_separate_tag(nonce, Aad::empty(), in_out, tag)
+        .map_err(|_| anyhow!("AES-GCM decryption failed, likely bad tag or data"))?;
     Ok(())
 }
 
@@ -246,6 +250,45 @@ mod tests {
         Ok(())
     }
 
-    // TODO test can't decode 0-sized Bytes
-    // TOOD test can't decode Bytes larger than block size
+    #[tokio::test]
+    async fn test_gcmdecoder_bad_tag() -> Result<()> {
+        let block_size = 7;
+        let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let decoder = GcmDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let buf = vec![0; 16 + 7];
+        let mut frame_reader = FramedRead::new(buf.as_ref(), decoder);
+
+        let result = frame_reader.next().await.expect("Some");
+        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM decryption failed, likely bad tag or data");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gcmdecoder_eof_tag_but_no_data() -> Result<()> {
+        let block_size = 7;
+        let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let decoder = GcmDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let buf = vec![0; 16];
+        let mut frame_reader = FramedRead::new(buf.as_ref(), decoder);
+
+        let result = frame_reader.next().await.expect("Some");
+        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM stream ended after a tag followed by no data");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gcmdecoder_eof_middle_of_tag() -> Result<()> {
+        let block_size = 7;
+        let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let decoder = GcmDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let buf = vec![0; 15];
+        let mut frame_reader = FramedRead::new(buf.as_ref(), decoder);
+
+        let result = frame_reader.next().await.expect("Some");
+        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM stream ended in the middle of a tag");
+
+        Ok(())
+    }
 }
