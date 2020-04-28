@@ -217,4 +217,33 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_gcmencoder_cannot_encode_zero_sized_block() -> Result<()> {
+        let block_size = 7;
+        let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let mut encoder = GCMEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let mut dst = BytesMut::new();
+
+        let result = encoder.encode(Bytes::from_static(b""), &mut dst);
+        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM block must not be 0 bytes");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gcmencoder_cannot_encode_oversized_block() -> Result<()> {
+        let block_size = 7;
+        let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        let mut encoder = GCMEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
+        let mut dst = BytesMut::new();
+
+        let result = encoder.encode(Bytes::from_static(b"too long"), &mut dst);
+        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM block must be shorter or same length as block size");
+
+        Ok(())
+    }
+
+    // TODO test can't decode 0-sized Bytes
+    // TOOD test can't decode Bytes larger than block size
 }
