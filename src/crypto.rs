@@ -47,6 +47,7 @@ struct GCMDecoder {
 
 impl GCMDecoder {
     fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
+        assert!(block_size > 0, "block size must be > 0");
         GCMDecoder { block_size, key, block_number: first_block_number }
     }
 }
@@ -106,6 +107,7 @@ struct GCMEncoder {
 
 impl GCMEncoder {
     fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
+        assert!(block_size > 0, "block size must be > 0");
         GCMEncoder { block_size, key, block_number: first_block_number, finalized: false }
     }
 }
