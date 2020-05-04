@@ -1,7 +1,7 @@
 //! CRUD operations for storage_gdrive entities in PostgreSQL
 
 use anyhow::Result;
-use postgres::Transaction;
+use tokio_postgres::Transaction;
 use postgres_types::{ToSql, FromSql};
 use serde::Serialize;
 use serde_hex::{SerHex, Strict};
@@ -25,8 +25,8 @@ pub enum Cipher {
 
 /// Create a gsuite domain entity in the database and returns its id.
 /// Does not commit the transaction, you must do so yourself.
-pub fn create_domain(transaction: &mut Transaction<'_>, domain: &str) -> Result<i16> {
-    let rows = transaction.query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id", &[&domain])?;
+pub async fn create_domain(transaction: &mut Transaction<'_>, domain: &str) -> Result<i16> {
+    let rows = transaction.query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id", &[&domain]).await?;
     let id = rows.get(0).unwrap().get(0);
     Ok(id)
 }
@@ -50,26 +50,26 @@ pub struct Storage {
 impl Storage {
     /// Create an gdrive storage entity in the database.
     /// Note that the gsuite domain must already exist.
-    /// Note that you must call file::create_gdrive_file for each gdrive file beforehand.
+    /// Note that you must call file::create_gdrive_file for each gdrive file beforehan.awaitd.
     /// Does not commit the transaction, you must do so yourself.
-    pub fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
         let gdrive_ids = self.gdrive_files.iter().map(|f| f.id.clone()).collect::<Vec<_>>();
         transaction.execute(
             "INSERT INTO storage_gdrive (file_id, gsuite_domain, cipher, cipher_key, gdrive_ids)
              VALUES ($1::bigint, $2::smallint, $3::cipher, $4::uuid, $5::text[])",
             &[&self.file_id, &self.gsuite_domain, &self.cipher, &SixteenBytes { bytes: self.cipher_key }, &gdrive_ids]
-        )?;
+        ).await?;
         Ok(())
     }
 
     /// Return a list of gdrive storage entities where the data for a file can be retrieved.
-    pub fn find_by_file_ids(mut transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+    pub async fn find_by_file_ids(mut transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         // Note that we can get more than one row per unique file_id
         let rows = transaction.query(
             "SELECT file_id, gsuite_domain, cipher, cipher_key, gdrive_ids
              FROM storage_gdrive
              WHERE file_id = ANY($1::bigint[])", &[&file_ids]
-        )?;
+        ).await?;
         if rows.is_empty() {
             return Ok(vec![]);
         }
@@ -77,7 +77,7 @@ impl Storage {
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
             let gdrive_file_ids: Vec<&str> = row.get(4);
-            let gdrive_files = file::get_gdrive_files(&mut transaction, &gdrive_file_ids[..])?;
+            let gdrive_files = file::get_gdrive_files(&mut transaction, &gdrive_file_ids[..]).await?;
             let file = Storage {
                 file_id: row.get(0),
                 gsuite_domain: row.get(1),
@@ -105,9 +105,9 @@ pub(crate) mod tests {
         RelaxedCounter::new(1)
     });
 
-    pub(crate) fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<i16> {
+    pub(crate) async fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<i16> {
         let domain = format!("{}.example.com", DOMAIN_COUNTER.inc());
-        let id = create_domain(&mut transaction, &domain)?;
+        let id = create_domain(&mut transaction, &domain).await?;
         Ok(id)
     }
 
@@ -115,38 +115,38 @@ pub(crate) mod tests {
         use super::*;
 
         /// If we add a gdrive storage for a file, get_storage returns that storage
-        #[test]
-        fn test_create_storage_get_storage() -> Result<()> {
-            let mut client = get_client();
+        #[tokio::test]
+        async fn test_create_storage_get_storage() -> Result<()> {
+            let mut client = get_client().await;
 
-            let mut transaction = start_transaction(&mut client)?;
-            let file_id = create_dummy_file(&mut transaction)?;
+            let mut transaction = start_transaction(&mut client).await?;
+            let file_id = create_dummy_file(&mut transaction).await?;
             let file1 = GdriveFile { id: "X".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
             let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None };
-            create_gdrive_file(&mut transaction, &file1)?;
-            create_gdrive_file(&mut transaction, &file2)?;
-            let domain = create_dummy_domain(&mut transaction)?;
+            create_gdrive_file(&mut transaction, &file1).await?;
+            create_gdrive_file(&mut transaction, &file2).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
-            storage.create(&mut transaction)?;
-            transaction.commit()?;
+            storage.create(&mut transaction).await?;
+            transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client)?;
-            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[file_id])?, vec![storage]);
+            let mut transaction = start_transaction(&mut client).await?;
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[file_id]).await?, vec![storage]);
 
             Ok(())
         }
 
         /// Cannot reference a nonexistent gdrive file
-        #[test]
-        fn test_cannot_reference_nonexistent_gdrive_file() -> Result<()> {
-            let mut client = get_client();
+        #[tokio::test]
+        async fn test_cannot_reference_nonexistent_gdrive_file() -> Result<()> {
+            let mut client = get_client().await;
 
-            let mut transaction = start_transaction(&mut client)?;
-            let file_id = create_dummy_file(&mut transaction)?;
+            let mut transaction = start_transaction(&mut client).await?;
+            let file_id = create_dummy_file(&mut transaction).await?;
             let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            let domain = create_dummy_domain(&mut transaction)?;
+            let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
-            let result = storage.create(&mut transaction);
+            let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: gdrive_ids had 1 ids: {FileNeverAddedToDatabase} but only 0 of these are in gdrive_files"
@@ -156,18 +156,18 @@ pub(crate) mod tests {
         }
 
         /// Cannot reference a nonexistent gdrive file even when other gdrive files do exist
-        #[test]
-        fn test_cannot_reference_nonexistent_gdrive_file_even_if_some_exist() -> Result<()> {
-            let mut client = get_client();
+        #[tokio::test]
+        async fn test_cannot_reference_nonexistent_gdrive_file_even_if_some_exist() -> Result<()> {
+            let mut client = get_client().await;
 
-            let mut transaction = start_transaction(&mut client)?;
-            let file_id = create_dummy_file(&mut transaction)?;
+            let mut transaction = start_transaction(&mut client).await?;
+            let file_id = create_dummy_file(&mut transaction).await?;
             let file1 = GdriveFile { id: "F".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file1)?;
+            create_gdrive_file(&mut transaction, &file1).await?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            let domain = create_dummy_domain(&mut transaction)?;
+            let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
-            let result = storage.create(&mut transaction);
+            let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: gdrive_ids had 2 ids: {FFFFFFFFFFFFFFFFFFFFFFFFFFFF,FileNeverAddedToDatabase} but only 1 of these are in gdrive_files"
@@ -177,15 +177,15 @@ pub(crate) mod tests {
         }
 
         /// Cannot have empty gdrive_files
-        #[test]
-        fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
-            let mut client = get_client();
+        #[tokio::test]
+        async fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
+            let mut client = get_client().await;
 
-            let mut transaction = start_transaction(&mut client)?;
-            let file_id = create_dummy_file(&mut transaction)?;
-            let domain = create_dummy_domain(&mut transaction)?;
+            let mut transaction = start_transaction(&mut client).await?;
+            let file_id = create_dummy_file(&mut transaction).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
-            let result = storage.create(&mut transaction);
+            let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: new row for relation \"storage_gdrive\" violates check constraint \"storage_gdrive_gdrive_ids_check\""
@@ -201,22 +201,22 @@ pub(crate) mod tests {
         use crate::db::tests::assert_cannot_truncate;
 
         /// Cannot UPDATE any row in storage_gdrive table
-        #[test]
-        fn test_cannot_update() -> Result<()> {
-            let mut client = get_client();
+        #[tokio::test]
+        async fn test_cannot_update() -> Result<()> {
+            let mut client = get_client().await;
 
-            let mut transaction = start_transaction(&mut client)?;
-            let file_id = create_dummy_file(&mut transaction)?;
+            let mut transaction = start_transaction(&mut client).await?;
+            let file_id = create_dummy_file(&mut transaction).await?;
             let id1 = "Y".repeat(28);
             let id2 = "Z".repeat(28);
             let file1 = GdriveFile { id: id1.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let file2 = GdriveFile { id: id2.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file1)?;
-            create_gdrive_file(&mut transaction, &file2)?;
-            let domain = create_dummy_domain(&mut transaction)?;
+            create_gdrive_file(&mut transaction, &file1).await?;
+            create_gdrive_file(&mut transaction, &file2).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
-            storage.create(&mut transaction)?;
-            transaction.commit()?;
+            storage.create(&mut transaction).await?;
+            transaction.commit().await?;
 
             let pairs = [
                 ("file_id", "100"),
@@ -227,9 +227,9 @@ pub(crate) mod tests {
             ];
 
             for (column, value) in pairs.iter() {
-                let mut transaction = start_transaction(&mut client)?;
+                let mut transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_gdrive SET {} = {} WHERE file_id = $1::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&file_id]);
+                let result = transaction.execute(query.as_str(), &[&file_id]).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
                     "db error: ERROR: cannot change file_id, gsuite_domain, cipher, cipher_key, or gdrive_ids"
@@ -240,21 +240,21 @@ pub(crate) mod tests {
         }
 
         /// Cannot TRUNCATE storage_gdrive table
-        #[test]
-        fn test_cannot_truncate() -> Result<()> {
-            let mut client = get_client();
+        #[tokio::test]
+        async fn test_cannot_truncate() -> Result<()> {
+            let mut client = get_client().await;
 
-            let mut transaction = start_transaction(&mut client)?;
-            let file_id = create_dummy_file(&mut transaction)?;
+            let mut transaction = start_transaction(&mut client).await?;
+            let file_id = create_dummy_file(&mut transaction).await?;
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file)?;
-            let domain = create_dummy_domain(&mut transaction)?;
+            create_gdrive_file(&mut transaction, &file).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
-            storage.create(&mut transaction)?;
-            transaction.commit()?;
+            storage.create(&mut transaction).await?;
+            transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client)?;
-            assert_cannot_truncate(&mut transaction, "storage_gdrive")?;
+            let mut transaction = start_transaction(&mut client).await?;
+            assert_cannot_truncate(&mut transaction, "storage_gdrive").await;
 
             Ok(())
         }

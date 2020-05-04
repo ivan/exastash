@@ -1,9 +1,12 @@
+//! Functions to read content from storage
+
 use anyhow::{Result, Error};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use futures::stream::{self,  TryStreamExt};
 use crate::db::storage::{Storage, inline, gdrive, internetarchive};
 
-pub(crate) fn read(storage: &Storage) -> Result<Box<dyn tokio::io::AsyncRead>> {
+/// Returns an AsyncRead with the content of a file
+pub fn read(storage: &Storage) -> Result<Box<dyn tokio::io::AsyncRead + Unpin>> {
     Ok(Box::new(match storage {
         Storage::Inline(inline::Storage { content, .. }) => {
             let stream = stream::iter::<_>(vec![Ok(content.clone())]);

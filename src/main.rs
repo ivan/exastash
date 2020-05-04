@@ -1,13 +1,15 @@
+use async_recursion::async_recursion;
 use anyhow::{anyhow, bail, Result};
 use structopt::StructOpt;
-use exastash::db;
 use chrono::Utc;
-use postgres::Transaction;
+use tokio_postgres::Transaction;
 use serde::Serialize;
-use chrono::{DateTime};
-use crate::db::storage::{Storage, get_storage};
-use crate::db::inode::{InodeId, Inode, Dir, Symlink, Birth};
-use crate::db::traversal::walk_path;
+use chrono::DateTime;
+use exastash::db;
+use exastash::db::storage::{Storage, get_storage};
+use exastash::db::inode::{InodeId, Inode, Dir, Symlink, Birth};
+use exastash::db::traversal::walk_path;
+use exastash::storage_read;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "es")]
@@ -34,6 +36,13 @@ enum ExastashCommand {
     #[structopt(name = "info")]
     /// Show info for a dir, file, or symlink
     Info {
+        #[structopt(flatten)]
+        selector: InodeSelector,
+    },
+
+    #[structopt(name = "cat")]
+    /// Output a file's content to stdout
+    Cat {
         #[structopt(flatten)]
         selector: InodeSelector,
     },
@@ -87,7 +96,7 @@ struct InodeSelector {
 }
 
 impl InodeSelector {
-    fn to_inode_id(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
+    async fn to_inode_id(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
         let inode = match (self.dir.or(self.file).or(self.symlink), &self.path) {
             (Some(_), None) => {
                 db::dirent::InodeTuple(self.dir, self.file, self.symlink).to_inode_id()?
@@ -99,7 +108,7 @@ impl InodeSelector {
                 } else {
                     path.split('/').collect()
                 };
-                walk_path(transaction, root, &path_components)?
+                walk_path(transaction, root, &path_components).await?
             },
             _ => {
                 bail!("Either dir|file|symlink or path must be specified but not both");
@@ -148,33 +157,35 @@ enum DirentCommand {
     },
 }
 
-fn find(transaction: &mut Transaction, segments: &[&str], dir_id: i64) -> Result<()> {
+#[async_recursion]
+async fn find(transaction: &mut Transaction<'_>, segments: &[&str], dir_id: i64) -> Result<()> {
     let path_string = match segments {
         [] => "".into(),
         parts => format!("{}/", parts.join("/")),
     };
-    let dirents = db::dirent::list_dir(transaction, dir_id)?;
+    let dirents = db::dirent::list_dir(transaction, dir_id).await?;
     for dirent in dirents {
         println!("{}{}", path_string, dirent.basename);
         if let InodeId::Dir(dir_id) = dirent.child {
             let segments = [segments, &[&dirent.basename]].concat();
-            find(transaction, &segments, dir_id)?;
+            find(transaction, &segments, dir_id).await?;
         }
     }
     Ok(())
 }
 
-fn main() -> Result<()> {
-    let mut client = db::postgres_client_production()?;
-    let mut transaction = db::start_transaction(&mut client)?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    let mut client = db::postgres_client_production().await?;
+    let mut transaction = db::start_transaction(&mut client).await?;
     match ExastashCommand::from_args() {
         ExastashCommand::Dir(dir) => {
             match dir {
                 DirCommand::Create => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
-                    let dir_id = db::inode::NewDir { mtime, birth }.create(&mut transaction)?;
-                    transaction.commit()?;
+                    let dir_id = db::inode::NewDir { mtime, birth }.create(&mut transaction).await?;
+                    transaction.commit().await?;
                     println!("{}", dir_id);
                 }
             }
@@ -188,14 +199,14 @@ fn main() -> Result<()> {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
                     let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode_id()?;
                     let dirent = db::dirent::Dirent::new(parent_dir_id, basename, child);
-                    dirent.create(&mut transaction)?;
-                    transaction.commit()?;
+                    dirent.create(&mut transaction).await?;
+                    transaction.commit().await?;
                 }
             }
         }
         ExastashCommand::Ls { just_names, selector } => {
-            let inode_id = selector.to_inode_id(&mut transaction)?;
-            let dirents = db::dirent::list_dir(&mut transaction, inode_id.dir_id()?)?;
+            let inode_id = selector.to_inode_id(&mut transaction).await?;
+            let dirents = db::dirent::list_dir(&mut transaction, inode_id.dir_id()?).await?;
             for dirent in dirents {
                 if just_names {
                     println!("{}", dirent.basename);
@@ -206,13 +217,13 @@ fn main() -> Result<()> {
             }
         }
         ExastashCommand::Find { selector } => {
-            let dir_id = selector.to_inode_id(&mut transaction)?.dir_id()?;
-            find(&mut transaction, &[], dir_id)?;
+            let dir_id = selector.to_inode_id(&mut transaction).await?.dir_id()?;
+            find(&mut transaction, &[], dir_id).await?;
         }
         ExastashCommand::Info { selector } => {
-            let inode_id = selector.to_inode_id(&mut transaction)?;
+            let inode_id = selector.to_inode_id(&mut transaction).await?;
 
-            let mut inodes = Inode::find_by_inode_ids(&mut transaction, &[inode_id])?;
+            let mut inodes = Inode::find_by_inode_ids(&mut transaction, &[inode_id]).await?;
             assert!(inodes.len() <= 1);
             if inodes.is_empty() {
                 bail!("inode {:?} does not exist in database", inode_id);
@@ -242,7 +253,7 @@ fn main() -> Result<()> {
 
             let inode = match inode {
                 Inode::File(file) => {
-                    let storages = get_storage(&mut transaction, &[file.id])?;
+                    let storages = get_storage(&mut transaction, &[file.id]).await?;
                     InodeWithStorages::File(FileWithStorages {
                         id: file.id,
                         mtime: file.mtime,
@@ -258,6 +269,29 @@ fn main() -> Result<()> {
 
             let j = serde_json::to_string_pretty(&inode)?;
             println!("{}", j);
+        }
+        ExastashCommand::Cat { selector } => {
+            let inode_id = selector.to_inode_id(&mut transaction).await?;
+            match inode_id {
+                InodeId::File(file_id) => {
+                    let storages = get_storage(&mut transaction, &[file_id]).await?;
+                    match storages.get(0) {
+                        Some(storage) => {
+                            let mut read = storage_read::read(&storage)?;
+                            let mut stdout = tokio::io::stdout();
+                            tokio::io::copy(&mut read, &mut stdout).await?;
+                        }
+                        None => bail!("File with id={} has no storage", file_id)
+                    }
+                }
+                InodeId::Dir(_) => {
+                    bail!("Cannot cat a dir");
+                }
+                InodeId::Symlink(_) => {
+                    // TODO
+                    bail!("Cannot cat a symlink");
+                }
+            }
         }
     };
 

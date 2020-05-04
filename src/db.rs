@@ -6,20 +6,30 @@ pub mod storage;
 pub mod traversal;
 
 use anyhow::Result;
-use postgres::{Client, Transaction, NoTls};
+use tokio_postgres::{Client, Transaction, NoTls};
 use crate::util::env_var;
 
 /// Return a `postgres::Client` connected to the `postgres://` URI in
 /// env var `EXASTASH_POSTGRES_URI`.
-pub fn postgres_client_production() -> Result<Client> {
+pub async fn postgres_client_production() -> Result<Client> {
     let database_uri = env_var("EXASTASH_POSTGRES_URI")?;
-    Ok(Client::connect(&database_uri, NoTls)?)
+    let (client, connection) = tokio_postgres::connect(&database_uri, NoTls).await?;
+
+    // The connection object performs the actual communication with the database,
+    // so spawn it off to run on its own.
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
+    Ok(client)
 }
 
 /// Return a transaction with search_path set to 'stash'.
-pub fn start_transaction(client: &mut Client) -> Result<Transaction<'_>> {
-    let mut transaction = client.build_transaction().start()?;
-    transaction.execute("SET search_path TO stash", &[])?;
+pub async fn start_transaction<'a>(client: &'a mut Client) -> Result<Transaction<'a>> {
+    let transaction = client.build_transaction().start().await?;
+    transaction.execute("SET search_path TO stash", &[]).await?;
     Ok(transaction)
 }
 
@@ -56,31 +66,41 @@ mod tests {
     static DATABASE_URI: Lazy<String> = Lazy::new(postgres_temp_instance_uri);
     static DDL_APPLIED: OnceCell<bool> = OnceCell::new();
 
-    pub(crate) fn get_client() -> Client {
+    pub(crate) async fn get_client() -> Client {
         let uri = &*DATABASE_URI;
         DDL_APPLIED.get_or_init(|| {
             apply_ddl(uri, "schema/schema.sql");
             true
         });
-        Client::connect(uri, NoTls).unwrap()
+
+        let (client, connection) = tokio_postgres::connect(&uri, NoTls).await.unwrap();
+
+        // The connection object performs the actual communication with the database,
+        // so spawn it off to run on its own.
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
+        client
     }
 
-    pub(crate) fn assert_cannot_truncate(transaction: &mut Transaction<'_>, table: &str) -> Result<()> {
+    pub(crate) async fn assert_cannot_truncate(transaction: &mut Transaction<'_>, table: &str) {
         let statement = format!("TRUNCATE {} CASCADE", table);
-        let result = transaction.execute(statement.as_str(), &[]);
+        let result = transaction.execute(statement.as_str(), &[]).await;
         let msg = result.err().expect("expected an error").to_string();
         // Also allow "deadlock detected" because of concurrent transactions: the
         // BEFORE TRUNCATE trigger does not run before PostgreSQL's lock checks
         assert!(
             msg == "db error: ERROR: truncate is forbidden" ||
             msg == "db error: ERROR: deadlock detected", msg);
-        Ok(())
     }
 
-    #[test]
-    fn test_start_transaction() -> Result<()> {
-        let mut client = get_client();
-        let _ = start_transaction(&mut client)?;
+    #[tokio::test]
+    async fn test_start_transaction() -> Result<()> {
+        let mut client = get_client().await;
+        let _ = start_transaction(&mut client).await?;
         Ok(())
     }
 }
