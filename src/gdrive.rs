@@ -1,11 +1,14 @@
 use std::path::Path;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use reqwest::StatusCode;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
-use futures::stream::TryStreamExt;
+use futures::stream::{StreamExt, TryStreamExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::fmt::Display;
+use tokio::fs::DirEntry;
+use rand::seq::SliceRandom;
+use directories::ProjectDirs;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
@@ -14,6 +17,21 @@ async fn get_token_for_service_account<P: AsRef<Path>>(json_path: P) -> Result<A
     let sa = yup_oauth2::ServiceAccountAuthenticator::builder(creds).build().await?;
     let scopes = &["https://www.googleapis.com/auth/drive"];
     Ok(sa.token(scopes).await?)
+}
+
+async fn get_service_account_files() -> Result<Vec<DirEntry>> {
+    let exastash = ProjectDirs::from("", "", "exastash")
+        .ok_or_else(|| anyhow!("Could not get home directory"))?;
+    let dir = exastash.config_dir().join("service-accounts");
+    let stream = tokio::fs::read_dir(dir).await?;
+    Ok(stream.map(|r| r.unwrap()).collect::<Vec<DirEntry>>().await)
+}
+
+async fn get_token_for_random_service_account() -> Result<AccessToken> {
+    let files = get_service_account_files().await?;
+    let mut rng = rand::thread_rng();
+    let file = files.choose(&mut rng).expect("no service accounts");
+    get_token_for_service_account(file.path()).await
 }
 
 // Take AsRef<str> instead of AccessToken because AccessToken has private fields
