@@ -137,7 +137,7 @@ mod tests {
             transaction.commit().await?;
 
             for (column, value) in [("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")].iter() {
-                let mut transaction = start_transaction(&mut client).await?;
+                let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_internetarchive SET {} = {} WHERE file_id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&file_id]).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id, ia_item, or pathname");

@@ -154,7 +154,7 @@ mod tests {
             transaction.commit().await?;
 
             for (column, value) in [("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")].iter() {
-                let mut transaction = start_transaction(&mut client).await?;
+                let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirents SET {} = {} WHERE parent = $1::bigint AND child_dir = $2::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&parent, &child_dir]).await;
                 assert_eq!(

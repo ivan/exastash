@@ -227,7 +227,7 @@ pub(crate) mod tests {
             ];
 
             for (column, value) in pairs.iter() {
-                let mut transaction = start_transaction(&mut client).await?;
+                let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_gdrive SET {} = {} WHERE file_id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&file_id]).await;
                 assert_eq!(

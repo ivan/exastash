@@ -448,7 +448,7 @@ pub(crate) mod tests {
             let dir_id = NewDir { mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
-                let mut transaction = start_transaction(&mut client).await?;
+                let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&dir_id]).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_*");
@@ -463,13 +463,13 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let file_id = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            let mut transaction = start_transaction(&mut client).await?;
+            let transaction = start_transaction(&mut client).await?;
             transaction.execute("UPDATE files SET mtime = now() WHERE id = $1::bigint", &[&file_id]).await?;
             transaction.commit().await?;
-            let mut transaction = start_transaction(&mut client).await?;
+            let transaction = start_transaction(&mut client).await?;
             transaction.execute("UPDATE files SET size = 100000 WHERE id = $1::bigint", &[&file_id]).await?;
             transaction.commit().await?;
-            let mut transaction = start_transaction(&mut client).await?;
+            let transaction = start_transaction(&mut client).await?;
             transaction.execute("UPDATE files SET executable = true WHERE id = $1::bigint", &[&file_id]).await?;
             transaction.commit().await?;
             Ok(())
@@ -483,7 +483,7 @@ pub(crate) mod tests {
             let file_id = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
-                let mut transaction = start_transaction(&mut client).await?;
+                let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE files SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&file_id]).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_*");
@@ -498,7 +498,7 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let symlink_id = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            let mut transaction = start_transaction(&mut client).await?;
+            let transaction = start_transaction(&mut client).await?;
             transaction.execute("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint", &[&symlink_id]).await?;
             transaction.commit().await?;
             Ok(())
@@ -512,7 +512,7 @@ pub(crate) mod tests {
             let symlink_id = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
             for (column, value) in [("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
-                let mut transaction = start_transaction(&mut client).await?;
+                let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE symlinks SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&symlink_id]).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, target, or birth_*");

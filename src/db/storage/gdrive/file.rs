@@ -199,7 +199,7 @@ mod tests {
 
             let new_id = format!("'{}'", "C".repeat(28));
             for (column, value) in [("id", new_id.as_str()), ("md5", "'0000-0000-0000-0000-0000-0000-0000-0001'::uuid"), ("crc32c", "1"), ("size", "2")].iter() {
-                let mut transaction = start_transaction(&mut client).await?;
+                let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE gdrive_files SET {} = {} WHERE id = $1", column, value);
                 let result = transaction.execute(query.as_str(), &[&file.id]).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, md5, crc32c, or size");
