@@ -16,6 +16,10 @@ pub fn read(storage: &Storage) -> Result<Box<dyn tokio::io::AsyncRead + Unpin>> 
                 .compat()
         }
         Storage::Gdrive(gdrive::Storage { .. }) => {
+            // TODO:
+            // concat streams of all gdrive files
+            // run through GcmDecoder
+            // run through RightTruncate (or add "stop at byte" to GcmDecoder - probably faster)
             unimplemented!()
         }
         Storage::InternetArchive(internetarchive::Storage { .. }) => {
