@@ -1,7 +1,6 @@
 use std::pin::Pin;
 use tokio::io::AsyncRead;
 use std::task::{Context, Poll};
-use std::convert::TryFrom;
 
 macro_rules! ready {
     ($e:expr) => (
@@ -34,11 +33,11 @@ where
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<std::io::Result<usize>> {
         let underyling_poll = Pin::new(&mut *self.inner).poll_read(cx, buf);
         let mut bytes_read = ready!(underyling_poll)?;
-        let mut total_bytes_read = self.total_bytes_read + u64::try_from(bytes_read).expect("overflow");
+        let mut total_bytes_read = self.total_bytes_read + bytes_read as u64;
         if total_bytes_read > self.keep_bytes {
             let overflow_bytes = total_bytes_read - self.keep_bytes;
             total_bytes_read -= overflow_bytes;
-            bytes_read -= usize::try_from(overflow_bytes).expect("overflow");
+            bytes_read -= overflow_bytes as usize;
         }
         self.total_bytes_read = total_bytes_read;
         Poll::Ready(Ok(bytes_read))
