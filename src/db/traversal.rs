@@ -10,9 +10,6 @@ use crate::db::inode::InodeId;
 /// 
 /// TODO: speed this up by farming it out to a PL/pgSQL function
 pub async fn walk_path(transaction: &mut Transaction<'_>, base_dir: i64, path_components: &[&str]) -> Result<InodeId> {
-    // We want point-in-time consistency for all the queries below
-    transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[]).await?;
-
     let mut current_inode = InodeId::Dir(base_dir);
     for component in path_components.iter() {
         let rows = transaction.query("

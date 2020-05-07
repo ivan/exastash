@@ -9,7 +9,7 @@ pub(crate) fn write_gcm_iv_for_block_number(buf: &mut [u8; 12], block_number: u6
     (&mut buf[4..]).write_u64::<BigEndian>(block_number).unwrap();
 }
 
-fn gcm_create_key(bytes: [u8; 16]) -> Result<LessSafeKey> {
+pub(crate) fn gcm_create_key(bytes: [u8; 16]) -> Result<LessSafeKey> {
     let key = LessSafeKey::new(
         UnboundKey::new(&AES_128_GCM, &bytes)
             .map_err(|_| anyhow!("ring failed to create key"))?
@@ -43,14 +43,14 @@ const GCM_TAG_LENGTH: usize = 16;
 
 /// Decodes a stream of bytes to a stream of GCM blocks, one `Bytes` per GCM block
 #[derive(Debug)]
-struct GcmDecoder {
+pub(crate) struct GcmDecoder {
     block_size: usize,
     key: LessSafeKey,
     block_number: u64,
 }
 
 impl GcmDecoder {
-    fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
+    pub(crate) fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
         assert!(block_size > 0, "block size must be > 0");
         GcmDecoder { block_size, key, block_number: first_block_number }
     }

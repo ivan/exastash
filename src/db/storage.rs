@@ -25,8 +25,6 @@ pub enum Storage {
 
 /// Return a list of places where the data for a file can be retrieved
 pub async fn get_storage(transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
-    // We want point-in-time consistency for all the queries below
-    transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[]).await?;
     let inline = inline::Storage::find_by_file_ids(transaction, file_ids).await?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
     let gdrive = gdrive::Storage::find_by_file_ids(transaction, file_ids).await?
@@ -73,7 +71,7 @@ mod tests {
             let mut client = get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
-            
+
             // internetarchive
             let file_id = create_dummy_file(&mut transaction).await?;
             let storage1 = internetarchive::Storage { file_id, ia_item: "item1".into(), pathname: "path1".into(), darked: false, last_probed: None };

@@ -26,10 +26,13 @@ pub async fn postgres_client_production() -> Result<Client> {
     Ok(client)
 }
 
-/// Return a transaction with search_path set to 'stash'.
+/// Return a transaction with search_path set to 'stash' and isolation level REPEATABLE READ.
 pub async fn start_transaction<'a>(client: &'a mut Client) -> Result<Transaction<'a>> {
     let transaction = client.build_transaction().start().await?;
     transaction.execute("SET search_path TO stash", &[]).await?;
+    // We generally want point-in-time consistency, e.g. when we do separate
+    // reads on files and a storage table
+    transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[]).await?;
     Ok(transaction)
 }
 

@@ -1,5 +1,5 @@
 use async_recursion::async_recursion;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, ensure, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use tokio_postgres::Transaction;
@@ -7,7 +7,7 @@ use serde::Serialize;
 use chrono::DateTime;
 use exastash::db;
 use exastash::db::storage::{Storage, get_storage};
-use exastash::db::inode::{InodeId, Inode, Dir, Symlink, Birth};
+use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
 use exastash::db::traversal::walk_path;
 use exastash::storage_read;
 
@@ -274,10 +274,14 @@ async fn main() -> Result<()> {
             let inode_id = selector.to_inode_id(&mut transaction).await?;
             match inode_id {
                 InodeId::File(file_id) => {
+                    let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
+                    ensure!(files.len() == 1, "No such file with id={}", file_id);
+                    let file = &files[0];
+
                     let storages = get_storage(&mut transaction, &[file_id]).await?;
                     match storages.get(0) {
                         Some(storage) => {
-                            let mut read = storage_read::read(&storage)?;
+                            let mut read = storage_read::read(&file, &storage).await?;
                             let mut stdout = tokio::io::stdout();
                             tokio::io::copy(&mut read, &mut stdout).await?;
                         }
