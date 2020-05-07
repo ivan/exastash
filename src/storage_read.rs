@@ -1,6 +1,6 @@
 //! Functions to read content from storage
 
-use anyhow::{Result, Error};
+use anyhow::{Result, Error, ensure};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use futures::stream::{self, TryStreamExt};
 use tokio::io::AsyncReadExt;
@@ -24,6 +24,10 @@ fn get_aes_gcm_length(content_length: u64, block_size: usize) -> u64 {
 pub async fn read(file: &inode::File, storage: &Storage) -> Result<Box<dyn tokio::io::AsyncRead + Unpin>> {
     Ok(match storage {
         Storage::Inline(inline::Storage { content, .. }) => {
+            ensure!(
+                content.len() as i64 == file.size,
+                "length of inline storage for file id={} is {} but file size is {}", file.id, content.len(), file.size
+            );
             let stream = stream::iter::<_>(vec![Ok(content.clone())]);
             let read = stream
                 .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
@@ -49,6 +53,7 @@ pub async fn read(file: &inode::File, storage: &Storage) -> Result<Box<dyn tokio
                 .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
                 .into_async_read()
                 .compat();
+            // TODO: on EOF, make sure we got the expected number of bytes 
             Box::new(decrypted_read)
         }
         Storage::InternetArchive(internetarchive::Storage { .. }) => {
