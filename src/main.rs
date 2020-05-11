@@ -5,6 +5,7 @@ use chrono::Utc;
 use tokio_postgres::Transaction;
 use serde::Serialize;
 use chrono::DateTime;
+use tracing::Level;
 use exastash::db;
 use exastash::db::storage::{Storage, get_storage};
 use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
@@ -176,6 +177,11 @@ async fn find(transaction: &mut Transaction<'_>, segments: &[&str], dir_id: i64)
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _subscriber = tracing_subscriber::fmt()
+        .with_max_level(Level::TRACE)
+        .with_writer(std::io::stderr)
+        .finish();
+
     let mut client = db::postgres_client_production().await?;
     let mut transaction = db::start_transaction(&mut client).await?;
     match ExastashCommand::from_args() {
