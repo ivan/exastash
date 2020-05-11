@@ -22,14 +22,6 @@ enum ExastashCommand {
     #[structopt(name = "dir")]
     Dir(DirCommand),
 
-    /// Subcommands to work with files
-    #[structopt(name = "file")]
-    File(FileCommand),
-
-    /// Subcommands to work with symlinks
-    #[structopt(name = "symlink")]
-    Symlink(SymlinkCommand),
-
     /// Subcommands to work with dirents
     #[structopt(name = "dirent")]
     Dirent(DirentCommand),
@@ -127,16 +119,6 @@ enum DirCommand {
 }
 
 #[derive(StructOpt, Debug)]
-enum FileCommand {
-
-}
-
-#[derive(StructOpt, Debug)]
-enum SymlinkCommand {
-
-}
-
-#[derive(StructOpt, Debug)]
 enum DirentCommand {
     /// Create a dirent
     #[structopt(name = "create")]
@@ -195,10 +177,6 @@ async fn main() -> Result<()> {
                     println!("{}", dir_id);
                 }
             }
-        }
-        ExastashCommand::File(_file) => {
-        }
-        ExastashCommand::Symlink(_symlink) => {
         }
         ExastashCommand::Dirent(dirent) => {
             match dirent {
