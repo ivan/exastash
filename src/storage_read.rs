@@ -1,6 +1,7 @@
 //! Functions to read content from storage
 
 use anyhow::{Result, Error, ensure};
+use tracing::info;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use futures::stream::{self, TryStreamExt};
 use tokio::io::AsyncReadExt;
@@ -22,6 +23,7 @@ fn get_aes_gcm_length(content_length: u64, block_size: usize) -> u64 {
 
 /// Returns an AsyncRead with the content of a file
 pub async fn read(file: &inode::File, storage: &Storage) -> Result<Box<dyn tokio::io::AsyncRead + Unpin>> {
+    info!(id = file.id, "Reading file");
     Ok(match storage {
         Storage::Inline(inline::Storage { content, .. }) => {
             ensure!(
