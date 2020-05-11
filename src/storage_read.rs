@@ -46,8 +46,9 @@ pub async fn read(file: &inode::File, storage: &Storage) -> Result<Box<dyn tokio
             let mut streams = vec![];
             let mut gcm_stream_bytes: u64 = 0;
             for gdrive_file in gdrive_files {
-                let gdrive_file_id = &gdrive_file.id;
-                let encrypted_read = stream_gdrive_file_on_domain(gdrive_file_id, gsuite_domain).await?;
+                let gdrive_file_id = &*gdrive_file.id;
+                info!(id = gdrive_file_id, size = gdrive_file.size, "streaming gdrive file");
+                let encrypted_read = stream_gdrive_file_on_domain(&gdrive_file.id, gsuite_domain).await?;
 
                 // We need to truncate the random padding off the gdrive file itself, to avoid
                 // AES-GCM decryption failure.

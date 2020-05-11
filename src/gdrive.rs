@@ -1,6 +1,5 @@
 use std::path::Path;
 use anyhow::{anyhow, bail, Result};
-use tracing::info;
 use reqwest::StatusCode;
 use tokio::fs::DirEntry;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
@@ -37,7 +36,6 @@ async fn get_token_for_random_service_account(domain: &i16) -> Result<AccessToke
 // Take AsRef<str> instead of AccessToken because AccessToken has private fields
 // and we can't construct a fake one in tests
 async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, access_token: T) -> Result<impl tokio::io::AsyncRead> {
-    info!(id = file_id, "streaming gdrive file");
     static FILE_ID_RE: &Lazy<Regex> = lazy_regex!(r#"\A[-_0-9A-Za-z]{28,160}\z"#);
     if let None = FILE_ID_RE.captures(file_id) {
         bail!("Invalid gdrive file_id: {:?}", file_id);
