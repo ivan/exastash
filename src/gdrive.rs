@@ -18,7 +18,7 @@ async fn get_token_for_service_account<P: AsRef<Path>>(json_path: P) -> Result<A
     Ok(sa.token(scopes).await?)
 }
 
-async fn get_service_account_files(domain: &i16) -> Result<Vec<DirEntry>> {
+async fn get_service_account_files(domain: i16) -> Result<Vec<DirEntry>> {
     let exastash = ProjectDirs::from("", "", "exastash")
         .ok_or_else(|| anyhow!("Could not get home directory"))?;
     let dir = exastash.config_dir().join("service-accounts").join(domain.to_string());
@@ -26,7 +26,7 @@ async fn get_service_account_files(domain: &i16) -> Result<Vec<DirEntry>> {
     Ok(stream.map(|r| r.unwrap()).collect::<Vec<DirEntry>>().await)
 }
 
-async fn get_token_for_random_service_account(domain: &i16) -> Result<AccessToken> {
+async fn get_token_for_random_service_account(domain: i16) -> Result<AccessToken> {
     let files = get_service_account_files(domain).await?;
     let mut rng = rand::thread_rng();
     let file = files.choose(&mut rng).expect("no service accounts");
@@ -61,7 +61,7 @@ async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, acce
     })
 }
 
-pub(crate) async fn stream_gdrive_file_on_domain(file_id: &str, domain: &i16) -> Result<impl tokio::io::AsyncRead> {
+pub(crate) async fn stream_gdrive_file_on_domain(file_id: &str, domain: i16) -> Result<impl tokio::io::AsyncRead> {
     let access_token = get_token_for_random_service_account(domain).await?;
     stream_gdrive_file_with_access_token(file_id, access_token).await
 }
