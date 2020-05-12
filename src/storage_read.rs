@@ -36,7 +36,7 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> impl St
         let block_size = whole_block_size - 16;
         let aes_gcm_length = get_aes_gcm_length(file.size as u64, block_size);
 
-        let mut gcm_stream_bytes: u64 = 0;
+        let mut gcm_stream_bytes = 0;
         for gdrive_file in storage.gdrive_files {
             info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
             let encrypted_read = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
