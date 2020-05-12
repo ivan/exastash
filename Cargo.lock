@@ -322,6 +322,7 @@ dependencies = [
  "chrono",
  "directories",
  "futures",
+ "futures-async-stream",
  "gethostname",
  "num",
  "once_cell",
@@ -391,6 +392,28 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "futures-util",
+]
+
+[[package]]
+name = "futures-async-stream"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7506c454ad38e3d8ca02ac4ec07f3bc88d46899b89de03d3a10b5b7958262caf"
+dependencies = [
+ "futures-async-stream-macro",
+ "futures-core",
+ "pin-project",
+]
+
+[[package]]
+name = "futures-async-stream-macro"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6dc3cf887d5a23b987d3a07215308d1fa4df57888b63b499d66d1d79ea00ec2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

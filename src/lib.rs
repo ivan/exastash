@@ -1,5 +1,7 @@
 //! exastash, a filesystem for archiving petabytes
 
+#![feature(generators, proc_macro_hygiene, stmt_expr_attributes)]
+
 #![warn(
 	nonstandard_style,
 	rust_2018_compatibility,

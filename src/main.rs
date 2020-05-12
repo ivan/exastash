@@ -1,5 +1,5 @@
 use async_recursion::async_recursion;
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{anyhow, bail, ensure, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use tokio_postgres::Transaction;
@@ -11,6 +11,8 @@ use exastash::db::storage::{Storage, get_storage};
 use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
 use exastash::db::traversal::walk_path;
 use exastash::storage_read;
+use tokio_util::compat::FuturesAsyncReadCompatExt;
+use futures::stream::TryStreamExt;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "es")]
@@ -265,7 +267,11 @@ async fn main() -> Result<()> {
                     let storages = get_storage(&mut transaction, &[file_id]).await?;
                     match storages.get(0) {
                         Some(storage) => {
-                            let mut read = storage_read::read(&file, &storage).await?;
+                            let stream = storage_read::read(&file, &storage).await?;
+                            let mut read = stream
+                                .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                                .into_async_read()
+                                .compat();
                             let mut stdout = tokio::io::stdout();
                             tokio::io::copy(&mut read, &mut stdout).await?;
                         }
