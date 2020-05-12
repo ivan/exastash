@@ -1,7 +1,7 @@
 //! Functions to read content from storage
 
 use std::pin::Pin;
-use anyhow::{Result, Error, anyhow, ensure};
+use anyhow::{Result, Error, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::info;
 use futures::stream::{self, Stream};
@@ -42,8 +42,8 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> impl St
             let encrypted_read = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
             let encrypted_read = match encrypted_read {
                 Err(e) => {
-                    yield Err(anyhow!("failed to open gdrive file: {:?}", e));
-                    return;
+                    yield Err(e.into());
+                    break;
                 }
                 Ok(v) => v,
             };
