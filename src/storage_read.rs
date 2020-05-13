@@ -25,6 +25,7 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
     Box::pin(
         #[stream]
         async move {
+            let mut ctr_stream_bytes = 0;
             for gdrive_file in storage.gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
                 let encrypted_stream = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
@@ -40,6 +41,8 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
                 let nonce = GenericArray::from_slice(&[0; 16]);
                 // TODO set counter to correct value for not-first chunks
                 let mut cipher = Aes128Ctr::new(key, nonce);
+                cipher.seek(ctr_stream_bytes);
+                ctr_stream_bytes += gdrive_file.size as u64;
 
                 #[for_await]
                 for frame in encrypted_stream {
