@@ -166,9 +166,11 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
+    // Do this first for --help to work without a database connection
+    let cmd = ExastashCommand::from_args();
     let mut client = db::postgres_client_production().await?;
     let mut transaction = db::start_transaction(&mut client).await?;
-    match ExastashCommand::from_args() {
+    match cmd {
         ExastashCommand::Dir(dir) => {
             match dir {
                 DirCommand::Create => {
