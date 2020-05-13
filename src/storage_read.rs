@@ -4,10 +4,13 @@ use std::pin::Pin;
 use anyhow::{Result, Error, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::info;
-use futures::stream::{self, Stream};
+use futures::stream::{self, Stream, TryStreamExt};
+use tokio_util::compat::FuturesAsyncReadCompatExt;
 use futures_async_stream::stream;
 use tokio::io::AsyncReadExt;
 use tokio_util::codec::FramedRead;
+use ctr::stream_cipher::generic_array::GenericArray;
+use ctr::stream_cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
 use crate::db::inode;
 use crate::db::storage::{Storage, inline, gdrive, internetarchive};
 use crate::gdrive::stream_gdrive_file_on_domain;
@@ -15,31 +18,46 @@ use crate::crypto::{GcmDecoder, gcm_create_key};
 
 type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
 
-// fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
-//     let file = file.clone();
-//     let storage = storage.clone();
+fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
+    let file = file.clone();
+    let storage = storage.clone();
 
-//     #[stream]
-//     async move {
-//         for gdrive_file in storage.gdrive_files {
-//             info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
-//             let encrypted_read = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
-//             let encrypted_read = match encrypted_read {
-//                 Err(e) => {
-//                     yield Err(e.into());
-//                     break;
-//                 }
-//                 Ok(v) => v,
-//             };
+    Box::pin(
+        #[stream]
+        async move {
+            for gdrive_file in storage.gdrive_files {
+                info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
+                let encrypted_stream = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
+                let encrypted_stream = match encrypted_stream {
+                    Err(e) => {
+                        yield Err(e.into());
+                        break;
+                    }
+                    Ok(v) => v,
+                };
 
-//             #[for_await]
-//             for frame in frame_reader {
-//                 yield frame;
-//             }
-//             // TODO: on EOF, make sure we got the expected number of bytes
-//         }
-//     }
-// }
+                let key = GenericArray::from_slice(&storage.cipher_key);
+                let nonce = GenericArray::from_slice(&[0; 16]);
+                // TODO set counter to correct value for not-first chunks
+                let mut cipher = Aes128Ctr::new(key, nonce);
+
+                #[for_await]
+                for frame in encrypted_stream {
+                    yield match frame {
+                        Ok(encrypted) => {
+                            let mut decrypted = encrypted.to_vec();
+                            cipher.apply_keystream(&mut decrypted);
+                            let bytes = decrypted.into();
+                            Ok(bytes)
+                        }
+                        Err(e) => Err(e.into())
+                    }
+                }
+                // TODO: on EOF, make sure we got the expected number of bytes
+            }
+        }
+    )
+}
 
 fn get_aes_gcm_length(content_length: u64, block_size: usize) -> u64 {
     // We want division to round up here, so fix it up by incrementing when needed
@@ -66,13 +84,18 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
             let mut gcm_stream_bytes = 0;
             for gdrive_file in storage.gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
-                let encrypted_read = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
-                let encrypted_read = match encrypted_read {
+                let encrypted_stream = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
+                let encrypted_read = match encrypted_stream {
                     Err(e) => {
                         yield Err(e.into());
                         break;
                     }
-                    Ok(v) => v,
+                    Ok(v) => {
+                        v
+                        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                        .into_async_read()
+                        .compat()
+                    }
                 };
 
                 // We need to truncate the random padding off the gdrive file itself, to avoid
@@ -105,8 +128,7 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box
     match storage.cipher {
         gdrive::Cipher::Aes128Gcm => stream_gdrive_gcm_chunks(file, storage),
         // Old files that we no longer produce
-        //gdrive::Cipher::Aes128Ctr => stream_gdrive_ctr_chunks(file, storage),
-        gdrive::Cipher::Aes128Ctr => unreachable!(),
+        gdrive::Cipher::Aes128Ctr => stream_gdrive_ctr_chunks(file, storage),
     }
 }
 

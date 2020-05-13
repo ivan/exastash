@@ -1,9 +1,9 @@
 use std::path::Path;
 use anyhow::{anyhow, bail, Result};
+use bytes::Bytes;
 use reqwest::StatusCode;
 use tokio::fs::DirEntry;
-use tokio_util::compat::FuturesAsyncReadCompatExt;
-use futures::stream::{StreamExt, TryStreamExt};
+use futures::stream::{Stream, StreamExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use rand::seq::SliceRandom;
@@ -35,7 +35,7 @@ async fn get_token_for_random_service_account(domain: i16) -> Result<AccessToken
 
 // Take AsRef<str> instead of AccessToken because AccessToken has private fields
 // and we can't construct a fake one in tests
-async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, access_token: T) -> Result<impl tokio::io::AsyncRead> {
+async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, access_token: T) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
     static FILE_ID_RE: &Lazy<Regex> = lazy_regex!(r#"\A[-_0-9A-Za-z]{28,160}\z"#);
     if let None = FILE_ID_RE.captures(file_id) {
         bail!("Invalid gdrive file_id: {:?}", file_id);
@@ -48,20 +48,12 @@ async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, acce
         .send()
         .await?;
     Ok(match response.status() {
-        StatusCode::OK => {
-            response
-                .bytes_stream()
-                .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                .into_async_read()
-                .compat()
-        },
-        _ => {
-            bail!("{} responded with HTTP status code {}", url, response.status());
-        }
+        StatusCode::OK => response.bytes_stream(),
+        _              => bail!("{} responded with HTTP status code {}", url, response.status()),
     })
 }
 
-pub(crate) async fn stream_gdrive_file_on_domain(file_id: &str, domain: i16) -> Result<impl tokio::io::AsyncRead> {
+pub(crate) async fn stream_gdrive_file_on_domain(file_id: &str, domain: i16) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
     let access_token = get_token_for_random_service_account(domain).await?;
     stream_gdrive_file_with_access_token(file_id, access_token).await
 }
