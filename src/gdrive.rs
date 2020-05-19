@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use rand::seq::SliceRandom;
 use directories::ProjectDirs;
+use tracing::debug;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
@@ -47,6 +48,7 @@ async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, acce
         .header("Authorization", format!("Bearer {}", access_token.as_ref()))
         .send()
         .await?;
+    debug!(file_id = file_id, "Google responded to request with headers {:#?}", response.headers());
     Ok(match response.status() {
         StatusCode::OK => response.bytes_stream(),
         _              => bail!("{} responded with HTTP status code {}", url, response.status()),
