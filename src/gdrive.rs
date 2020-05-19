@@ -12,6 +12,8 @@ use tracing::debug;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
+/// Returns a Bearer token for a particular service account, where json_path is a
+/// path to a service account credential file exported from Google in JSON format.
 async fn get_token_for_service_account<P: AsRef<Path>>(json_path: P) -> Result<AccessToken> {
     let creds = yup_oauth2::read_service_account_key(json_path).await?;
     let sa = yup_oauth2::ServiceAccountAuthenticator::builder(creds).build().await?;
@@ -19,6 +21,7 @@ async fn get_token_for_service_account<P: AsRef<Path>>(json_path: P) -> Result<A
     Ok(sa.token(scopes).await?)
 }
 
+/// Returns a Vec of all service account files for a particular domain.
 async fn get_service_account_files(domain: i16) -> Result<Vec<DirEntry>> {
     let exastash = ProjectDirs::from("", "", "exastash")
         .ok_or_else(|| anyhow!("Could not get home directory"))?;
@@ -27,6 +30,7 @@ async fn get_service_account_files(domain: i16) -> Result<Vec<DirEntry>> {
     Ok(stream.map(|r| r.unwrap()).collect::<Vec<DirEntry>>().await)
 }
 
+/// Returns a Bearer token for a random service account for a particular domain.
 async fn get_token_for_random_service_account(domain: i16) -> Result<AccessToken> {
     let files = get_service_account_files(domain).await?;
     let mut rng = rand::thread_rng();
@@ -34,8 +38,10 @@ async fn get_token_for_random_service_account(domain: i16) -> Result<AccessToken
     get_token_for_service_account(file.path()).await
 }
 
-// Take AsRef<str> instead of AccessToken because AccessToken has private fields
-// and we can't construct a fake one in tests
+/// Returns a Stream of Bytes containing the content of a particular Google Drive file.
+///
+/// This takes AsRef<str> instead of AccessToken because AccessToken has private fields
+/// and we can't construct a fake one in tests.
 async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, access_token: T) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
     static FILE_ID_RE: &Lazy<Regex> = lazy_regex!(r#"\A[-_0-9A-Za-z]{28,160}\z"#);
     if let None = FILE_ID_RE.captures(file_id) {
@@ -55,6 +61,7 @@ async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, acce
     })
 }
 
+/// Returns a Stream of Bytes containing the content of a particular Google Drive file.
 pub(crate) async fn stream_gdrive_file_on_domain(file_id: &str, domain: i16) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
     let access_token = get_token_for_random_service_account(domain).await?;
     stream_gdrive_file_with_access_token(file_id, access_token).await
