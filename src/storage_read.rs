@@ -1,22 +1,36 @@
 //! Functions to read content from storage
 
 use std::pin::Pin;
-use anyhow::{Result, Error, ensure};
+use anyhow::{Result, Error, bail, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
-use tracing::info;
+use tracing::{info, debug};
 use futures::stream::{self, Stream, TryStreamExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use futures_async_stream::stream;
 use tokio::io::AsyncReadExt;
 use tokio_util::codec::FramedRead;
+use reqwest::StatusCode;
 use ctr::stream_cipher::generic_array::GenericArray;
 use ctr::stream_cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
 use crate::db::inode;
 use crate::db::storage::{Storage, inline, gdrive, internetarchive};
-use crate::gdrive::stream_gdrive_file_on_domain;
+use crate::gdrive::request_gdrive_file_on_domain;
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
 type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
+
+/// Returns a Stream of Bytes for a `crate::file::GdriveFile`, first validating
+/// the response code and `x-goog-hash`.
+pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: i16) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
+    let response = request_gdrive_file_on_domain(&gdrive_file.id, domain).await?;
+    let headers = response.headers();
+    debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
+    let stream = match response.status() {
+        StatusCode::OK => response.bytes_stream(),
+        _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
+    };
+    Ok(stream)
+}
 
 fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
     let file = file.clone();
@@ -28,7 +42,7 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
             let mut ctr_stream_bytes = 0;
             for gdrive_file in storage.gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
-                let encrypted_stream = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
+                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await;
                 let encrypted_stream = match encrypted_stream {
                     Err(e) => {
                         yield Err(e.into());
@@ -87,7 +101,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
             let mut gcm_stream_bytes = 0;
             for gdrive_file in storage.gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
-                let encrypted_stream = stream_gdrive_file_on_domain(&gdrive_file.id, storage.gsuite_domain).await;
+                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await;
                 let encrypted_read = match encrypted_stream {
                     Err(e) => {
                         yield Err(e.into());

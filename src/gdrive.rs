@@ -1,14 +1,14 @@
 use std::path::Path;
 use anyhow::{anyhow, bail, Result};
-use bytes::Bytes;
-use reqwest::StatusCode;
 use tokio::fs::DirEntry;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use rand::seq::SliceRandom;
 use directories::ProjectDirs;
-use tracing::debug;
+use data_encoding::BASE64;
+use std::io::Cursor;
+use byteorder::{BigEndian, ReadBytesExt};
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
@@ -24,7 +24,7 @@ async fn get_token_for_service_account<P: AsRef<Path>>(json_path: P) -> Result<A
 /// Returns a Vec of all service account files for a particular domain.
 async fn get_service_account_files(domain: i16) -> Result<Vec<DirEntry>> {
     let exastash = ProjectDirs::from("", "", "exastash")
-        .ok_or_else(|| anyhow!("Could not get home directory"))?;
+        .ok_or_else(|| anyhow!("could not get home directory"))?;
     let dir = exastash.config_dir().join("service-accounts").join(domain.to_string());
     let stream = tokio::fs::read_dir(dir).await?;
     Ok(stream.map(|r| r.unwrap()).collect::<Vec<DirEntry>>().await)
@@ -38,14 +38,31 @@ async fn get_token_for_random_service_account(domain: i16) -> Result<AccessToken
     get_token_for_service_account(file.path()).await
 }
 
-/// Returns a Stream of Bytes containing the content of a particular Google Drive file.
+fn google_crc32c_from_response(response: &reqwest::Response) -> Result<u32> {
+    let headers = response.headers();
+    let value = response.headers()
+        .get("x-goog-hash")
+        .ok_or_else(|| anyhow!("response was missing x-goog-hash; headers were {:#?}", headers))?
+        .to_str()
+        .map_err(|_| anyhow!("x-goog-hash header value contained characters that are not visible ASCII; headers were {:#?}", headers))?;
+    if !value.starts_with("crc32c=") {
+        bail!("x-goog-hash header value {:?} did not start with {:?}", value, "crc32c=");
+    }
+    let b64 = &value[7..];
+    let vec = BASE64.decode(b64.as_bytes())?;
+    let mut rdr = Cursor::new(vec);
+    let crc32c = rdr.read_u32::<BigEndian>().unwrap();
+    Ok(crc32c)
+}
+
+/// Returns a `reqwest::Response` that can be used to retrieve a particular Google Drive file.
 ///
 /// This takes AsRef<str> instead of AccessToken because AccessToken has private fields
 /// and we can't construct a fake one in tests.
-async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, access_token: T) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
+async fn request_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, access_token: T) -> Result<reqwest::Response> {
     static FILE_ID_RE: &Lazy<Regex> = lazy_regex!(r#"\A[-_0-9A-Za-z]{28,160}\z"#);
     if let None = FILE_ID_RE.captures(file_id) {
-        bail!("Invalid gdrive file_id: {:?}", file_id);
+        bail!("invalid gdrive file_id: {:?}", file_id);
     }
     let url = format!("https://www.googleapis.com/drive/v3/files/{}?alt=media", file_id);
     let client = reqwest::Client::new();
@@ -54,17 +71,13 @@ async fn stream_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, acce
         .header("Authorization", format!("Bearer {}", access_token.as_ref()))
         .send()
         .await?;
-    debug!(file_id = file_id, "Google responded to request with headers {:#?}", response.headers());
-    Ok(match response.status() {
-        StatusCode::OK => response.bytes_stream(),
-        _              => bail!("{} responded with HTTP status code {}", url, response.status()),
-    })
+    Ok(response)
 }
 
 /// Returns a Stream of Bytes containing the content of a particular Google Drive file.
-pub(crate) async fn stream_gdrive_file_on_domain(file_id: &str, domain: i16) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
+pub(crate) async fn request_gdrive_file_on_domain(file_id: &str, domain: i16) -> Result<reqwest::Response> {
     let access_token = get_token_for_random_service_account(domain).await?;
-    stream_gdrive_file_with_access_token(file_id, access_token).await
+    request_gdrive_file_with_access_token(file_id, access_token).await
 }
 
 #[cfg(test)]
@@ -73,7 +86,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_file_id() {
-        let result = stream_gdrive_file_with_access_token("/invalid/", "").await;
+        let result = request_gdrive_file_with_access_token("/invalid/", "").await;
         assert_eq!(result.err().expect("expected an error").to_string(), "Invalid gdrive file_id: \"/invalid/\"");
     }
 }
