@@ -33,6 +33,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: 
         StatusCode::OK => response.bytes_stream(),
         _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
     };
+    // TODO: run all Bytes through crc32c, return Error at the end if mismatch
     Ok(stream)
 }
 
