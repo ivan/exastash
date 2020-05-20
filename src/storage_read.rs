@@ -19,8 +19,8 @@ use crate::crypto::{GcmDecoder, gcm_create_key};
 
 type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
 
-/// Returns a Stream of Bytes for a `crate::file::GdriveFile`, first validating
-/// the response code and `x-goog-hash`.
+/// Returns a Stream of Bytes for a `GdriveFile`, first validating the
+/// response code and `x-goog-hash`.
 pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: i16) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
     let response: reqwest::Response = request_gdrive_file_on_domain(&gdrive_file.id, domain).await?;
     let headers = response.headers();
