@@ -38,19 +38,29 @@ async fn get_token_for_random_service_account(domain: i16) -> Result<AccessToken
     get_token_for_service_account(file.path()).await
 }
 
-fn google_crc32c_from_response(response: &reqwest::Response) -> Result<u32> {
+/// Returns the crc32c value in the x-goog-hash header in a `reqwest::Response`.
+pub(crate) fn get_crc32c_in_response(response: &reqwest::Response) -> Result<u32> {
     let headers = response.headers();
-    let value = response.headers()
+    let value = headers
         .get("x-goog-hash")
         .ok_or_else(|| anyhow!("response was missing x-goog-hash; headers were {:#?}", headers))?
         .to_str()
-        .map_err(|_| anyhow!("x-goog-hash header value contained characters that are not visible ASCII; headers were {:#?}", headers))?;
+        .map_err(|_| anyhow!("x-goog-hash value contained characters that are not visible ASCII; headers were {:#?}", headers))?;
+    if value.len() != 7 + 8 { // "crc32c=" + 8 base64 bytes including trailing "=="
+        bail!("x-goog-hash value {:?} was not {} bytes", value, 7 + 8);
+    }
     if !value.starts_with("crc32c=") {
-        bail!("x-goog-hash header value {:?} did not start with {:?}", value, "crc32c=");
+        bail!("x-goog-hash value {:?} did not start with {:?}", value, "crc32c=");
     }
     let b64 = &value[7..];
-    let vec = BASE64.decode(b64.as_bytes())?;
-    let mut rdr = Cursor::new(vec);
+    let mut out = [0u8; 6];
+    let written_bytes = BASE64
+        .decode_mut(b64.as_bytes(), &mut out)
+        .map_err(|_| anyhow!("failed to decode base64 in header: {}", value))?;
+    if written_bytes != 4 {
+        bail!("x-goog-hash value {} decoded to {} bytes, expected 4", value, written_bytes);
+    }
+    let mut rdr = Cursor::new(out);
     let crc32c = rdr.read_u32::<BigEndian>().unwrap();
     Ok(crc32c)
 }
@@ -87,6 +97,6 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_file_id() {
         let result = request_gdrive_file_with_access_token("/invalid/", "").await;
-        assert_eq!(result.err().expect("expected an error").to_string(), "Invalid gdrive file_id: \"/invalid/\"");
+        assert_eq!(result.err().expect("expected an error").to_string(), "invalid gdrive file_id: \"/invalid/\"");
     }
 }

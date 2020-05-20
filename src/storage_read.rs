@@ -14,7 +14,7 @@ use ctr::stream_cipher::generic_array::GenericArray;
 use ctr::stream_cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
 use crate::db::inode;
 use crate::db::storage::{Storage, inline, gdrive, internetarchive};
-use crate::gdrive::request_gdrive_file_on_domain;
+use crate::gdrive::{request_gdrive_file_on_domain, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
 type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
@@ -22,9 +22,13 @@ type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
 /// Returns a Stream of Bytes for a `crate::file::GdriveFile`, first validating
 /// the response code and `x-goog-hash`.
 pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: i16) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
-    let response = request_gdrive_file_on_domain(&gdrive_file.id, domain).await?;
+    let response: reqwest::Response = request_gdrive_file_on_domain(&gdrive_file.id, domain).await?;
     let headers = response.headers();
     debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
+    let goog_crc32c = get_crc32c_in_response(&response)?;
+    if goog_crc32c != gdrive_file.crc32c {
+        bail!("Google sent crc32c={} but we expected crc32c={}", goog_crc32c, gdrive_file.crc32c);
+    }
     let stream = match response.status() {
         StatusCode::OK => response.bytes_stream(),
         _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
