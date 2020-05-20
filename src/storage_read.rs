@@ -25,6 +25,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: 
     let response: reqwest::Response = request_gdrive_file_on_domain(&gdrive_file.id, domain).await?;
     let headers = response.headers();
     debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
+    // TODO: validate response length
     let goog_crc32c = get_crc32c_in_response(&response)?;
     if goog_crc32c != gdrive_file.crc32c {
         bail!("Google sent crc32c={} but we expected crc32c={}", goog_crc32c, gdrive_file.crc32c);
