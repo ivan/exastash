@@ -1,5 +1,5 @@
 use std::path::Path;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, ensure, Result};
 use tokio::fs::DirEntry;
 use futures::stream::StreamExt;
 use once_cell::sync::Lazy;
@@ -38,28 +38,31 @@ async fn get_token_for_random_service_account(domain: i16) -> Result<AccessToken
     get_token_for_service_account(file.path()).await
 }
 
-/// Returns the crc32c value in the x-goog-hash header in a `reqwest::Response`.
-pub(crate) fn get_crc32c_in_response(response: &reqwest::Response) -> Result<u32> {
+pub fn get_header_value<'a>(response: &'a reqwest::Response, header: &str) -> Result<&'a str> {
     let headers = response.headers();
     let value = headers
         .get("x-goog-hash")
         .ok_or_else(|| anyhow!("response was missing x-goog-hash; headers were {:#?}", headers))?
         .to_str()
         .map_err(|_| anyhow!("x-goog-hash value contained characters that are not visible ASCII; headers were {:#?}", headers))?;
-    if value.len() != 7 + 8 { // "crc32c=" + 8 base64 bytes including trailing "=="
-        bail!("x-goog-hash value {:?} was not {} bytes", value, 7 + 8);
+    Ok(value)
+}
+
+/// Returns the crc32c value in the x-goog-hash header in a `reqwest::Response`.
+pub(crate) fn get_crc32c_in_response(response: &reqwest::Response) -> Result<u32> {
+    let value = get_header_value(response, "x-goog-hash")?;
+    let prefix = "crc32c=";
+    let encoded_len = 8;
+    if value.len() != prefix.len() + encoded_len {
+        bail!("x-goog-hash value {:?} was not {} bytes", value, prefix.len() + encoded_len);
     }
-    if !value.starts_with("crc32c=") {
-        bail!("x-goog-hash value {:?} did not start with {:?}", value, "crc32c=");
-    }
-    let b64 = &value[7..];
+    ensure!(value.starts_with(prefix), "x-goog-hash value {:?} did not start with {:?}", value, prefix);
+    let b64 = &value[prefix.len()..];
     let mut out = [0u8; 6];
-    let written_bytes = BASE64
+    let wrote_bytes = BASE64
         .decode_mut(b64.as_bytes(), &mut out)
         .map_err(|_| anyhow!("failed to decode base64 in header: {}", value))?;
-    if written_bytes != 4 {
-        bail!("x-goog-hash value {} decoded to {} bytes, expected 4", value, written_bytes);
-    }
+    ensure!(wrote_bytes == 4, "x-goog-hash value {} decoded to {} bytes, expected 4", value, wrote_bytes);
     let mut rdr = Cursor::new(out);
     let crc32c = rdr.read_u32::<BigEndian>().unwrap();
     Ok(crc32c)
