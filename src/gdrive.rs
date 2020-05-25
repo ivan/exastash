@@ -41,10 +41,10 @@ async fn get_token_for_random_service_account(domain: i16) -> Result<AccessToken
 pub fn get_header_value<'a>(response: &'a reqwest::Response, header: &str) -> Result<&'a str> {
     let headers = response.headers();
     let value = headers
-        .get("x-goog-hash")
-        .ok_or_else(|| anyhow!("response was missing x-goog-hash; headers were {:#?}", headers))?
+        .get(header)
+        .ok_or_else(|| anyhow!("response was missing {}; headers were {:#?}", header, headers))?
         .to_str()
-        .map_err(|_| anyhow!("x-goog-hash value contained characters that are not visible ASCII; headers were {:#?}", headers))?;
+        .map_err(|_| anyhow!("{} value contained characters that are not visible ASCII; headers were {:#?}", header, headers))?;
     Ok(value)
 }
 

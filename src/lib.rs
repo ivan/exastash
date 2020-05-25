@@ -19,7 +19,6 @@
 )]
 // TODO: remove after initial development
 #![allow(dead_code)]
-#![allow(unused_variables)]
 
 pub(crate) mod conceal_size;
 pub(crate) mod ranges;
