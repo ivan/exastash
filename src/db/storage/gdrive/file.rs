@@ -68,7 +68,7 @@ pub async fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -
         };
         map.insert(file.id.clone(), file);
     }
-    for id in ids.iter() {
+    for id in ids {
         let file = map.remove(id.to_owned()).ok_or_else(|| anyhow!("duplicate id given"))?;
         out.push(file);
     }
@@ -198,7 +198,12 @@ mod tests {
             transaction.commit().await?;
 
             let new_id = format!("'{}'", "C".repeat(28));
-            for (column, value) in [("id", new_id.as_str()), ("md5", "'0000-0000-0000-0000-0000-0000-0000-0001'::uuid"), ("crc32c", "1"), ("size", "2")].iter() {
+            for (column, value) in &[
+                ("id", new_id.as_str()),
+                ("md5", "'0000-0000-0000-0000-0000-0000-0000-0001'::uuid"),
+                ("crc32c", "1"),
+                ("size", "2")
+            ] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE gdrive_files SET {} = {} WHERE id = $1", column, value);
                 let result = transaction.execute(query.as_str(), &[&file.id]).await;

@@ -104,7 +104,7 @@ mod tests {
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            for (column, value) in [("file_id", "100")].iter() {
+            for (column, value) in &[("file_id", "100")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_inline SET {} = {} WHERE file_id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&file_id]).await;

@@ -226,7 +226,7 @@ pub(crate) mod tests {
                 ("gdrive_ids", &format!("'{{\"{}\",\"{}\"}}'::text[]", id1, id2))
             ];
 
-            for (column, value) in pairs.iter() {
+            for (column, value) in &pairs {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_gdrive SET {} = {} WHERE file_id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&file_id]).await;

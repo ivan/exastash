@@ -428,7 +428,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_cannot_truncate() -> Result<()> {
             let mut client = get_client().await;
-            for table in ["dirs", "files", "symlinks"].iter() {
+            for table in &["dirs", "files", "symlinks"] {
                 let mut transaction = start_transaction(&mut client).await?;
                 assert_cannot_truncate(&mut transaction, table).await;
             }
@@ -453,7 +453,7 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let dir_id = NewDir { mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+            for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&dir_id]).await;
@@ -488,7 +488,7 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let file_id = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+            for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE files SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&file_id]).await;
@@ -517,7 +517,7 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let symlink_id = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            for (column, value) in [("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")].iter() {
+            for (column, value) in &[("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE symlinks SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&symlink_id]).await;

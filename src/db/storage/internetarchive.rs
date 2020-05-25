@@ -136,7 +136,7 @@ mod tests {
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            for (column, value) in [("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")].iter() {
+            for (column, value) in &[("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_internetarchive SET {} = {} WHERE file_id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&file_id]).await;

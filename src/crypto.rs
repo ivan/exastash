@@ -202,7 +202,7 @@ mod tests {
             ],
         ];
 
-        for blocks in block_sequences.iter() {
+        for blocks in &block_sequences {
             let block_size = 7;
             let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
             let encoder = GcmEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);

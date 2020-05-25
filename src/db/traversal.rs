@@ -11,7 +11,7 @@ use crate::db::inode::InodeId;
 /// TODO: speed this up by farming it out to a PL/pgSQL function
 pub async fn walk_path(transaction: &mut Transaction<'_>, base_dir: i64, path_components: &[&str]) -> Result<InodeId> {
     let mut current_inode = InodeId::Dir(base_dir);
-    for component in path_components.iter() {
+    for component in path_components {
         let rows = transaction.query("
             SELECT child_dir, child_file, child_symlink FROM dirents
             WHERE parent = $1::bigint AND basename = $2::text", &[&current_inode.dir_id()?, &component]).await?;
@@ -71,11 +71,11 @@ mod tests {
             assert_eq!(walk_path(&mut transaction, root_dir, &["child_dir", "child_symlink"]).await?, InodeId::Symlink(child_symlink));
 
             // walk_path returns an error if some segment is not found
-            for (parent, segments) in [
+            for (parent, segments) in &[
                 (root_dir, vec![""]),
                 (root_dir, vec!["nonexistent"]),
                 (child_dir, vec!["child_dir", "nonexistent"]),
-            ].iter() {
+            ] {
                 let result = walk_path(&mut transaction, root_dir, &segments).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
@@ -84,10 +84,10 @@ mod tests {
             }
 
             // walk_path returns an error if trying to walk down a file or symlink
-            for (parent, not_a_dir, segments) in [
+            for (parent, not_a_dir, segments) in &[
                 (root_dir, InodeId::File(child_file), vec!["child_file", "further"]),
                 (root_dir, InodeId::Symlink(child_symlink), vec!["child_symlink", "further"]),
-            ].iter() {
+            ] {
                 let result = walk_path(&mut transaction, *parent, &segments).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),

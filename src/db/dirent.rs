@@ -153,7 +153,7 @@ mod tests {
             Dirent::new(parent, "child_dir", InodeId::Dir(child_dir)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            for (column, value) in [("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")].iter() {
+            for (column, value) in &[("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirents SET {} = {} WHERE parent = $1::bigint AND child_dir = $2::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&parent, &child_dir]).await;
@@ -242,7 +242,7 @@ mod tests {
             let child = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            for basename in ["", "/", ".", "..", &"x".repeat(256)].iter() {
+            for basename in &["", "/", ".", "..", &"x".repeat(256)] {
                 let mut transaction = start_transaction(&mut client).await?;
                 let result = Dirent::new(parent, basename.to_string(), InodeId::Dir(child)).create(&mut transaction).await;
                 assert_eq!(
