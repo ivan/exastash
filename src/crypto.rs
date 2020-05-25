@@ -207,7 +207,7 @@ mod tests {
             let key_bytes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
             let encoder = GcmEncoder::new(block_size, gcm_create_key(key_bytes)?, 0);
             let decoder = GcmDecoder::new(block_size, gcm_create_key(key_bytes)?, 0);
-            let blocks_s = stream::iter(blocks.clone().into_iter()).map(Ok);
+            let blocks_s = stream::iter(blocks.clone()).map(Ok);
 
             let mut frame_data = vec![];
             let frame_writer = FramedWrite::new(&mut frame_data, encoder);
