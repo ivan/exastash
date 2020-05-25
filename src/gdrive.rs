@@ -12,15 +12,6 @@ use byteorder::{BigEndian, ReadBytesExt};
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
-/// Returns a Bearer token for a particular service account, where json_path is a
-/// path to a service account credential file exported from Google in JSON format.
-async fn get_token_for_service_account<P: AsRef<Path>>(json_path: P) -> Result<AccessToken> {
-    let creds = yup_oauth2::read_service_account_key(json_path).await?;
-    let sa = yup_oauth2::ServiceAccountAuthenticator::builder(creds).build().await?;
-    let scopes = &["https://www.googleapis.com/auth/drive"];
-    Ok(sa.token(scopes).await?)
-}
-
 /// Returns a Vec of all service account files for a particular domain.
 async fn get_service_account_files(domain: i16) -> Result<Vec<DirEntry>> {
     let exastash = ProjectDirs::from("", "", "exastash")
@@ -28,6 +19,15 @@ async fn get_service_account_files(domain: i16) -> Result<Vec<DirEntry>> {
     let dir = exastash.config_dir().join("service-accounts").join(domain.to_string());
     let stream = tokio::fs::read_dir(dir).await?;
     Ok(stream.map(|r| r.unwrap()).collect::<Vec<DirEntry>>().await)
+}
+
+/// Returns a Bearer token for a particular service account, where json_path is a
+/// path to a service account credential file exported from Google in JSON format.
+async fn get_token_for_service_account<P: AsRef<Path>>(json_path: P) -> Result<AccessToken> {
+    let creds = yup_oauth2::read_service_account_key(json_path).await?;
+    let sa = yup_oauth2::ServiceAccountAuthenticator::builder(creds).build().await?;
+    let scopes = &["https://www.googleapis.com/auth/drive"];
+    Ok(sa.token(scopes).await?)
 }
 
 /// Returns a Bearer token for a random service account for a particular domain.
