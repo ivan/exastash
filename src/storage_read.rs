@@ -1,7 +1,7 @@
 //! Functions to read content from storage
 
 use std::pin::Pin;
-use anyhow::{Result, Error, bail, ensure};
+use anyhow::{Result, Error, anyhow, bail, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::{info, debug};
 use futures::stream::{self, Stream, TryStreamExt};
@@ -25,7 +25,10 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: 
     let response: reqwest::Response = request_gdrive_file_on_domain(&gdrive_file.id, domain).await?;
     let headers = response.headers();
     debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
-    // TODO: validate response length
+    let content_length = response.content_length().ok_or(anyhow!("Google responded without a Content-Length"))?;
+    if content_length != gdrive_file.size as u64 {
+        bail!("Google responded with Content-Length {}, expected {}", content_length, gdrive_file.size);
+    }
     let goog_crc32c = get_crc32c_in_response(&response)?;
     if goog_crc32c != gdrive_file.crc32c {
         bail!("Google sent crc32c={} but we expected crc32c={}", goog_crc32c, gdrive_file.crc32c);
