@@ -39,7 +39,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: 
 }
 
 fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
-    let file = file.clone();
+    let _file = file.clone();
     let storage = storage.clone();
 
     Box::pin(
