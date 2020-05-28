@@ -4,7 +4,7 @@ use std::pin::Pin;
 use anyhow::{Result, Error, anyhow, bail, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::{info, debug};
-use futures::stream::{self, Stream, StreamExt, TryStreamExt};
+use futures::stream::{self, Stream, TryStreamExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use futures_async_stream::{stream, try_stream};
 use tokio::io::AsyncReadExt;
@@ -18,7 +18,7 @@ use crate::gdrive::{request_gdrive_file_on_domain, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
 fn crc32c_check_stream(
-    mut stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + 'static,
+    stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + 'static,
     expected_crc32c: u32,
     expected_size: u64
 ) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
@@ -28,7 +28,8 @@ fn crc32c_check_stream(
     Box::pin(
         #[try_stream]
         async move {
-            while let Some(item) = stream.next().await {
+            #[for_await]
+            for item in stream {
                 let bytes = item?;
                 read_bytes += bytes.len() as u64;
                 crc = crc32c::crc32c_append(crc, bytes.as_ref());
