@@ -18,24 +18,36 @@ use crate::gdrive::{request_gdrive_file_on_domain, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
 fn crc32c_check_stream(
-    stream: impl Stream<Item = Result<Bytes, reqwest::Error>>,
+    mut stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + 'static,
     expected_crc32c: u32,
     expected_size: u64
-) -> impl Stream<Item = Result<Bytes, Error>> {
+) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
     let mut crc = 0;
     let mut read_bytes = 0;
 
-    stream.map(move |item| -> Result<Bytes> {
-        let bytes = item?;
-        read_bytes += bytes.len() as u64;
-        crc = crc32c::crc32c_append(crc, bytes.as_ref());
-        if read_bytes == expected_size {
+    Box::pin(
+        #[stream]
+        async move {
+            while let Some(item) = stream.next().await {
+                if let Err(e) = item {
+                    yield Err(e.into());
+                    return;
+                }
+                let bytes = item.unwrap();
+                read_bytes += bytes.len() as u64;
+                crc = crc32c::crc32c_append(crc, bytes.as_ref());
+                yield Ok(bytes)
+            }
+            if read_bytes != expected_size {
+                yield Err(anyhow!("expected response to have {} bytes but got {}", expected_size, read_bytes));
+                return;
+            }
             if crc != expected_crc32c {
-                bail!("expected response to crc32c to {} but got {}", expected_crc32c, crc);
+                yield Err(anyhow!("expected response to crc32c to {} but got {}", expected_crc32c, crc));
+                return;
             }
         }
-        Ok(bytes)
-    })
+    )
 }
 
 /// Returns a Stream of Bytes for a `GdriveFile`, first validating the
