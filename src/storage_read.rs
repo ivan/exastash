@@ -74,20 +74,12 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
     let storage = storage.clone();
 
     Box::pin(
-        #[stream]
+        #[try_stream]
         async move {
             let mut ctr_stream_bytes = 0;
             for gdrive_file in storage.gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
-                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await;
-                let encrypted_stream = match encrypted_stream {
-                    Err(e) => {
-                        yield Err(e.into());
-                        break;
-                    }
-                    Ok(v) => v,
-                };
-
+                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await?;
                 let key = GenericArray::from_slice(&storage.cipher_key);
                 let nonce = GenericArray::from_slice(&[0; 16]);
                 let mut cipher = Aes128Ctr::new(key, nonce);
@@ -96,15 +88,11 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
 
                 #[for_await]
                 for frame in encrypted_stream {
-                    yield match frame {
-                        Ok(encrypted) => {
-                            let mut decrypted = encrypted.to_vec();
-                            cipher.apply_keystream(&mut decrypted);
-                            let bytes = decrypted.into();
-                            Ok(bytes)
-                        }
-                        Err(e) => Err(e.into())
-                    }
+                    let encrypted = frame?;
+                    let mut decrypted = encrypted.to_vec();
+                    cipher.apply_keystream(&mut decrypted);
+                    let bytes = decrypted.into();
+                    yield bytes;
                 }
                 // TODO: on EOF, make sure we got the expected number of bytes
             }
