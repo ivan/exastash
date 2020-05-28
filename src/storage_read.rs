@@ -17,9 +17,9 @@ use crate::db::storage::{Storage, inline, gdrive, internetarchive};
 use crate::gdrive::{request_gdrive_file_on_domain, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
-/// Takes a `Stream` of a gdrive response body and return a `Stream` that ensures
-/// the crc32c and body length are correct.
-fn validated_response_stream(
+/// Takes a `Stream` of a gdrive response body and return a `Stream` that yields
+/// an Err if the crc32c or body length is correct.
+fn stream_add_validation(
     gdrive_file: &gdrive::file::GdriveFile,
     stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + 'static,
 ) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
@@ -64,7 +64,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: 
                 bail!("Google sent crc32c={} but we expected crc32c={}", goog_crc32c, gdrive_file.crc32c);
             }
             let stream = response.bytes_stream();
-            validated_response_stream(gdrive_file, stream)
+            stream_add_validation(gdrive_file, stream)
         },
         _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
     })
