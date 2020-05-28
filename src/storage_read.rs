@@ -55,7 +55,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: 
     debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
     Ok(match response.status() {
         StatusCode::OK => {
-            let content_length = response.content_length().ok_or(anyhow!("Google responded without a Content-Length"))?;
+            let content_length = response.content_length().ok_or_else(|| anyhow!("Google responded without a Content-Length"))?;
             if content_length != gdrive_file.size as u64 {
                 bail!("Google responded with Content-Length {}, expected {}", content_length, gdrive_file.size);
             }
