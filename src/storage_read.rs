@@ -17,8 +17,6 @@ use crate::db::storage::{Storage, inline, gdrive, internetarchive};
 use crate::gdrive::{request_gdrive_file_on_domain, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
-type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
-
 /// Returns a Stream of Bytes for a `GdriveFile`, first validating the
 /// response code and `x-goog-hash`.
 pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: i16) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
@@ -42,6 +40,8 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: 
     };
     Ok(stream)
 }
+
+type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
 
 fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
     let _file = file.clone();
