@@ -6,7 +6,7 @@ use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::{info, debug};
 use futures::stream::{self, Stream, TryStreamExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
-use futures_async_stream::{stream, try_stream};
+use futures_async_stream::try_stream;
 use tokio::io::AsyncReadExt;
 use tokio_util::codec::FramedRead;
 use reqwest::StatusCode;
@@ -116,7 +116,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
     let storage = storage.clone();
 
     Box::pin(
-        #[stream]
+        #[try_stream]
         async move {
             let whole_block_size = 65536;
             // Block size for all of our AES-128-GCM files
@@ -126,19 +126,11 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
             let mut gcm_stream_bytes = 0;
             for gdrive_file in storage.gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
-                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await;
-                let encrypted_read = match encrypted_stream {
-                    Err(e) => {
-                        yield Err(e.into());
-                        break;
-                    }
-                    Ok(v) => {
-                        v
-                        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                        .into_async_read()
-                        .compat()
-                    }
-                };
+                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await?;
+                let encrypted_read = encrypted_stream
+                    .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                    .into_async_read()
+                    .compat();
 
                 // We need to truncate the random padding off the gdrive file itself, to avoid
                 // AES-GCM decryption failure.
@@ -158,7 +150,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
                 let frame_reader = FramedRead::new(truncated_read, decoder);
                 #[for_await]
                 for frame in frame_reader {
-                    yield frame;
+                    yield frame?;
                 }
                 // TODO: on EOF, make sure we got the expected number of bytes
             }
