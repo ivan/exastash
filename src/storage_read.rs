@@ -64,7 +64,6 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
 
                 let key = GenericArray::from_slice(&storage.cipher_key);
                 let nonce = GenericArray::from_slice(&[0; 16]);
-                // TODO set counter to correct value for not-first chunks
                 let mut cipher = Aes128Ctr::new(key, nonce);
                 cipher.seek(ctr_stream_bytes);
                 ctr_stream_bytes += gdrive_file.size as u64;
