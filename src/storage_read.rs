@@ -163,7 +163,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
 fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
     match storage.cipher {
         gdrive::Cipher::Aes128Gcm => stream_gdrive_gcm_chunks(file, storage),
-        // Old files that we no longer produce
+        // Old files that we no longer create
         gdrive::Cipher::Aes128Ctr => stream_gdrive_ctr_chunks(file, storage),
     }
 }
