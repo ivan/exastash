@@ -4,7 +4,7 @@ use std::pin::Pin;
 use anyhow::{Result, Error, anyhow, bail, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::{info, debug};
-use futures::stream::{self, Stream, TryStreamExt};
+use futures::stream::{self, Stream, StreamExt, TryStreamExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use futures_async_stream::stream;
 use tokio::io::AsyncReadExt;
@@ -17,13 +17,34 @@ use crate::db::storage::{Storage, inline, gdrive, internetarchive};
 use crate::gdrive::{request_gdrive_file_on_domain, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
+fn crc32c_check_stream(
+    stream: impl Stream<Item = Result<Bytes, reqwest::Error>>,
+    expected_crc32c: u32,
+    expected_size: u64
+) -> impl Stream<Item = Result<Bytes, Error>> {
+    let mut crc = 0;
+    let mut read_bytes = 0;
+
+    stream.map(move |item| -> Result<Bytes> {
+        let bytes = item?;
+        read_bytes += bytes.len() as u64;
+        crc = crc32c::crc32c_append(crc, bytes.as_ref());
+        if read_bytes == expected_size {
+            if crc != expected_crc32c {
+                bail!("expected response to crc32c to {} but got {}", expected_crc32c, crc);
+            }
+        }
+        Ok(bytes)
+    })
+}
+
 /// Returns a Stream of Bytes for a `GdriveFile`, first validating the
 /// response code and `x-goog-hash`.
-pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: i16) -> Result<impl Stream<Item = Result<Bytes, reqwest::Error>>> {
+pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: i16) -> Result<impl Stream<Item = Result<Bytes, Error>>> {
     let response: reqwest::Response = request_gdrive_file_on_domain(&gdrive_file.id, domain).await?;
     let headers = response.headers();
     debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
-    let stream = match response.status() {
+    Ok(match response.status() {
         StatusCode::OK => {
             let content_length = response.content_length().ok_or(anyhow!("Google responded without a Content-Length"))?;
             if content_length != gdrive_file.size as u64 {
@@ -33,12 +54,11 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain: 
             if goog_crc32c != gdrive_file.crc32c {
                 bail!("Google sent crc32c={} but we expected crc32c={}", goog_crc32c, gdrive_file.crc32c);
             }
-            // TODO: run all Bytes through crc32c, return Error at the end if mismatch
-            response.bytes_stream()
+            let stream = response.bytes_stream();
+            crc32c_check_stream(stream, goog_crc32c, gdrive_file.size as u64)
         },
         _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
-    };
-    Ok(stream)
+    })
 }
 
 type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
