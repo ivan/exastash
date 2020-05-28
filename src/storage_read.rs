@@ -6,7 +6,7 @@ use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::{info, debug};
 use futures::stream::{self, Stream, StreamExt, TryStreamExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
-use futures_async_stream::stream;
+use futures_async_stream::{stream, try_stream};
 use tokio::io::AsyncReadExt;
 use tokio_util::codec::FramedRead;
 use reqwest::StatusCode;
@@ -26,25 +26,19 @@ fn crc32c_check_stream(
     let mut read_bytes = 0;
 
     Box::pin(
-        #[stream]
+        #[try_stream]
         async move {
             while let Some(item) = stream.next().await {
-                if let Err(e) = item {
-                    yield Err(e.into());
-                    return;
-                }
-                let bytes = item.unwrap();
+                let bytes = item?;
                 read_bytes += bytes.len() as u64;
                 crc = crc32c::crc32c_append(crc, bytes.as_ref());
-                yield Ok(bytes)
+                yield bytes;
             }
             if read_bytes != expected_size {
-                yield Err(anyhow!("expected response to have {} bytes but got {}", expected_size, read_bytes));
-                return;
+                bail!("expected response to have {} bytes but got {}", expected_size, read_bytes);
             }
             if crc != expected_crc32c {
-                yield Err(anyhow!("expected response to crc32c to {} but got {}", expected_crc32c, crc));
-                return;
+                bail!("expected response to crc32c to {} but got {}", expected_crc32c, crc);
             }
         }
     )
