@@ -17,4 +17,5 @@ $$ LANGUAGE plpgsql;
 \ir storage_inline.sql
 \ir storage_gdrive.sql
 \ir storage_internetarchive.sql
+\ir google_auth.sql
 \ir dirents.sql
