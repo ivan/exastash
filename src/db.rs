@@ -4,6 +4,7 @@ pub mod inode;
 pub mod dirent;
 pub mod storage;
 pub mod traversal;
+pub mod google_auth;
 
 use anyhow::Result;
 use tokio_postgres::{Client, Transaction, NoTls};

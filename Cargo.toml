@@ -25,7 +25,7 @@ gethostname = "0.2"
 structopt = "0.3"
 # Waiting for https://github.com/briansmith/ring/pull/909
 ring = { git = "https://github.com/ludios/ring", branch = "prime" }
-postgres = { version = "0.17.1", features = ["with-chrono-0_4"] }
+postgres = { version = "0.17.1", features = ["with-chrono-0_4", "with-serde_json-1"] }
 postgres-protocol = "0.5.0"
 postgres-types = { version = "0.1.0", features = ["derive"] }
 yup-oauth2 = "4.0"

@@ -2,16 +2,18 @@ use async_recursion::async_recursion;
 use anyhow::{anyhow, bail, ensure, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
+use tokio::fs;
 use tokio_postgres::Transaction;
+use tokio_util::compat::FuturesAsyncReadCompatExt;
 use serde::Serialize;
 use chrono::DateTime;
 use tracing_subscriber::EnvFilter;
 use exastash::db;
 use exastash::db::storage::{Storage, get_storage};
 use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
+use exastash::db::google_auth::GsuiteApplicationSecret;
 use exastash::db::traversal::walk_path;
 use exastash::storage_read;
-use tokio_util::compat::FuturesAsyncReadCompatExt;
 use futures::stream::TryStreamExt;
 
 #[derive(StructOpt, Debug)]
@@ -60,6 +62,10 @@ enum ExastashCommand {
         #[structopt(flatten)]
         selector: InodeSelector,
     },
+
+    #[structopt(name = "gsuite")]
+    /// G Suite-related commands
+    Gsuite(GsuiteCommand),
 }
 
 #[derive(StructOpt, Debug)]
@@ -140,6 +146,27 @@ enum DirentCommand {
         #[structopt(long, short = "s")]
         child_symlink: Option<i64>,
     },
+}
+
+
+#[derive(StructOpt, Debug)]
+enum ApplicationSecretCommand {
+    /// Import an application secret from a .json file
+    #[structopt(name = "import")]
+    Import {
+        #[structopt(name = "DOMAIN_ID")]
+        domain_id: i16,
+
+        #[structopt(name = "JSON_FILE")]
+        json_file: String,
+    },
+}
+
+#[derive(StructOpt, Debug)]
+enum GsuiteCommand {
+    #[structopt(name = "app-secret")]
+    /// Manage OAuth 2.0 application secrets (used with the "installed" application flow)
+    ApplicationSecret(ApplicationSecretCommand),
 }
 
 #[async_recursion]
@@ -288,6 +315,22 @@ async fn main() -> Result<()> {
                     bail!("Cannot cat a symlink");
                 }
             }
+        }
+        ExastashCommand::Gsuite(command) => {
+            match &command {
+                GsuiteCommand::ApplicationSecret(command) => {
+                    match command {
+                        ApplicationSecretCommand::Import { domain_id, json_file } => {
+                            let content = fs::read(json_file).await?;
+                            let json = serde_json::from_slice(&content)?;
+                            let secret = GsuiteApplicationSecret { domain_id: *domain_id, secret: json };
+                            secret.create(&mut transaction).await?;
+                            transaction.commit().await?;
+                        }
+                    }
+                }
+            }
+
         }
     };
 
