@@ -322,6 +322,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom_debug_derive"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a39fd0ac282783a1cdc683b33d8f0a67b57b403aa9549b0448c98db0c6f649a"
+dependencies = [
+ "proc-macro2",
+ "syn",
+ "synstructure",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -386,6 +397,7 @@ dependencies = [
  "chrono",
  "crc32c",
  "ctr",
+ "custom_debug_derive",
  "data-encoding",
  "directories",
  "futures",
@@ -1624,6 +1636,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "synstructure"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67656ea1dc1b41b1451851562ea232ec2e5a80242139f7e679ceccfb5d61f545"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "unicode-xid",
 ]
 
 [[package]]
