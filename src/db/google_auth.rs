@@ -5,9 +5,12 @@ use chrono::{DateTime, Utc};
 use yup_oauth2::ServiceAccountKey;
 use tokio_postgres::Transaction;
 
+/// A gsuite_application_secret entity
 #[derive(Debug, Clone)]
 pub struct GsuiteApplicationSecret {
+    /// The gsuite_domain this secret is for
     pub domain_id: i16,
+    /// The secret itself, a JSON object with an "installed" key
     pub secret: serde_json::Value
 }
 
@@ -24,11 +27,16 @@ impl GsuiteApplicationSecret {
     }
 }
 
+/// A gsuite_access_token entity
 #[derive(Debug, Clone)]
 pub struct GsuiteAccessToken {
+    /// The gdrive_owner this access token is for
     pub owner_id: i32,
+    /// The OAuth 2.0 access token
     pub access_token: String,
+    /// The OAuth 2.0 refresh token
     pub refresh_token: String,
+    /// The time at which the access token expires
     pub expires_at: DateTime<Utc>,
 }
 
@@ -45,9 +53,12 @@ impl GsuiteAccessToken {
     }
 }
 
+/// A gsuite_service_Account entity
 #[derive(Debug, Clone)]
 pub struct GsuiteServiceAccount {
+    /// The gdrive_owner this service account is for
     pub owner_id: i32,
+    /// The key for this service account
     pub key: ServiceAccountKey,
 }
 
