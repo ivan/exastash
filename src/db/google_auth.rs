@@ -79,9 +79,14 @@ impl GsuiteServiceAccount {
     pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
         let k = &self.key;
         transaction.execute(
-            "INSERT INTO gsuite_service_accounts (owner_id, client_email, client_id, project_id, private_key_id, private_key, auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url)
+            "INSERT INTO gsuite_service_accounts (
+                owner_id, client_email, client_id, project_id, private_key_id, private_key,
+                auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url)
              VALUES ($1::int, $2::text, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $9::text, $10::text)",
-            &[&self.owner_id, &k.client_email, &k.client_id, &k.project_id, &k.private_key_id, &k.private_key, &k.auth_uri, &k.token_uri, &k.auth_provider_x509_cert_url, &k.client_x509_cert_url]
+            &[
+                &self.owner_id, &k.client_email, &k.client_id, &k.project_id, &k.private_key_id, &k.private_key,
+                &k.auth_uri, &k.token_uri, &k.auth_provider_x509_cert_url, &k.client_x509_cert_url
+            ]
         ).await?;
         Ok(())
     }
