@@ -10,12 +10,14 @@ use chrono::DateTime;
 use tracing_subscriber::EnvFilter;
 use exastash::db;
 use exastash::db::storage::{Storage, get_storage};
+use exastash::db::storage::gdrive::file::GdriveOwner;
 use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
-use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
+use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteAccessToken, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
 use exastash::storage_read;
 use futures::stream::TryStreamExt;
-use yup_oauth2::ServiceAccountKey;
+use yup_oauth2::{ApplicationSecret, InstalledFlowAuthenticator, InstalledFlowReturnMethod, ServiceAccountKey};
+
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "es")]
@@ -164,6 +166,17 @@ enum ApplicationSecretCommand {
 }
 
 #[derive(StructOpt, Debug)]
+enum AccessTokenCommand {
+    /// Create an OAuth 2.0 access token for an owner. Domain, owner,
+    /// and application secret must already be in database.
+    #[structopt(name = "create")]
+    Create {
+        #[structopt(name = "OWNER_ID")]
+        owner_id: i32,
+    },
+}
+
+#[derive(StructOpt, Debug)]
 enum ServiceAccountCommand {
     /// Import a service account key from a .json file
     #[structopt(name = "import")]
@@ -181,6 +194,10 @@ enum GsuiteCommand {
     #[structopt(name = "app-secret")]
     /// Manage OAuth 2.0 application secrets (used with the "installed" application flow)
     ApplicationSecret(ApplicationSecretCommand),
+
+    #[structopt(name = "access-token")]
+    /// Manage OAuth 2.0 access tokens
+    AccessToken(AccessTokenCommand),
 
     #[structopt(name = "service-account")]
     /// Manage Google service accounts
@@ -343,6 +360,37 @@ async fn main() -> Result<()> {
                             let json = serde_json::from_slice(&content)?;
                             let secret = GsuiteApplicationSecret { domain_id: *domain_id, secret: json };
                             secret.create(&mut transaction).await?;
+                            transaction.commit().await?;
+                        }
+                    }
+                }
+                GsuiteCommand::AccessToken(command) => {
+                    match command {
+                        AccessTokenCommand::Create { owner_id } => {
+                            let owners = GdriveOwner::find_by_owner_ids(&mut transaction, &[*owner_id]).await?;
+                            if owners.is_empty() {
+                                bail!("owner id {} not in database", owner_id);
+                            }
+                            let owner = &owners[0];
+                            let secrets = GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[owner.domain]).await?;
+                            if secrets.is_empty() {
+                                bail!("application secret not in database for domain {}", owner.domain);
+                            }
+                            let secret = secrets[0].secret["installed"].clone();
+                            let app_secret: ApplicationSecret = serde_json::from_value(secret)?;
+                            let auth = InstalledFlowAuthenticator::builder(app_secret, InstalledFlowReturnMethod::Interactive)
+                                .build()
+                                .await
+                                .unwrap();
+                            let scopes = &["https://www.googleapis.com/auth/drive"];
+                            let token = auth.token(scopes).await?;
+                            let info = token.info();
+                            GsuiteAccessToken {
+                                owner_id: *owner_id,
+                                access_token: info.access_token.clone(),
+                                refresh_token: info.refresh_token.clone().unwrap(),
+                                expires_at: info.expires_at.unwrap(),
+                            }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }

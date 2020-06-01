@@ -8,15 +8,54 @@ use serde::Serialize;
 use serde_hex::{SerHex, Strict};
 use crate::postgres::{SixteenBytes, UnsignedInt4};
 
-/// Create a gdrive_owner in the database.
-/// Does not commit the transaction, you must do so yourself.
-pub async fn create_owner(transaction: &mut Transaction<'_>, domain: i16, owner: &str) -> Result<i32> {
-    let rows = transaction.query(
-        "INSERT INTO gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id",
-        &[&domain, &owner]
-    ).await?;
-    let id = rows.get(0).unwrap().get(0);
-    Ok(id)
+/// An owner of Google Drive files
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GdriveOwner {
+    /// ID for this owner
+    pub id: i32,
+    /// The G Suite domain this owner is associated with
+    pub domain: i16,
+    /// Email or other identifying string
+    pub owner: String,
+}
+
+impl GdriveOwner {
+    /// Return a `Vec<GdriveOwner>` for the corresponding list of `owner_ids`.
+    /// There is no error on missing owners.
+    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
+        let rows = transaction.query("SELECT id, domain, owner FROM gdrive_owners WHERE id = ANY($1)", &[&owner_ids]).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(GdriveOwner {
+                id: row.get(0),
+                domain: row.get(1),
+                owner: row.get(2),
+            })
+        }
+        Ok(out)
+    }
+}
+
+/// A new owner of Google Drive files
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NewGdriveOwner {
+    /// The G Suite domain this owner is associated with
+    pub domain: i16,
+    /// Email or other identifying string
+    pub owner: String,
+}
+
+impl NewGdriveOwner {
+    /// Create a gdrive_owner in the database.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<GdriveOwner> {
+        let rows = transaction.query(
+            "INSERT INTO gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id",
+            &[&self.domain, &self.owner]
+        ).await?;
+        let id = rows.get(0).unwrap().get(0);
+        Ok(GdriveOwner { id, domain: self.domain, owner: self.owner.clone() })
+    }
 }
 
 /// A file in Google Drive, as Google understands it
@@ -95,10 +134,9 @@ mod tests {
     });
 
 
-    pub(crate) async fn create_dummy_owner(mut transaction: &mut Transaction<'_>, domain: i16) -> Result<(i32, String)> {
+    pub(crate) async fn create_dummy_owner(transaction: &mut Transaction<'_>, domain: i16) -> Result<GdriveOwner> {
         let owner = format!("me-{}@example.com", OWNER_COUNTER.inc());
-        let owner_id = create_owner(&mut transaction, domain, &owner).await?;
-        Ok((owner_id, owner))
+        Ok(NewGdriveOwner { domain, owner }.create(transaction).await?)
     }
 
     mod api {
@@ -111,8 +149,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let (owner_id, _) = create_dummy_owner(&mut transaction, domain).await?;
-            let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner_id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner.id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
             let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) };
             create_gdrive_file(&mut transaction, &file1).await?;
             create_gdrive_file(&mut transaction, &file2).await?;
@@ -144,8 +182,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let (owner_id, _) = create_dummy_owner(&mut transaction, domain).await?;
-            let file = GdriveFile { id: "Q".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            let file = GdriveFile { id: "Q".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file).await?;
             transaction.commit().await?;
 
@@ -164,14 +202,14 @@ mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let file_id = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let (owner_id, _) = create_dummy_owner(&mut transaction, domain).await?;
-            let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file).await?;
             // create_storage expects the domain to already be committed
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
+            let storage = Storage { file_id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
@@ -198,8 +236,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let (owner_id, _) = create_dummy_owner(&mut transaction, domain).await?;
-            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file).await?;
             transaction.commit().await?;
 
@@ -226,8 +264,8 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let (owner_id, _) = create_dummy_owner(&mut transaction, domain).await?;
-            let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner_id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file).await?;
             transaction.commit().await?;
 

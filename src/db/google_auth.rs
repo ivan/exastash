@@ -37,7 +37,7 @@ impl GsuiteApplicationSecret {
 
     /// Return a `Vec<GsuiteApplicationSecret>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
-    pub async fn find_by_domain_ids(transaction: &mut Transaction<'_>, domain_ids: &[i32]) -> Result<Vec<GsuiteApplicationSecret>> {
+    pub async fn find_by_domain_ids(transaction: &mut Transaction<'_>, domain_ids: &[i16]) -> Result<Vec<GsuiteApplicationSecret>> {
         let rows = transaction.query(
             "SELECT domain_id, secret
              FROM gsuite_application_secrets

@@ -23,12 +23,30 @@ pub enum Cipher {
     Aes128Gcm,
 }
 
-/// Create a gsuite domain entity in the database and returns its id.
-/// Does not commit the transaction, you must do so yourself.
-pub async fn create_domain(transaction: &mut Transaction<'_>, domain: &str) -> Result<i16> {
-    let rows = transaction.query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id", &[&domain]).await?;
-    let id = rows.get(0).unwrap().get(0);
-    Ok(id)
+/// An owner of Google Drive files
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GsuiteDomain {
+    /// ID for this domain
+    pub id: i16,
+    /// The domain name
+    pub domain: String,
+}
+
+/// A new domain name
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NewGsuiteDomain {
+    /// The domain name
+    pub domain: String,
+}
+
+impl NewGsuiteDomain {
+    /// Create a gsuite_domain in the database.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
+        let rows = transaction.query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id", &[&self.domain]).await?;
+        let id = rows.get(0).unwrap().get(0);
+        Ok(GsuiteDomain { id, domain: self.domain.clone() })
+    }
 }
 
 /// A storage_gdrive entity
@@ -105,10 +123,9 @@ pub(crate) mod tests {
         RelaxedCounter::new(1)
     });
 
-    pub(crate) async fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<i16> {
+    pub(crate) async fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
         let domain = format!("{}.example.com", DOMAIN_COUNTER.inc());
-        let id = create_domain(&mut transaction, &domain).await?;
-        Ok(id)
+        Ok(NewGsuiteDomain { domain }.create(&mut transaction).await?)
     }
 
     mod api {
@@ -126,7 +143,7 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1).await?;
             create_gdrive_file(&mut transaction, &file2).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            let storage = Storage { file_id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
@@ -145,7 +162,7 @@ pub(crate) mod tests {
             let file_id = create_dummy_file(&mut transaction).await?;
             let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            let storage = Storage { file_id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -166,7 +183,7 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1).await?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
+            let storage = Storage { file_id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -184,7 +201,7 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let file_id = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
+            let storage = Storage { file_id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -214,7 +231,7 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1).await?;
             create_gdrive_file(&mut transaction, &file2).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
+            let storage = Storage { file_id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
@@ -249,7 +266,7 @@ pub(crate) mod tests {
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id, gsuite_domain: domain, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
+            let storage = Storage { file_id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 

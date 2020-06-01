@@ -2091,8 +2091,7 @@ dependencies = [
 [[package]]
 name = "yup-oauth2"
 version = "4.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "749192b9464694a95dbaf0586e845c835b315e38d491aa2766a8477aaadb48ec"
+source = "git+https://github.com/ludios/yup-oauth2?branch=prime#61cd64974fdbec6bf5ac06fb0588ee579d135792"
 dependencies = [
  "base64 0.12.1",
  "chrono",
