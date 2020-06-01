@@ -115,7 +115,7 @@ impl InodeSelector {
                 walk_path(transaction, root, &path_components).await?
             },
             _ => {
-                bail!("Either dir|file|symlink or path must be specified but not both");
+                bail!("either dir|file|symlink or path must be specified but not both");
             }
         };
         Ok(inode)
@@ -325,7 +325,7 @@ async fn main() -> Result<()> {
             match inode_id {
                 InodeId::File(file_id) => {
                     let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
-                    ensure!(files.len() == 1, "No such file with id={}", file_id);
+                    ensure!(files.len() == 1, "no such file with id={}", file_id);
                     let file = &files[0];
 
                     let storages = get_storage(&mut transaction, &[file_id]).await?;
@@ -339,15 +339,15 @@ async fn main() -> Result<()> {
                             let mut stdout = tokio::io::stdout();
                             tokio::io::copy(&mut read, &mut stdout).await?;
                         }
-                        None => bail!("File with id={} has no storage", file_id)
+                        None => bail!("file with id={} has no storage", file_id)
                     }
                 }
                 InodeId::Dir(_) => {
-                    bail!("Cannot cat a dir");
+                    bail!("cannot cat a dir");
                 }
                 InodeId::Symlink(_) => {
                     // TODO
-                    bail!("Cannot cat a symlink");
+                    bail!("cannot cat a symlink");
                 }
             }
         }

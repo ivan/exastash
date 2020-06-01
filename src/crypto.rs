@@ -123,7 +123,7 @@ impl Encoder<Bytes> for GcmEncoder {
         ensure!(item.len() <= self.block_size, "AES-GCM block must be shorter or same length as block size");
         ensure!(item.len() > 0, "AES-GCM block must not be 0 bytes");
         if self.finalized {
-            bail!("Cannot encode another AES-GCM block after encoding a block shorter than the block size");
+            bail!("cannot encode another AES-GCM block after encoding a block shorter than the block size");
         }
         if item.len() < self.block_size {
             self.finalized = true;
