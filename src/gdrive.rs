@@ -74,7 +74,7 @@ pub(crate) fn get_crc32c_in_response(response: &reqwest::Response) -> Result<u32
 /// and we can't construct a fake one in tests.
 async fn request_gdrive_file_with_access_token<T: AsRef<str>>(file_id: &str, access_token: T) -> Result<reqwest::Response> {
     static FILE_ID_RE: &Lazy<Regex> = lazy_regex!(r#"\A[-_0-9A-Za-z]{28,160}\z"#);
-    if let None = FILE_ID_RE.captures(file_id) {
+    if FILE_ID_RE.captures(file_id).is_none() {
         bail!("invalid gdrive file_id: {:?}", file_id);
     }
     let url = format!("https://www.googleapis.com/drive/v3/files/{}?alt=media", file_id);

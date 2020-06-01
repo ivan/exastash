@@ -76,7 +76,7 @@ impl Decoder for GcmDecoder {
 
     // Last block is not necessarily full-sized
     fn decode_eof(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if src.len() == 0 {
+        if src.is_empty() {
             return Ok(None)
         }
         if src.len() < GCM_TAG_LENGTH {
