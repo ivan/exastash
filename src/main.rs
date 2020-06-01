@@ -11,10 +11,11 @@ use tracing_subscriber::EnvFilter;
 use exastash::db;
 use exastash::db::storage::{Storage, get_storage};
 use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
-use exastash::db::google_auth::GsuiteApplicationSecret;
+use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
 use exastash::storage_read;
 use futures::stream::TryStreamExt;
+use yup_oauth2::ServiceAccountKey;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "es")]
@@ -163,10 +164,27 @@ enum ApplicationSecretCommand {
 }
 
 #[derive(StructOpt, Debug)]
+enum ServiceAccountCommand {
+    /// Import a service account key from a .json file
+    #[structopt(name = "import")]
+    Import {
+        #[structopt(name = "OWNER_ID")]
+        owner_id: i32,
+
+        #[structopt(name = "JSON_FILE")]
+        json_file: String,
+    },
+}
+
+#[derive(StructOpt, Debug)]
 enum GsuiteCommand {
     #[structopt(name = "app-secret")]
     /// Manage OAuth 2.0 application secrets (used with the "installed" application flow)
     ApplicationSecret(ApplicationSecretCommand),
+
+    #[structopt(name = "service-account")]
+    /// Manage Google service accounts
+    ServiceAccount(ServiceAccountCommand),
 }
 
 #[async_recursion]
@@ -325,6 +343,18 @@ async fn main() -> Result<()> {
                             let json = serde_json::from_slice(&content)?;
                             let secret = GsuiteApplicationSecret { domain_id: *domain_id, secret: json };
                             secret.create(&mut transaction).await?;
+                            transaction.commit().await?;
+                        }
+                    }
+                }
+                GsuiteCommand::ServiceAccount(command) => {
+                    match command {
+                        ServiceAccountCommand::Import { owner_id, json_file } => {
+                            let content = fs::read(json_file).await?;
+                            let key: ServiceAccountKey = serde_json::from_slice(&content)?;
+                            assert_eq!(key.key_type, Some("service_account".into()));
+                            let account = GsuiteServiceAccount { owner_id: *owner_id, key };
+                            account.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }
