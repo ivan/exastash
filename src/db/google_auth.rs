@@ -33,6 +33,28 @@ impl GsuiteApplicationSecret {
         ).await?;
         Ok(())
     }
+
+
+    /// Return a `Vec<GsuiteApplicationSecret>` for the corresponding list of `domain_ids`.
+    /// There is no error on missing domains.
+    pub async fn find_by_domain_ids(transaction: &mut Transaction<'_>, domain_ids: &[i32]) -> Result<Vec<GsuiteApplicationSecret>> {
+        let rows = transaction.query(
+            "SELECT domain_id, secret
+             FROM gsuite_application_secrets
+             WHERE domain_id = ANY($1::smallint[])",
+            &[&domain_ids]
+        ).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(
+                GsuiteApplicationSecret {
+                    domain_id: row.get(0),
+                    secret: row.get(1),
+                }
+            );
+        }
+        Ok(out)
+    }
 }
 
 /// A gsuite_access_token entity
@@ -60,6 +82,29 @@ impl GsuiteAccessToken {
             &[&self.owner_id, &self.access_token, &self.refresh_token, &self.expires_at]
         ).await?;
         Ok(())
+    }
+
+    /// Return a `Vec<GsuiteAccessToken>` for the corresponding list of `owner_ids`.
+    /// There is no error on missing owners.
+    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_>, owner_ids: &[i32]) -> Result<Vec<GsuiteAccessToken>> {
+        let rows = transaction.query(
+            "SELECT owner_id, access_token, refresh_token, expires_at
+             FROM gsuite_access_tokens
+             WHERE owner_id = ANY($1::int[])",
+            &[&owner_ids]
+        ).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(
+                GsuiteAccessToken {
+                    owner_id: row.get(0),
+                    access_token: row.get(1),
+                    refresh_token: row.get(2),
+                    expires_at: row.get(3),
+                }
+            );
+        }
+        Ok(out)
     }
 }
 
@@ -89,6 +134,43 @@ impl GsuiteServiceAccount {
             ]
         ).await?;
         Ok(())
+    }
+
+    /// Return a `Vec<GsuiteServiceAccount>` for the corresponding list of `owner_ids`.
+    /// There is no error on missing owners.
+    /// If limit is not `None`, returns max `N` random rows.
+    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_>, owner_ids: &[i32], limit: Option<i32>) -> Result<Vec<GsuiteServiceAccount>> {
+        let limit_sql = match limit {
+            None => "".into(),
+            Some(num) => format!("ORDER BY random() LIMIT {}", num)
+        };
+        let sql = format!("SELECT owner_id, client_email, client_id, project_id, private_key_id, private_key,
+                                  auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url
+                           FROM gsuite_service_accounts
+                           WHERE owner_id = ANY($1::int[])
+                           {}", limit_sql);
+        let rows = transaction.query(sql.as_str(), &[&owner_ids]).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(
+                GsuiteServiceAccount {
+                    owner_id: row.get(0),
+                    key: ServiceAccountKey {
+                        client_email: row.get(1),
+                        client_id: row.get(2),
+                        project_id: row.get(3),
+                        private_key_id: row.get(4),
+                        private_key: row.get(5),
+                        auth_uri: row.get(6),
+                        token_uri: row.get(7),
+                        auth_provider_x509_cert_url: row.get(8),
+                        client_x509_cert_url: row.get(9),
+                        key_type: Some("service_account".into())
+                    }
+                }
+            );
+        }
+        Ok(out)
     }
 }
 
