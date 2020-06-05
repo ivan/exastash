@@ -57,7 +57,7 @@ impl GsuiteApplicationSecret {
 }
 
 /// A gsuite_access_token entity
-#[derive(Clone, CustomDebug)]
+#[derive(Clone, CustomDebug, PartialEq, Eq)]
 pub struct GsuiteAccessToken {
     /// The gdrive_owner this access token is for
     pub owner_id: i32,
@@ -108,7 +108,7 @@ impl GsuiteAccessToken {
 }
 
 /// A gsuite_service_Account entity
-#[derive(Clone, CustomDebug)]
+#[derive(Clone, CustomDebug, PartialEq, Eq)]
 pub struct GsuiteServiceAccount {
     /// The gdrive_owner this service account is for
     pub owner_id: i32,
@@ -180,37 +180,16 @@ mod tests {
     use crate::db::tests::get_client;    
     use crate::db::storage::gdrive::tests::create_dummy_domain;
     use crate::db::storage::gdrive::file::tests::create_dummy_owner;
-
-    fn dummy_service_account_key() -> ServiceAccountKey {
-        ServiceAccountKey {
-            key_type: None,
-            project_id: None,
-            private_key_id: None,
-            private_key: "".into(),
-            client_email: "".into(),
-            client_id: None,
-            auth_uri: None,
-            token_uri: "".into(),
-            auth_provider_x509_cert_url: None,
-            client_x509_cert_url: None,
-        }
-    }
-
-    #[test]
-    fn test_debug_elision() {
-        let secret = GsuiteApplicationSecret { domain_id: 1, secret: serde_json::Value::String("".into()) };
-        assert_eq!(format!("{:?}", secret), "GsuiteApplicationSecret { domain_id: 1, secret: ... }");
-
-        let token = GsuiteAccessToken { owner_id: 1, access_token: "".into(), refresh_token: "".into(), expires_at: Utc::now() };
-        assert!(format!("{:?}", token).contains("access_token: ..."));
-        assert!(format!("{:?}", token).contains("refresh_token: ..."));
-
-        let account = GsuiteServiceAccount { owner_id: 1, key: dummy_service_account_key() };
-        assert_eq!(format!("{:?}", account), "GsuiteServiceAccount { owner_id: 1, key: ... }");
-    }
+    use crate::util::now_no_nanos;
 
     mod gsuite_application_secret {
         use super::*;
+
+        #[test]
+        fn test_debug_elision() {
+            let secret = GsuiteApplicationSecret { domain_id: 1, secret: serde_json::Value::String("".into()) };
+            assert_eq!(format!("{:?}", secret), "GsuiteApplicationSecret { domain_id: 1, secret: ... }");
+        }    
 
         /// If there is no gsuite_application_secret for a domain, find_by_domain_ids returns an empty Vec
         #[tokio::test]
@@ -226,10 +205,36 @@ mod tests {
 
             Ok(())
         }
+
+        /// If we create a gsuite_application_secret, find_by_domain_ids finds it
+        #[tokio::test]
+        async fn test_create() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
+            let secret = GsuiteApplicationSecret { domain_id: domain.id, secret: serde_json::json!({}) };
+            secret.create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let secrets = GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?;
+            assert_eq!(secrets.len(), 1);
+            assert_eq!(secrets[0].domain_id, domain.id);
+
+            Ok(())
+        }
     }
 
     mod gsuite_access_tokens {
         use super::*;
+
+        #[test]
+        fn test_debug_elision() {
+            let token = GsuiteAccessToken { owner_id: 1, access_token: "".into(), refresh_token: "".into(), expires_at: Utc::now() };
+            assert!(format!("{:?}", token).contains("access_token: ..."));
+            assert!(format!("{:?}", token).contains("refresh_token: ..."));
+        }
 
         /// If there is no gsuite_access_token for an owner, find_by_owner_ids returns an empty Vec
         #[tokio::test]
@@ -246,10 +251,44 @@ mod tests {
 
             Ok(())
         }
+
+        /// If we create a gsuite_access_token, find_by_owner_ids finds it
+        #[tokio::test]
+        async fn test_create() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            let token = GsuiteAccessToken { owner_id: owner.id, access_token: "A".into(), refresh_token: "R".into(), expires_at: now_no_nanos() };
+            token.create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let tokens = GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?;
+            assert_eq!(tokens, vec![token]);
+
+            Ok(())
+        }
     }
 
     mod gsuite_service_account {
         use super::*;
+
+        fn dummy_service_account_key() -> ServiceAccountKey {
+            ServiceAccountKey {
+                key_type: Some("service_account".into()),
+                project_id: Some("some-project-id".into()),
+                private_key_id: Some("hex".into()),
+                private_key: "".into(),
+                client_email: "fake@example.com".into(),
+                client_id: Some("123456789".into()),
+                auth_uri: Some("https://accounts.google.com/o/oauth2/auth".into()),
+                token_uri: "".into(),
+                auth_provider_x509_cert_url: Some("https://www.googleapis.com/oauth2/v1/certs".into()),
+                client_x509_cert_url: Some("https://www.googleapis.com/robot/v1/metadata/x509/...".into()),
+            }
+        }
 
         /// If there is no gsuite_service_account for an owner, find_by_owner_ids returns an empty Vec
         #[tokio::test]
@@ -267,5 +306,32 @@ mod tests {
 
             Ok(())
         }
+
+        /// If we create a gsuite_service_account, find_by_owner_ids finds it
+        #[tokio::test]
+        async fn test_create() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            let account = GsuiteServiceAccount { owner_id: owner.id, key: dummy_service_account_key() };
+            account.create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            for limit in &[None, Some(1_i32)] {
+                let accounts = GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], *limit).await?;
+                assert_eq!(accounts, vec![account.clone()]);
+            }
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_debug_elision() {
+            let account = GsuiteServiceAccount { owner_id: 1, key: dummy_service_account_key() };
+            assert_eq!(format!("{:?}", account), "GsuiteServiceAccount { owner_id: 1, key: ... }");
+        }    
     }
 }
