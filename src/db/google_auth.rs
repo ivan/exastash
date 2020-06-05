@@ -34,7 +34,6 @@ impl GsuiteApplicationSecret {
         Ok(())
     }
 
-
     /// Return a `Vec<GsuiteApplicationSecret>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
     pub async fn find_by_domain_ids(transaction: &mut Transaction<'_>, domain_ids: &[i16]) -> Result<Vec<GsuiteApplicationSecret>> {
@@ -177,6 +176,10 @@ impl GsuiteServiceAccount {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::start_transaction;
+    use crate::db::tests::get_client;    
+    use crate::db::storage::gdrive::tests::create_dummy_domain;
+    use crate::db::storage::gdrive::file::tests::create_dummy_owner;
 
     fn dummy_service_account_key() -> ServiceAccountKey {
         ServiceAccountKey {
@@ -204,5 +207,65 @@ mod tests {
 
         let account = GsuiteServiceAccount { owner_id: 1, key: dummy_service_account_key() };
         assert_eq!(format!("{:?}", account), "GsuiteServiceAccount { owner_id: 1, key: ... }");
+    }
+
+    mod gsuite_application_secret {
+        use super::*;
+
+        /// If there is no gsuite_application_secret for a domain, find_by_domain_ids returns an empty Vec
+        #[tokio::test]
+        async fn test_no_gsuite_application_secret() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            assert!(GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?.is_empty());
+
+            Ok(())
+        }
+    }
+
+    mod gsuite_access_tokens {
+        use super::*;
+
+        /// If there is no gsuite_access_token for an owner, find_by_owner_ids returns an empty Vec
+        #[tokio::test]
+        async fn test_no_gsuite_access_tokens() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            assert!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?.is_empty());
+
+            Ok(())
+        }
+    }
+
+    mod gsuite_service_account {
+        use super::*;
+
+        /// If there is no gsuite_service_account for an owner, find_by_owner_ids returns an empty Vec
+        #[tokio::test]
+        async fn test_no_gsuite_access_tokens() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let domain = create_dummy_domain(&mut transaction).await?;
+            let owner = create_dummy_owner(&mut transaction, domain.id).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            assert!(GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], None).await?.is_empty());
+            assert!(GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], Some(1)).await?.is_empty());
+
+            Ok(())
+        }
     }
 }

@@ -118,7 +118,7 @@ pub async fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
