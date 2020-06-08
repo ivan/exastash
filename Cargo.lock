@@ -402,6 +402,8 @@ dependencies = [
  "futures",
  "futures-async-stream",
  "gethostname",
+ "hyper",
+ "hyper-rustls",
  "num",
  "once_cell",
  "postgres",
@@ -2090,7 +2092,7 @@ dependencies = [
 [[package]]
 name = "yup-oauth2"
 version = "4.1.2"
-source = "git+https://github.com/ludios/yup-oauth2?branch=prime#180efb3b020d13c299bbf62487d5725e8e7cef67"
+source = "git+https://github.com/ludios/yup-oauth2?branch=prime#88d3ddb60f1f0ea12ff92352a2cc7923745c36ed"
 dependencies = [
  "base64 0.12.1",
  "chrono",

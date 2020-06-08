@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
+use postgres::Row;
 use tokio_postgres::Transaction;
 use serde::Serialize;
 use serde_hex::{SerHex, Strict};
@@ -19,20 +20,30 @@ pub struct GdriveOwner {
     pub owner: String,
 }
 
+fn from_gdrive_owners(rows: Vec<Row>) -> Result<Vec<GdriveOwner>> {
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push(GdriveOwner {
+            id: row.get(0),
+            domain: row.get(1),
+            owner: row.get(2),
+        })
+    }
+    Ok(out)
+}
+
 impl GdriveOwner {
+    /// Return a `Vec<GdriveOwner>` for all gdrive_owners.
+    pub async fn find_all(transaction: &mut Transaction<'_>) -> Result<Vec<GdriveOwner>> {
+        let rows = transaction.query("SELECT id, domain, owner FROM gdrive_owners", &[]).await?;
+        from_gdrive_owners(rows)
+    }
+
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
         let rows = transaction.query("SELECT id, domain, owner FROM gdrive_owners WHERE id = ANY($1)", &[&owner_ids]).await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            out.push(GdriveOwner {
-                id: row.get(0),
-                domain: row.get(1),
-                owner: row.get(2),
-            })
-        }
-        Ok(out)
+        from_gdrive_owners(rows)
     }
 }
 

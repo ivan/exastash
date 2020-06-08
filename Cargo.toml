@@ -38,6 +38,8 @@ tokio-util = { version = "0.3", features = ["compat"] }
 tokio-postgres = "0.5"
 tracing = "0.1"
 tracing-subscriber = "0.2"
+hyper = "0.13"
+hyper-rustls = "0.20"
 reqwest = { version = "0.10", default-features = false, features = ["rustls-tls", "stream"] }
 futures = "0.3"
 futures-async-stream = "0.2"

@@ -23,7 +23,7 @@ pub enum Cipher {
     Aes128Gcm,
 }
 
-/// An owner of Google Drive files
+/// A domain where Google Drive files are stored
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GsuiteDomain {
     /// ID for this domain

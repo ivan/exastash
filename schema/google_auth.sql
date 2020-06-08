@@ -30,8 +30,7 @@ CREATE TABLE gsuite_access_tokens (
 CREATE TRIGGER gsuite_access_tokens_update
     BEFORE UPDATE ON gsuite_access_tokens
     FOR EACH ROW
-    WHEN (OLD.owner_id != NEW.owner_id)
-    EXECUTE FUNCTION raise_exception('cannot change owner_id');
+    EXECUTE FUNCTION raise_exception('cannot change row');
 
 CREATE TRIGGER gsuite_access_tokens_forbid_truncate
     BEFORE TRUNCATE ON gsuite_access_tokens
