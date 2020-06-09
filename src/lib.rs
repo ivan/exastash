@@ -3,19 +3,19 @@
 #![feature(generators, proc_macro_hygiene, stmt_expr_attributes)]
 
 #![warn(
-	nonstandard_style,
-	rust_2018_compatibility,
-	rust_2018_idioms,
-	unused,
-	macro_use_extern_crate,
-	missing_copy_implementations,
-	missing_debug_implementations,
-	missing_docs,
-	trivial_casts,
-	trivial_numeric_casts,
-	unused_import_braces,
-	unused_lifetimes,
-	variant_size_differences,
+    nonstandard_style,
+    rust_2018_compatibility,
+    rust_2018_idioms,
+    unused,
+    macro_use_extern_crate,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_import_braces,
+    unused_lifetimes,
+    variant_size_differences,
 )]
 // TODO: remove after initial development
 #![allow(dead_code)]
