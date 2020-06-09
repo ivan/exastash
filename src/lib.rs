@@ -28,6 +28,7 @@ pub mod db;
 pub mod postgres;
 pub(crate) mod gdrive;
 pub(crate) mod crypto;
+pub mod oauth;
 pub mod storage_read;
 
 /// Rows in database will be created with birth_version set to this value.

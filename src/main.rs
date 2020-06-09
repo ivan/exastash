@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-use tracing::{info, debug};
+use tracing::info;
 use async_recursion::async_recursion;
 use anyhow::{anyhow, bail, ensure, Error, Result};
 use structopt::StructOpt;
-use chrono::{Utc, Duration};
+use chrono::Utc;
 use tokio::fs;
 use tokio_postgres::Transaction;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
@@ -16,9 +15,10 @@ use exastash::db::storage::gdrive::file::GdriveOwner;
 use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteAccessToken, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
+use exastash::oauth;
 use exastash::storage_read;
 use futures::stream::TryStreamExt;
-use yup_oauth2::{ApplicationSecret, InstalledFlowAuthenticator, InstalledFlowReturnMethod, ServiceAccountKey, RefreshFlow};
+use yup_oauth2::{ApplicationSecret, InstalledFlowAuthenticator, InstalledFlowReturnMethod, ServiceAccountKey};
 
 
 #[derive(StructOpt, Debug)]
@@ -418,51 +418,7 @@ async fn main() -> Result<()> {
                     let interval_sec = 305;
                     info!("will check access tokens every {} seconds", interval_sec);
                     loop {
-                        let expiry_within_minutes = 55;
-                        info!("refreshing access tokens that expire within {} minutes", expiry_within_minutes);
-
-                        let mut transaction = db::start_transaction(&mut client).await?;
-
-                        // Map of domain_id -> ApplicationSecret
-                        let mut secrets_map = HashMap::new();
-                        let secrets = GsuiteApplicationSecret::find_all(&mut transaction).await?;
-                        for secret in secrets {
-                            let installed = secret.secret["installed"].clone();
-                            let app_secret: ApplicationSecret = serde_json::from_value(installed)?;
-                            secrets_map.insert(secret.domain_id, app_secret);
-                        }
-
-                        // Map of owner_id -> GdriveOwner
-                        let mut owners_map = HashMap::new();
-                        let owners = GdriveOwner::find_all(&mut transaction).await?;
-                        for owner in owners {
-                            owners_map.insert(owner.id, owner);
-                        }
-
-                        let expires_at = Utc::now() + Duration::minutes(expiry_within_minutes);
-                        let tokens = GsuiteAccessToken::find_by_expires_at(&mut transaction, expires_at).await?;
-                        for token in &tokens {
-                            debug!("refreshing {:?}", token);
-                            let owner = owners_map.get(&token.owner_id).ok_or_else(|| anyhow!("cannot find owner in owners map: {}", token.owner_id))?;
-                            let secret = secrets_map.get(&owner.domain).ok_or_else(|| anyhow!("cannot find domain in secrets map: {}", owner.domain))?;
-
-                            let https = hyper_rustls::HttpsConnector::new();
-                            let hyper_client = hyper::Client::builder().build::<_, hyper::Body>(https);
-
-                            let new_info = RefreshFlow::refresh_token(&hyper_client, secret, &token.refresh_token).await?;
-                            let new_token = GsuiteAccessToken {
-                                owner_id: token.owner_id,
-                                access_token: new_info.access_token,
-                                refresh_token: new_info.refresh_token.ok_or_else(|| anyhow!("no refresh_token after refresh"))?,
-                                expires_at: new_info.expires_at.ok_or_else(|| anyhow!("no expires_at after refresh"))?,
-                            };
-
-                            token.delete(&mut transaction).await?;
-                            new_token.create(&mut transaction).await?;
-                        }
-                        transaction.commit().await?;
-                        info!("refreshed {} access tokens", tokens.len());
-
+                        oauth::refresh_access_tokens(&mut client).await?;
                         tokio::time::delay_for(std::time::Duration::new(interval_sec, 0)).await;
                     }
                 }
