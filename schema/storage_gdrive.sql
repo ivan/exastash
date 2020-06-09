@@ -108,7 +108,7 @@ CREATE TABLE storage_gdrive (
     gsuite_domain  smallint  NOT NULL REFERENCES gsuite_domains (id),
     -- An sequence of encrypted chunks stored in Google Drive
     --
-    -- Imagine a REFERENCES on on gdrive_files (id) here; PostgreSQL 12 doesn't
+    -- Imagine a REFERENCES on gdrive_files (id) here; PostgreSQL 12 doesn't
     -- support it for array elements, so we have two triggers to emulate it.
     --
     -- Don't use an array of DOMAIN type here to avoid confusing rust-postgres
