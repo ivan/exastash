@@ -6,6 +6,7 @@ use tracing::{info, debug};
 use yup_oauth2::{ApplicationSecret, RefreshFlow, InstalledFlowAuthenticator, InstalledFlowReturnMethod};
 use tokio_postgres::{Client, Transaction};
 use chrono::{Utc, Duration};
+use hyper_rustls::HttpsConnector;
 use crate::db;
 use crate::db::google_auth::{GsuiteApplicationSecret, GsuiteAccessToken};
 use crate::db::storage::gdrive::file::GdriveOwner;
@@ -72,15 +73,15 @@ pub async fn refresh_access_tokens(client: &mut Client) -> Result<()> {
         owners_map.insert(owner.id, owner);
     }
 
+    let https = HttpsConnector::new();
+    let hyper_client = hyper::Client::builder().build::<_, hyper::Body>(https);
+
     let expires_at = Utc::now() + Duration::minutes(expiry_within_minutes);
     let tokens = GsuiteAccessToken::find_by_expires_at(&mut transaction, expires_at).await?;
     for token in &tokens {
         debug!("refreshing {:?}", token);
         let owner = owners_map.get(&token.owner_id).ok_or_else(|| anyhow!("cannot find owner in owners map: {}", token.owner_id))?;
         let secret = secrets_map.get(&owner.domain).ok_or_else(|| anyhow!("cannot find domain in secrets map: {}", owner.domain))?;
-
-        let https = hyper_rustls::HttpsConnector::new();
-        let hyper_client = hyper::Client::builder().build::<_, hyper::Body>(https);
 
         let new_info = RefreshFlow::refresh_token(&hyper_client, secret, &token.refresh_token).await?;
         let new_token = GsuiteAccessToken {
