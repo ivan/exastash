@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{info, debug};
 use async_recursion::async_recursion;
 use anyhow::{anyhow, bail, ensure, Error, Result};
 use structopt::StructOpt;
@@ -415,9 +415,12 @@ async fn main() -> Result<()> {
                 }
                 GsuiteCommand::TokenUpdater => {
                     drop(transaction);
-                    let interval_sec = 300;
-                    info!("refreshing access tokens every {} seconds...", interval_sec);
+                    let interval_sec = 305;
+                    info!("checking access tokens every {} seconds...", interval_sec);
                     loop {
+                        let expiry_within_minutes = 55;
+                        info!("refreshing access tokens that expire within {} minutes", expiry_within_minutes);
+
                         let mut transaction = db::start_transaction(&mut client).await?;
 
                         // Map of domain_id -> ApplicationSecret
@@ -429,16 +432,17 @@ async fn main() -> Result<()> {
                             secrets_map.insert(secret.domain_id, app_secret);
                         }
 
-                        // Map of owner_id -> owner
+                        // Map of owner_id -> GdriveOwner
                         let mut owners_map = HashMap::new();
                         let owners = GdriveOwner::find_all(&mut transaction).await?;
                         for owner in owners {
                             owners_map.insert(owner.id, owner);
                         }
 
-                        let expires_at = Utc::now() + Duration::minutes(55);
+                        let expires_at = Utc::now() + Duration::minutes(expiry_within_minutes);
                         let tokens = GsuiteAccessToken::find_by_expires_at(&mut transaction, expires_at).await?;
                         for token in &tokens {
+                            debug!("refreshing {:?}", token);
                             let owner = owners_map.get(&token.owner_id).ok_or_else(|| anyhow!("cannot find owner in owners map: {}", token.owner_id))?;
                             let secret = secrets_map.get(&owner.domain).ok_or_else(|| anyhow!("cannot find domain in secrets map: {}", owner.domain))?;
 
@@ -452,7 +456,7 @@ async fn main() -> Result<()> {
                                 refresh_token: new_info.refresh_token.ok_or_else(|| anyhow!("no refresh_token after refresh"))?,
                                 expires_at: new_info.expires_at.ok_or_else(|| anyhow!("no expires_at after refresh"))?,
                             };
-                            
+
                             token.delete(&mut transaction).await?;
                             new_token.create(&mut transaction).await?;
                         }
