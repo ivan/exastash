@@ -11,14 +11,13 @@ use chrono::DateTime;
 use tracing_subscriber::EnvFilter;
 use exastash::db;
 use exastash::db::storage::{Storage, get_storage};
-use exastash::db::storage::gdrive::file::GdriveOwner;
 use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
-use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteAccessToken, GsuiteServiceAccount};
+use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
 use exastash::oauth;
 use exastash::storage_read;
 use futures::stream::TryStreamExt;
-use yup_oauth2::{ApplicationSecret, InstalledFlowAuthenticator, InstalledFlowReturnMethod, ServiceAccountKey};
+use yup_oauth2::ServiceAccountKey;
 
 
 #[derive(StructOpt, Debug)]
@@ -373,31 +372,7 @@ async fn main() -> Result<()> {
                 GsuiteCommand::AccessToken(command) => {
                     match command {
                         AccessTokenCommand::Create { owner_id } => {
-                            let owners = GdriveOwner::find_by_owner_ids(&mut transaction, &[*owner_id]).await?;
-                            if owners.is_empty() {
-                                bail!("owner id {} not in database", owner_id);
-                            }
-                            let owner = &owners[0];
-                            let secrets = GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[owner.domain]).await?;
-                            if secrets.is_empty() {
-                                bail!("application secret not in database for domain {}", owner.domain);
-                            }
-                            let secret = secrets[0].secret["installed"].clone();
-                            let app_secret: ApplicationSecret = serde_json::from_value(secret)?;
-                            let auth = InstalledFlowAuthenticator::builder(app_secret, InstalledFlowReturnMethod::Interactive)
-                                .build()
-                                .await
-                                .unwrap();
-                            let scopes = &["https://www.googleapis.com/auth/drive"];
-                            let token = auth.token(scopes).await?;
-                            let info = token.info();
-                            GsuiteAccessToken {
-                                owner_id: *owner_id,
-                                access_token: info.access_token.clone(),
-                                refresh_token: info.refresh_token.clone().unwrap(),
-                                expires_at: info.expires_at.unwrap(),
-                            }.create(&mut transaction).await?;
-                            transaction.commit().await?;
+                            oauth::create_access_token(transaction, *owner_id).await?;
                         }
                     }
                 }
