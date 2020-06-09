@@ -205,9 +205,9 @@ enum GsuiteCommand {
     /// Manage Google service accounts
     ServiceAccount(ServiceAccountCommand),
 
-    #[structopt(name = "token-updater")]
-    /// Refresh OAuth 2.0 access tokens every 5 minutes
-    TokenUpdater,
+    #[structopt(name = "token-service")]
+    /// Run a loop that refreshes OAuth 2.0 access tokens every ~5 minutes
+    TokenService,
 }
 
 #[async_recursion]
@@ -413,7 +413,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                GsuiteCommand::TokenUpdater => {
+                GsuiteCommand::TokenService => {
                     drop(transaction);
                     let interval_sec = 305;
                     info!("checking access tokens every {} seconds...", interval_sec);
