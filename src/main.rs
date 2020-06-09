@@ -416,7 +416,7 @@ async fn main() -> Result<()> {
                 GsuiteCommand::TokenService => {
                     drop(transaction);
                     let interval_sec = 305;
-                    info!("checking access tokens every {} seconds...", interval_sec);
+                    info!("will check access tokens every {} seconds", interval_sec);
                     loop {
                         let expiry_within_minutes = 55;
                         info!("refreshing access tokens that expire within {} minutes", expiry_within_minutes);
