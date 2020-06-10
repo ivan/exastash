@@ -45,6 +45,13 @@ impl GdriveOwner {
         let rows = transaction.query("SELECT id, domain, owner FROM gdrive_owners WHERE id = ANY($1)", &[&owner_ids]).await?;
         from_gdrive_owners(rows)
     }
+
+    /// Return a `Vec<GdriveOwner>` for the corresponding list of `domain_ids`.
+    /// There is no error on missing domains.
+    pub async fn find_by_domain_ids(transaction: &mut Transaction<'_>, domain_ids: &[i16]) -> Result<Vec<GdriveOwner>> {
+        let rows = transaction.query("SELECT id, domain, owner FROM gdrive_owners WHERE domain = ANY($1)", &[&domain_ids]).await?;
+        from_gdrive_owners(rows)
+    }
 }
 
 /// A new owner of Google Drive files
