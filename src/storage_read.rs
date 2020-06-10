@@ -99,26 +99,35 @@ fn stream_add_validation(
 /// response code and `x-goog-hash`.
 pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_id: i16) -> Result<impl Stream<Item = Result<Bytes, Error>>> {
     let access_tokens = get_access_tokens(gdrive_file, domain_id).await?;
-    // TODO: try more than one token if needed
-    let access_token = access_tokens[0].clone();
-    let response: reqwest::Response = request_gdrive_file(&gdrive_file.id, &access_token).await?;
-    let headers = response.headers();
-    debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
-    Ok(match response.status() {
-        StatusCode::OK => {
-            let content_length = response.content_length().ok_or_else(|| anyhow!("Google responded without a Content-Length"))?;
-            if content_length != gdrive_file.size as u64 {
-                bail!("Google responded with Content-Length {}, expected {}", content_length, gdrive_file.size);
+    if access_tokens.is_empty() {
+        bail!("No access tokens are available for owners associated file_id={:?}", gdrive_file.id);
+    }
+    let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
+    for access_token in &access_tokens {
+        let response: reqwest::Response = request_gdrive_file(&gdrive_file.id, access_token).await?;
+        let headers = response.headers();
+        debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
+        match response.status() {
+            StatusCode::OK => {
+                let content_length = response.content_length().ok_or_else(|| anyhow!("Google responded without a Content-Length"))?;
+                if content_length != gdrive_file.size as u64 {
+                    bail!("Google responded with Content-Length {}, expected {}", content_length, gdrive_file.size);
+                }
+                let goog_crc32c = get_crc32c_in_response(&response)?;
+                if goog_crc32c != gdrive_file.crc32c {
+                    bail!("Google sent crc32c={} but we expected crc32c={}", goog_crc32c, gdrive_file.crc32c);
+                }
+                out = Ok(stream_add_validation(gdrive_file, response.bytes_stream()));
+                break;
+            },
+            StatusCode::UNAUTHORIZED => {
+                debug!("Google responded with HTTP status code {} for file_id={:?}, trying another access token if available", response.status(), gdrive_file.id);
+                continue;
             }
-            let goog_crc32c = get_crc32c_in_response(&response)?;
-            if goog_crc32c != gdrive_file.crc32c {
-                bail!("Google sent crc32c={} but we expected crc32c={}", goog_crc32c, gdrive_file.crc32c);
-            }
-            let stream = response.bytes_stream();
-            stream_add_validation(gdrive_file, stream)
-        },
-        _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
-    })
+            _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
+        };
+    }
+    out
 }
 
 type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
