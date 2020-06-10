@@ -100,7 +100,7 @@ fn stream_add_validation(
 pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_id: i16) -> Result<impl Stream<Item = Result<Bytes, Error>>> {
     let access_tokens = get_access_tokens(gdrive_file, domain_id).await?;
     if access_tokens.is_empty() {
-        bail!("No access tokens are available for owners associated file_id={:?}", gdrive_file.id);
+        bail!("no access tokens were available for owners associated file_id={:?}", gdrive_file.id);
     }
     let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
     for access_token in &access_tokens {
