@@ -21,11 +21,12 @@ use crate::crypto::{GcmDecoder, gcm_create_key};
 use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
 
 
-/// Return a Vec of access tokens suitable for read and delete operations on a file.
+/// Return a Vec of access tokens potentially suitable for read and delete operations
+/// on a file.
 ///
-/// For old files where no account was recorded, this can return more than one token,
-/// where all tokens may need to be tried.
-async fn get_access_tokens(gdrive_file: &gdrive::file::GdriveFile, domain_id: i16) -> Result<Vec<String>> {
+/// If `owner_id` is `None`, this can return more than one token, and all tokens may
+/// need to be tried.
+pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<Vec<String>> {
     // TODO: use connection pool
     let mut client = db::postgres_client_production().await?;
     let mut transaction = db::start_transaction(&mut client).await?;
@@ -34,11 +35,11 @@ async fn get_access_tokens(gdrive_file: &gdrive::file::GdriveFile, domain_id: i1
     let mut consider_service_accounts = true;
     let mut tokens = vec![];
 
-    match gdrive_file.owner_id {
+    match owner_id {
         None => {
-            // Old files have no recorded owner.  If we do not have a recorded owner,
-            // we do not need to try service accounts because we did not upload any
-            // of those old files with service accounts.
+            // Old files in our database have no recorded owner.  If we do not have
+            // a recorded owner, we do not need to try service accounts because we
+            // did not upload any of those old files with service accounts.
             consider_service_accounts = false;
             for owner in GdriveOwner::find_by_domain_ids(&mut transaction, &[domain_id]).await? {
                 owner_ids.push(owner.id);
@@ -98,7 +99,7 @@ fn stream_add_validation(
 /// Returns a Stream of Bytes for a `GdriveFile`, first validating the
 /// response code and `x-goog-hash`.
 pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_id: i16) -> Result<impl Stream<Item = Result<Bytes, Error>>> {
-    let access_tokens = get_access_tokens(gdrive_file, domain_id).await?;
+    let access_tokens = get_access_tokens(gdrive_file.owner_id, domain_id).await?;
     if access_tokens.is_empty() {
         bail!("no access tokens were available for owners associated file_id={:?}", gdrive_file.id);
     }

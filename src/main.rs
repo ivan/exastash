@@ -1,4 +1,5 @@
 use tracing::info;
+use std::path::PathBuf;
 use async_recursion::async_recursion;
 use anyhow::{anyhow, bail, ensure, Error, Result};
 use structopt::StructOpt;
@@ -15,7 +16,7 @@ use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
 use exastash::oauth;
-use exastash::storage_read;
+use exastash::{storage_read, storage_write};
 use futures::stream::TryStreamExt;
 use yup_oauth2::ServiceAccountKey;
 
@@ -70,6 +71,10 @@ enum ExastashCommand {
     #[structopt(name = "gsuite")]
     /// G Suite-related commands
     Gsuite(GsuiteCommand),
+
+    #[structopt(name = "internal")]
+    /// Internal commands for debugging
+    Internal(InternalCommand),
 }
 
 #[derive(StructOpt, Debug)]
@@ -207,6 +212,33 @@ enum GsuiteCommand {
     #[structopt(name = "token-service")]
     /// Run a loop that refreshes OAuth 2.0 access tokens every ~5 minutes
     TokenService,
+}
+
+#[derive(StructOpt, Debug)]
+enum InternalCommand {
+    #[structopt(name = "create-gdrive-file")]
+    /// Manage Google service accounts
+    CreateGdriveFile {
+        /// Path to the local file to upload
+        #[structopt(name = "PATH")]
+        path: PathBuf,
+
+        /// gsuite_domain to upload to
+        #[structopt(name = "DOMAIN_ID")]
+        domain_id: i16,
+
+        /// gdrive_owner to upload as
+        #[structopt(name = "OWNER_ID")]
+        owner_id: i32,
+
+        /// Google Drive folder ID to create the file in
+        #[structopt(name = "PARENT")]
+        parent: String,
+
+        /// Google Drive filename for the new file
+        #[structopt(name = "FILENAME")]
+        filename: String,
+    },
 }
 
 #[async_recursion]
@@ -398,7 +430,15 @@ async fn main() -> Result<()> {
                     }
                 }
             }
-
+        }
+        ExastashCommand::Internal(command) => {
+            match &command {
+                InternalCommand::CreateGdriveFile { path, domain_id, owner_id, parent, filename } => {
+                    let gdrive_file = storage_write::create_gdrive_file(path, *domain_id, *owner_id, parent, filename).await?;
+                    let j = serde_json::to_string_pretty(&gdrive_file)?;
+                    println!("{}", j);
+                }
+            }
         }
     };
 
