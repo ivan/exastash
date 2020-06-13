@@ -142,11 +142,11 @@ dependencies = [
 
 [[package]]
 name = "block-cipher"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f837aab23b44bf3be7e24411b599fda76b1788792e765fa077af268292e156d1"
+checksum = "fa136449e765dc7faa244561ccae839c394048667929af599b5d931ebe7b7f10"
 dependencies = [
- "generic-array 0.14.1",
+ "generic-array 0.14.2",
 ]
 
 [[package]]
@@ -412,9 +412,9 @@ dependencies = [
 
 [[package]]
 name = "futures-async-stream"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f25afd72cd8b528aec49503f1a0a4736d94d99d5810ec2887cc0fd5c3ff4c8ac"
+checksum = "5000008eed6f9c83b0c7d512cd3061175b438d927977642488aa4c52a0204be9"
 dependencies = [
  "futures-async-stream-macro",
  "futures-core",
@@ -423,9 +423,9 @@ dependencies = [
 
 [[package]]
 name = "futures-async-stream-macro"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "572d45a5cb5ed0f397d6e6a6c6a29829c0b5ab5d81c3437bcc21073f63dd328c"
+checksum = "9b25dc863339037ae268f1b44f556c8afe49c4ee9ef5abc9140817224539fb2b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -523,11 +523,12 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "0.14.1"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d2664c2cf08049036f31015b04c6ac3671379a1d86f52ed2416893f16022deb"
+checksum = "ac746a5f3bbfdadd6106868134545e684693d54d9d44f6e9588a7d54af0bf980"
 dependencies = [
  "typenum",
+ "version_check",
 ]
 
 [[package]]
@@ -896,9 +897,9 @@ dependencies = [
 
 [[package]]
 name = "num-integer"
-version = "0.1.42"
+version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6ea62e9d81a77cd3ee9a2a5b9b609447857f3d358704331e4ef39eb247fcba"
+checksum = "8d59457e662d541ba17869cf51cf177c0b5f0cbf476c66bdc90bf1edac4f875b"
 dependencies = [
  "autocfg",
  "num-traits",
@@ -906,9 +907,9 @@ dependencies = [
 
 [[package]]
 name = "num-iter"
-version = "0.1.40"
+version = "0.1.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfb0800a0291891dd9f4fe7bd9c19384f98f7fbe0cd0f39a2c6b88b9868bbc00"
+checksum = "7a6e6b7c748f995c4c29c5f5ae0248536e04a5739927c74ec0fa564805094b9f"
 dependencies = [
  "autocfg",
  "num-integer",
@@ -929,9 +930,9 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c62be47e61d1842b9170f0fdeec8eba98e60e90e5446449a0545e5152acd7096"
+checksum = "ac267bcc07f48ee5f8935ab0d24f316fb722d7a1292e2913f0cc196b29ffd611"
 dependencies = [
  "autocfg",
 ]
@@ -1004,18 +1005,18 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "0.4.20"
+version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e75373ff9037d112bb19bc61333a06a159eaeb217660dcfbea7d88e1db823919"
+checksum = "b044170ce52ac41b78bdf855a045f6fe6ba72c293a33a2e3f654642127680563"
 dependencies = [
  "pin-project-internal",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "0.4.20"
+version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10b4b44893d3c370407a1d6a5cfde7c41ae0478e31c516c85f67eb3adc51be6d"
+checksum = "babd76ce3c0d7c677fd01a3c3f9be24fa760adb73fd6db48f151662c1ec7eaba"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1486,12 +1487,12 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "stream-cipher"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97961116ec5528e0df39aa6e514377cd1572b8b4623576b371da425a87328d16"
+checksum = "09f8ed9974042b8c3672ff3030a69fcc03b74c47c3d1ecb7755e8a3626011e88"
 dependencies = [
  "block-cipher",
- "generic-array 0.14.1",
+ "generic-array 0.14.2",
 ]
 
 [[package]]
