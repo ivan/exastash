@@ -299,7 +299,7 @@ async fn main() -> Result<()> {
                 if just_names {
                     println!("{}", dirent.basename);
                 } else {
-                    // TODO: print: size, mtime, filename[decoration]
+                    // TODO: print: inode, size, mtime, filename[decoration]
                     println!("{}", dirent.basename);
                 }
             }
