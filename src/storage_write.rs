@@ -37,12 +37,12 @@ impl<S> StreamWithHashing<S> {
         }
     }
 
-    /// Get an `Arc` which can be derefenced to get the crc32c of the data streamed so far
+    /// Returns an `Arc` which can be derefenced to get the crc32c of the data streamed so far
     fn crc32c(&self) -> Arc<Mutex<u32>> {
         self.crc32c.clone()
     }
 
-    /// Get an `Arc` which can be derefenced to get the `Md5` of the data streamed so far
+    /// Returns an `Arc` which can be derefenced to get the md5 checksum of the data streamed so far
     fn md5(&self) -> Arc<Mutex<Md5>> {
         self.md5.clone()
     }
