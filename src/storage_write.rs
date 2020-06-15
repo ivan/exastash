@@ -154,11 +154,10 @@ where
     if response.md5 != md5.as_slice() {
         bail!("expected Google to create file with md5={:?}, got {:?}", md5, response.md5);
     }
-    let id = response.id;
 
     let crc32c_m = crc32c.lock();
     Ok(GdriveFile {
-        id: id.to_string(),
+        id: response.id,
         owner_id: Some(owner_id),
         md5: response.md5,
         crc32c: *crc32c_m,
