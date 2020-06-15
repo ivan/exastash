@@ -18,7 +18,7 @@ use md5::{Md5, Digest};
 struct StreamWithHashing<S> {
     #[pin]
     stream: S,
-    // We use Arc<Mutex<...> here because reqwest::Body::wrap_stream wants to take
+    // We use Arc<Mutex<...>> here because reqwest::Body::wrap_stream wants to take
     // ownership of a Stream, but we still need to read out the crc32c and md5
     // after reqwest is done with the stream.
     crc32c: Arc<Mutex<u32>>,
