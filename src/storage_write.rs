@@ -54,8 +54,8 @@ where
     type Item = Result<O, E>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let crc32c = self.crc32c.clone();
-        let md5 = self.md5.clone();
+        let crc32c = self.crc32c();
+        let md5 = self.md5();
         if let Some(res) = ready!(self.project().stream.poll_next(cx)) {
             if let Ok(bytes) = &res {
                 let mut crc32c_m = crc32c.lock();
