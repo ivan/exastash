@@ -14,6 +14,8 @@ use crate::storage_read::get_access_tokens;
 use futures::future::FutureExt;
 use pin_project::pin_project;
 use parking_lot::Mutex;
+use serde_hex::{SerHex, Strict};
+use md5::{Md5, Digest};
 
 #[pin_project]
 struct StreamWithHashing<T: Stream<Item = Result<Vec<u8>, std::io::Error>>> {
@@ -21,18 +23,28 @@ struct StreamWithHashing<T: Stream<Item = Result<Vec<u8>, std::io::Error>>> {
     stream: T,
     // We use Arc<Mutex<...> here because reqwest::Body::wrap_stream wants to take
     // ownership of a Stream, but we still need to read out the crc32c and md5
-    // after reqwest is done with them.
+    // after reqwest is done with the stream.
     crc32c: Arc<Mutex<u32>>,
+    md5: Arc<Mutex<Md5>>,
 }
 
 impl<T: Stream<Item = Result<Vec<u8>, std::io::Error>>> StreamWithHashing<T> {
     fn new(stream: T) -> StreamWithHashing<T> {
-        StreamWithHashing { stream, crc32c: Arc::new(Mutex::new(0)) }
+        StreamWithHashing {
+            stream,
+            crc32c: Arc::new(Mutex::new(0)),
+            md5: Arc::new(Mutex::new(Md5::new())),
+        }
     }
 
     /// Get an `Arc` which can be derefenced to get the crc32c of the data streamed so far
     fn crc32c(&self) -> Arc<Mutex<u32>> {
         self.crc32c.clone()
+    }
+
+    /// Get an `Arc` which can be derefenced to get the `Md5` of the data streamed so far
+    fn md5(&self) -> Arc<Mutex<Md5>> {
+        self.md5.clone()
     }
 }
 
@@ -44,10 +56,12 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let crc32c = self.crc32c.clone();
+        let md5 = self.md5.clone();
         if let Some(res) = ready!(self.project().stream.poll_next(cx)) {
             if let Ok(bytes) = &res {
                 let mut crc32c_m = crc32c.lock();
                 *crc32c_m = crc32c::crc32c_append(*crc32c_m, bytes);
+                md5.lock().update(bytes);
             }
             Poll::Ready(Some(res))
         } else {
@@ -64,7 +78,8 @@ struct GoogleCreateResponse {
     parents: Vec<String>,
     size: String,
     #[serde(rename = "md5Checksum")]
-    md5_checksum: String,
+    #[serde(with = "SerHex::<Strict>")]
+    md5: [u8; 16],
 }
 
 /// Uploads a file to Google Drive and returns a `GdriveFile`.  You must commit
@@ -112,6 +127,7 @@ pub async fn create_gdrive_file(path: PathBuf, domain_id: i16, owner_id: i32, pa
     let file_stream = fs::read(path).into_stream();
     let hashing_stream = StreamWithHashing::new(file_stream);
     let crc32c = hashing_stream.crc32c();
+    let md5 = hashing_stream.md5();
     let body = reqwest::Body::wrap_stream(hashing_stream);
     let upload_response = client
         .put(upload_url)
@@ -121,7 +137,6 @@ pub async fn create_gdrive_file(path: PathBuf, domain_id: i16, owner_id: i32, pa
     // TODO: retry/resume partial uploads
 
     let response: GoogleCreateResponse = upload_response.json().await?;
-    dbg!(&response);
     if response.kind != "drive#file" {
         bail!("expected Google to create object with kind=drive#file, got {:?}", response.kind);
     }
@@ -134,17 +149,18 @@ pub async fn create_gdrive_file(path: PathBuf, domain_id: i16, owner_id: i32, pa
     if response.name != filename {
         bail!("expected Google to create file with name={:?}, got {:?}", filename, response.name);
     }
-    // TODO check md5
+    let md5 = md5.lock().clone().finalize();
+    if response.md5 != md5.as_slice() {
+        bail!("expected Google to create file with md5={:?}, got {:?}", md5, response.md5);
+    }
     let id = response.id;
-    // TODO
-    let md5 = [0; 16];
 
-    let crc32c = crc32c.lock();
+    let crc32c_m = crc32c.lock();
     Ok(GdriveFile {
         id: id.to_string(),
         owner_id: Some(owner_id),
-        md5,
-        crc32c: *crc32c,
+        md5: response.md5,
+        crc32c: *crc32c_m,
         size: size as i64,
         last_probed: None,
     })
