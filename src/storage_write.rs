@@ -18,9 +18,9 @@ use serde_hex::{SerHex, Strict};
 use md5::{Md5, Digest};
 
 #[pin_project]
-struct StreamWithHashing<T: Stream<Item = Result<Vec<u8>, std::io::Error>>> {
+struct StreamWithHashing<S> {
     #[pin]
-    stream: T,
+    stream: S,
     // We use Arc<Mutex<...> here because reqwest::Body::wrap_stream wants to take
     // ownership of a Stream, but we still need to read out the crc32c and md5
     // after reqwest is done with the stream.
@@ -28,8 +28,8 @@ struct StreamWithHashing<T: Stream<Item = Result<Vec<u8>, std::io::Error>>> {
     md5: Arc<Mutex<Md5>>,
 }
 
-impl<T: Stream<Item = Result<Vec<u8>, std::io::Error>>> StreamWithHashing<T> {
-    fn new(stream: T) -> StreamWithHashing<T> {
+impl<S> StreamWithHashing<S> {
+    fn new(stream: S) -> StreamWithHashing<S> {
         StreamWithHashing {
             stream,
             crc32c: Arc::new(Mutex::new(0)),
@@ -48,11 +48,13 @@ impl<T: Stream<Item = Result<Vec<u8>, std::io::Error>>> StreamWithHashing<T> {
     }
 }
 
-impl<S> Stream for StreamWithHashing<S>
+impl<S, O, E> Stream for StreamWithHashing<S>
 where
-    S: Stream<Item = Result<Vec<u8>, std::io::Error>>,
+    O: AsRef<[u8]>,
+    E: std::error::Error,
+    S: Stream<Item = Result<O, E>>,
 {
-    type Item = Result<Vec<u8>, std::io::Error>;
+    type Item = Result<O, E>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let crc32c = self.crc32c.clone();
@@ -60,7 +62,7 @@ where
         if let Some(res) = ready!(self.project().stream.poll_next(cx)) {
             if let Ok(bytes) = &res {
                 let mut crc32c_m = crc32c.lock();
-                *crc32c_m = crc32c::crc32c_append(*crc32c_m, bytes);
+                *crc32c_m = crc32c::crc32c_append(*crc32c_m, bytes.as_ref());
                 md5.lock().update(bytes);
             }
             Poll::Ready(Some(res))
