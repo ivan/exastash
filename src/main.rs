@@ -434,7 +434,7 @@ async fn main() -> Result<()> {
         ExastashCommand::Internal(command) => {
             match &command {
                 InternalCommand::CreateGdriveFile { path, domain_id, owner_id, parent, filename } => {
-                    let gdrive_file = storage_write::create_gdrive_file(path, *domain_id, *owner_id, parent, filename).await?;
+                    let gdrive_file = storage_write::create_gdrive_file(path.clone(), *domain_id, *owner_id, parent, filename).await?;
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                     println!("{}", j);
                 }

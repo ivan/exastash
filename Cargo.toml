@@ -43,6 +43,8 @@ hyper-rustls = "0.20"
 reqwest = { version = "0.10", default-features = false, features = ["rustls-tls", "stream", "json"] }
 futures = "0.3"
 futures-async-stream = "0.2"
+pin-project = "0.4"
+parking_lot = "0.10"
 
 [dev-dependencies]
 atomic-counter = "1.0"

@@ -343,6 +343,8 @@ dependencies = [
  "hyper-rustls",
  "num",
  "once_cell",
+ "parking_lot",
+ "pin-project",
  "postgres",
  "postgres-protocol",
  "postgres-types",
