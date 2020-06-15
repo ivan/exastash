@@ -384,7 +384,8 @@ async fn main() -> Result<()> {
                     bail!("cannot cat a dir");
                 }
                 InodeId::Symlink(_) => {
-                    // TODO
+                    // Symlink may point outside the exastash filesystem, so we don't
+                    // handle any of them here.
                     bail!("cannot cat a symlink");
                 }
             }
