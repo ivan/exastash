@@ -1,4 +1,4 @@
-//! Functions to write content to from storage
+//! Functions to write content to storage
 
 use std::sync::Arc;
 use std::pin::Pin;
