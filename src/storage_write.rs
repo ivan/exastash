@@ -2,16 +2,13 @@
 
 use std::sync::Arc;
 use std::pin::Pin;
-use std::path::PathBuf;
 use anyhow::{anyhow, bail};
 use futures::{ready, stream::Stream, task::{Context, Poll}};
 use anyhow::Result;
-use tokio::fs;
 use serde::Deserialize;
 use serde_json::json;
 use crate::db::storage::gdrive::file::GdriveFile;
 use crate::storage_read::get_access_tokens;
-use futures::future::FutureExt;
 use pin_project::pin_project;
 use parking_lot::Mutex;
 use serde_hex::{SerHex, Strict};
@@ -87,14 +84,16 @@ struct GoogleCreateResponse {
 /// Uploads a file to Google Drive and returns a `GdriveFile`.  You must commit
 /// it to the database yourself.
 ///
-/// `path` is a `Path` to some local file contents to upload
+/// `file_stream` is a `Stream` containing the content to upload
+/// `size` is the length of the `Stream` and the resulting Google Drive file
 /// `owner_id` is the gdrive_owner for the file
 /// `domain_id` is the gsuite_domain for the file
 /// `parent` is the Google Drive folder in which to create a file
 /// `filename` is the name of the file to create in Google Drive
-pub async fn create_gdrive_file(path: PathBuf, domain_id: i16, owner_id: i32, parent: &str, filename: &str) -> Result<GdriveFile> {
-    let attr = fs::metadata(&path).await?;
-    let size = attr.len();
+pub async fn create_gdrive_file<S>(file_stream: S, size: u64, domain_id: i16, owner_id: i32, parent: &str, filename: &str) -> Result<GdriveFile>
+where
+    S: Stream<Item=Result<Vec<u8>, std::io::Error>> + Send + Sync + 'static
+{
     let metadata = json!({
         "name": filename,
         "parents": [parent],
@@ -125,8 +124,6 @@ pub async fn create_gdrive_file(path: PathBuf, domain_id: i16, owner_id: i32, pa
     let upload_url = initial_response.headers().get("Location")
         .ok_or_else(|| anyhow!("did not get Location header in response to initial upload request"))?
         .to_str()?;
-    // let stream = stream_calculate_crc32c(&mut crc32c, fs::File::open(path).await?);
-    let file_stream = fs::read(path).into_stream();
     let hashing_stream = StreamWithHashing::new(file_stream);
     let crc32c = hashing_stream.crc32c();
     let md5 = hashing_stream.md5();

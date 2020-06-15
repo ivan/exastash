@@ -1,10 +1,11 @@
 use tracing::info;
-use std::path::PathBuf;
 use async_recursion::async_recursion;
 use anyhow::{anyhow, bail, ensure, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
+use futures::future::FutureExt;
 use tokio::fs;
+use std::path::PathBuf;
 use tokio_postgres::Transaction;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use serde::Serialize;
@@ -434,7 +435,10 @@ async fn main() -> Result<()> {
         ExastashCommand::Internal(command) => {
             match &command {
                 InternalCommand::CreateGdriveFile { path, domain_id, owner_id, parent, filename } => {
-                    let gdrive_file = storage_write::create_gdrive_file(path.clone(), *domain_id, *owner_id, parent, filename).await?;
+                    let attr = fs::metadata(&path).await?;
+                    let size = attr.len();
+                    let file_stream = fs::read(path.clone()).into_stream();
+                    let gdrive_file = storage_write::create_gdrive_file(file_stream, size, *domain_id, *owner_id, parent, filename).await?;
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                     println!("{}", j);
                 }
