@@ -2,16 +2,14 @@
 
 use std::sync::Arc;
 use std::pin::Pin;
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use futures::{ready, stream::Stream, task::{Context, Poll}};
 use anyhow::Result;
-use serde::Deserialize;
-use serde_json::json;
 use crate::db::storage::gdrive::file::GdriveFile;
 use crate::storage_read::get_access_tokens;
+use crate::gdrive::create_gdrive_file;
 use pin_project::pin_project;
 use parking_lot::Mutex;
-use serde_hex::{SerHex, Strict};
 use md5::{Md5, Digest};
 
 #[pin_project]
@@ -71,18 +69,6 @@ where
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct GoogleCreateResponse {
-    kind: String,
-    id: String,
-    name: String,
-    parents: Vec<String>,
-    size: String,
-    #[serde(rename = "md5Checksum")]
-    #[serde(with = "SerHex::<Strict>")]
-    md5: [u8; 16],
-}
-
 /// Uploads a file to Google Drive and returns a `GdriveFile`.  You must commit
 /// it to the database yourself.
 ///
@@ -92,64 +78,37 @@ struct GoogleCreateResponse {
 /// `domain_id` is the gsuite_domain for the file
 /// `parent` is the Google Drive folder in which to create a file
 /// `filename` is the name of the file to create in Google Drive
-pub async fn create_gdrive_file<S>(file_stream: S, size: u64, domain_id: i16, owner_id: i32, parent: &str, filename: &str) -> Result<GdriveFile>
+pub async fn create_gdrive_file_on_domain<S>(file_stream_fn: impl Fn(u64) -> S, size: u64, domain_id: i16, owner_id: i32, parent: &str, filename: &str) -> Result<GdriveFile>
 where
     S: Stream<Item=Result<Vec<u8>, std::io::Error>> + Send + Sync + 'static
 {
-    let metadata = json!({
-        "name": filename,
-        "parents": [parent],
-        "mimeType": "application/octet-stream",
-    });
+    let mut crc32c = None;
+    let mut md5 = None;
 
-    let client = reqwest::Client::new();
+    let hashing_stream_fn = |offset| {
+        // TODO: support non-0 offset (rehash the part of the file already uploaded?)
+        assert_eq!(offset, 0);
+        let stream = StreamWithHashing::new(file_stream_fn(offset));
+        crc32c = Some(stream.crc32c());
+        md5 = Some(stream.md5());
+        stream
+    };
 
-    let mut access_tokens = get_access_tokens(Some(owner_id), domain_id).await?;
-    if access_tokens.is_empty() {
-        bail!("no access tokens were available for domain_id={} owner_id={}", domain_id, owner_id);
-    }
-    let access_token = access_tokens.pop().unwrap();
+    let access_token_fn = async || -> Result<String> {
+        let mut access_tokens = get_access_tokens(Some(owner_id), domain_id).await?;
+        if access_tokens.is_empty() {
+            bail!("no access tokens were available for domain_id={} owner_id={}", domain_id, owner_id);
+        }
+        let access_token = access_tokens.pop().unwrap();
+        Ok(access_token.into())
+    };
 
-    // https://developers.google.com/drive/api/v3/manage-uploads#resumable
-    // https://developers.google.com/drive/api/v3/reference/files/create
-    // Note: use fields=* to get all fields in response
-    let initial_url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=kind,id,name,parents,size,md5Checksum";
-    let initial_response = client
-        .post(initial_url)
-        .json(&metadata)
-        .header("Authorization", format!("Bearer {}", access_token))
-        .header("X-Upload-Content-Type", "application/octet-stream")
-        .header("X-Upload-Content-Length", size)
-        .send()
-        .await?;
+    let response = create_gdrive_file(hashing_stream_fn, access_token_fn, size, parent, filename).await?;
+    
+    // Assume they were set at least once by the closure
+    let md5 = md5.unwrap();
+    let crc32c = crc32c.unwrap();
 
-    let upload_url = initial_response.headers().get("Location")
-        .ok_or_else(|| anyhow!("did not get Location header in response to initial upload request"))?
-        .to_str()?;
-    let hashing_stream = StreamWithHashing::new(file_stream);
-    let crc32c = hashing_stream.crc32c();
-    let md5 = hashing_stream.md5();
-    let body = reqwest::Body::wrap_stream(hashing_stream);
-    let upload_response = client
-        .put(upload_url)
-        .body(body)
-        .send()
-        .await?;
-    // TODO: retry/resume partial uploads
-
-    let response: GoogleCreateResponse = upload_response.json().await?;
-    if response.kind != "drive#file" {
-        bail!("expected Google to create object with kind=drive#file, got {:?}", response.kind);
-    }
-    if response.size != size.to_string() {
-        bail!("expected Google to create file with size={}, got {}", size, response.size);
-    }
-    if response.parents != vec![parent] {
-        bail!("expected Google to create file with parents={:?}, got {:?}", vec![parent], response.parents);
-    }
-    if response.name != filename {
-        bail!("expected Google to create file with name={:?}, got {:?}", filename, response.name);
-    }
     let md5 = md5.lock().clone().finalize();
     if response.md5 != md5.as_slice() {
         bail!("expected Google to create file with md5={:?}, got {:?}", md5, response.md5);

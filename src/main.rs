@@ -438,8 +438,12 @@ async fn main() -> Result<()> {
                 InternalCommand::CreateGdriveFile { path, domain_id, owner_id, parent, filename } => {
                     let attr = fs::metadata(&path).await?;
                     let size = attr.len();
-                    let file_stream = fs::read(path.clone()).into_stream();
-                    let gdrive_file = storage_write::create_gdrive_file(file_stream, size, *domain_id, *owner_id, parent, filename).await?;
+                    let file_stream_fn = |offset| {
+                        // TODO: support non-0 offset if we implement upload retries
+                        assert_eq!(offset, 0);
+                        fs::read(path.clone()).into_stream()
+                    };
+                    let gdrive_file = storage_write::create_gdrive_file_on_domain(file_stream_fn, size, *domain_id, *owner_id, parent, filename).await?;
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                     println!("{}", j);
                 }

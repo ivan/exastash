@@ -1,6 +1,11 @@
 //! exastash, a filesystem for archiving petabytes
 
-#![feature(generators, proc_macro_hygiene, stmt_expr_attributes)]
+#![feature(
+    async_closure,
+    generators,
+    proc_macro_hygiene,
+    stmt_expr_attributes
+)]
 
 #![warn(
     nonstandard_style,

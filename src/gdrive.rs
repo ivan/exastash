@@ -1,11 +1,16 @@
-//! Functions to read from Google Drive, without anything exastash-specific
+//! Functions to read from and write to Google Drive, without anything exastash-specific
 
 use anyhow::{anyhow, bail, ensure, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use data_encoding::BASE64;
+use serde::Deserialize;
+use serde_hex::{SerHex, Strict};
+use serde_json::json;
 use std::io::Cursor;
+use std::future::Future;
 use byteorder::{BigEndian, ReadBytesExt};
+use futures::stream::Stream;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
@@ -52,6 +57,79 @@ pub(crate) async fn request_gdrive_file(file_id: &str, access_token: &str) -> Re
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await?;
+    Ok(response)
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct GdriveUploadResponse {
+    pub(crate) kind: String,
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) parents: Vec<String>,
+    pub(crate) size: String,
+    #[serde(rename = "md5Checksum")]
+    #[serde(with = "SerHex::<Strict>")]
+    pub(crate) md5: [u8; 16],
+}
+
+pub(crate) async fn create_gdrive_file<S, A>(
+    mut file_stream_fn: impl FnMut(u64) -> S,
+    access_token_fn: impl Fn() -> A,
+    size: u64,
+    parent: &str,
+    filename: &str
+) -> Result<GdriveUploadResponse>
+where
+    S: Stream<Item=Result<Vec<u8>, std::io::Error>> + Send + Sync + 'static,
+    A: Future<Output=Result<String>>
+{
+    let client = reqwest::Client::new();
+
+    // https://developers.google.com/drive/api/v3/reference/files/create
+    let metadata = json!({
+        "name": filename,
+        "parents": [parent],
+        "mimeType": "application/octet-stream",
+    });
+    // https://developers.google.com/drive/api/v3/manage-uploads#resumable
+    // Note: use fields=* to get all fields in response
+    let initial_url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=kind,id,name,parents,size,md5Checksum";
+    let initial_response = client
+        .post(initial_url)
+        .json(&metadata)
+        .header("Authorization", format!("Bearer {}", access_token_fn().await?))
+        .header("X-Upload-Content-Type", "application/octet-stream")
+        .header("X-Upload-Content-Length", size)
+        .send()
+        .await?;
+
+    let upload_url = initial_response.headers().get("Location")
+        .ok_or_else(|| anyhow!("did not get Location header in response to initial upload request"))?
+        .to_str()?;
+    let stream = file_stream_fn(0);
+    let body = reqwest::Body::wrap_stream(stream);
+    let upload_response = client
+        .put(upload_url)
+        .body(body)
+        .send()
+        .await?;
+    // TODO: retry/resume partial uploads
+
+    let response: GdriveUploadResponse = upload_response.json().await?;
+
+    if response.kind != "drive#file" {
+        bail!("expected Google to create object with kind=drive#file, got {:?}", response.kind);
+    }
+    if response.size != size.to_string() {
+        bail!("expected Google to create file with size={}, got {}", size, response.size);
+    }
+    if response.parents != vec![parent] {
+        bail!("expected Google to create file with parents={:?}, got {:?}", vec![parent], response.parents);
+    }
+    if response.name != filename {
+        bail!("expected Google to create file with name={:?}, got {:?}", filename, response.name);
+    }
+
     Ok(response)
 }
 
