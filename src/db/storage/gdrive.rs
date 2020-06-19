@@ -23,6 +23,48 @@ pub enum Cipher {
     Aes128Gcm,
 }
 
+/// A Google Drive folder into which files are uploaded
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GdriveParent {
+    /// Arbitrary name for the folder
+    pub name: String,
+    /// The Google Drive id for the folder
+    pub parent: String,
+    /// Whether the folder is full
+    pub full: bool,
+}
+
+impl GdriveParent {
+    /// Create an gdrive_folder entity in the database.
+    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+        transaction.execute(
+            "INSERT INTO gdrive_parents (name, parent, \"full\")
+             VALUES ($1::text, $2::text, $3::boolean)",
+            &[&self.name, &self.parent, &self.full]
+        ).await?;
+        Ok(())
+    }
+
+    /// Find a gdrive_parent entity by name.
+    pub async fn find_by_name(transaction: &mut Transaction<'_>, name: &str) -> Result<Option<GdriveParent>> {
+        let mut rows = transaction.query(
+            "SELECT name, parent, \"full\"
+             FROM gdrive_parents
+             WHERE name = $1::text", &[&name]
+        ).await?;
+        if rows.is_empty() {
+            return Ok(None);
+        }
+        let row = rows.pop().unwrap();
+
+        Ok(Some(GdriveParent {
+            name: row.get(0),
+            parent: row.get(1),
+            full: row.get(2),
+        }))
+    }
+}
+
 /// A domain where Google Drive files are stored
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GsuiteDomain {
@@ -30,6 +72,8 @@ pub struct GsuiteDomain {
     pub id: i16,
     /// The domain name
     pub domain: String,
+    /// Name of the folder to upload files into (not the Google Drive id)
+    pub active_parent: Option<String>,
 }
 
 /// A new domain name
@@ -37,6 +81,8 @@ pub struct GsuiteDomain {
 pub struct NewGsuiteDomain {
     /// The domain name
     pub domain: String,
+    /// Name of the folder to upload files into (not the Google Drive id)
+    pub active_parent: Option<String>,
 }
 
 impl NewGsuiteDomain {
@@ -45,7 +91,11 @@ impl NewGsuiteDomain {
     pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
         let rows = transaction.query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id", &[&self.domain]).await?;
         let id = rows.get(0).unwrap().get(0);
-        Ok(GsuiteDomain { id, domain: self.domain.clone() })
+        Ok(GsuiteDomain {
+            id,
+            domain: self.domain.clone(),
+            active_parent: self.active_parent.clone()
+        })
     }
 }
 
@@ -68,7 +118,7 @@ pub struct Storage {
 impl Storage {
     /// Create an gdrive storage entity in the database.
     /// Note that the gsuite domain must already exist.
-    /// Note that you must call file::create_gdrive_file for each gdrive file beforehan.awaitd.
+    /// Note that you must call file::create_gdrive_file for each gdrive file beforehand.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
         let gdrive_ids = self.gdrive_files.iter().map(|f| f.id.clone()).collect::<Vec<_>>();
@@ -123,9 +173,18 @@ pub(crate) mod tests {
         RelaxedCounter::new(1)
     });
 
+    static PARENT_COUNTER: Lazy<RelaxedCounter> = Lazy::new(|| {
+        RelaxedCounter::new(1)
+    });
+
     pub(crate) async fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
+        let counter = PARENT_COUNTER.inc();
+        let name = format!("fake_parent_{}", counter);
+        let parent = format!("fakefakefakefakefakefakefakefake_{}", counter);
+        GdriveParent { name: name.clone(), parent, full: false }.create(&mut transaction).await?;
+
         let domain = format!("{}.example.com", DOMAIN_COUNTER.inc());
-        Ok(NewGsuiteDomain { domain }.create(&mut transaction).await?)
+        Ok(NewGsuiteDomain { domain, active_parent: Some(name) }.create(&mut transaction).await?)
     }
 
     mod api {
