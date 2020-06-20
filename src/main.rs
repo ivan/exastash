@@ -5,6 +5,7 @@ use structopt::StructOpt;
 use chrono::Utc;
 use futures::future::FutureExt;
 use tokio::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use tokio_postgres::Transaction;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
@@ -31,6 +32,10 @@ enum ExastashCommand {
     /// Subcommands to work with dirs
     #[structopt(name = "dir")]
     Dir(DirCommand),
+
+    /// Subcommands to work with files
+    #[structopt(name = "file")]
+    File(FileCommand),
 
     /// Subcommands to work with dirents
     #[structopt(name = "dirent")]
@@ -137,6 +142,17 @@ enum DirCommand {
 }
 
 #[derive(StructOpt, Debug)]
+enum FileCommand {
+    /// Create an unparented file, based on a local file, and print its id to stdout
+    #[structopt(name = "create")]
+    Create {
+        /// Local file from which content, mtime, and executable flag will be read
+        #[structopt(name = "PATH")]
+        path: String,
+    }
+}
+
+#[derive(StructOpt, Debug)]
 enum DirentCommand {
     /// Create a dirent
     #[structopt(name = "create")]
@@ -198,20 +214,20 @@ enum ServiceAccountCommand {
 
 #[derive(StructOpt, Debug)]
 enum GsuiteCommand {
-    #[structopt(name = "app-secret")]
     /// Manage OAuth 2.0 application secrets (used with the "installed" application flow)
+    #[structopt(name = "app-secret")]
     ApplicationSecret(ApplicationSecretCommand),
 
-    #[structopt(name = "access-token")]
     /// Manage OAuth 2.0 access tokens
+    #[structopt(name = "access-token")]
     AccessToken(AccessTokenCommand),
 
-    #[structopt(name = "service-account")]
     /// Manage Google service accounts
+    #[structopt(name = "service-account")]
     ServiceAccount(ServiceAccountCommand),
 
-    #[structopt(name = "token-service")]
     /// Run a loop that refreshes OAuth 2.0 access tokens every ~5 minutes
+    #[structopt(name = "token-service")]
     TokenService,
 }
 
@@ -277,6 +293,21 @@ async fn main() -> Result<()> {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
                     let dir_id = db::inode::NewDir { mtime, birth }.create(&mut transaction).await?;
+                    transaction.commit().await?;
+                    println!("{}", dir_id);
+                }
+            }
+        }
+        ExastashCommand::File(file) => {
+            match file {
+                FileCommand::Create { path } => {
+                    let attr = fs::metadata(&path).await?;
+                    let mtime = attr.modified()?.into();
+                    let birth = db::inode::Birth::here_and_now();
+                    let size = attr.len();
+                    let permissions = attr.permissions();
+                    let executable = permissions.mode() & 0o111 != 0;
+                    let dir_id = db::inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
                     transaction.commit().await?;
                     println!("{}", dir_id);
                 }
