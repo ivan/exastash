@@ -300,9 +300,9 @@ async fn main() -> Result<()> {
                 DirCommand::Create => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
-                    let dir_id = db::inode::NewDir { mtime, birth }.create(&mut transaction).await?;
+                    let dir = db::inode::NewDir { mtime, birth }.create(&mut transaction).await?;
                     transaction.commit().await?;
-                    println!("{}", dir_id);
+                    println!("{}", dir.id);
                 }
             }
         }
@@ -315,19 +315,19 @@ async fn main() -> Result<()> {
                     let size = attr.len();
                     let permissions = attr.permissions();
                     let executable = permissions.mode() & 0o111 != 0;
-                    let file_id = db::inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
+                    let file = db::inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
                     if size > 0 && !store_inline && store_gsuite.is_empty() {
                         bail!("a file with size > 0 needs storage, please specify a --store- option");
                     }
                     if store_inline {
                         let content = fs::read(path).await?;
-                        db::storage::inline::Storage { file_id, content }.create(&mut transaction).await?;
+                        db::storage::inline::Storage { file_id: file.id, content }.create(&mut transaction).await?;
                     }
                     if !store_gsuite.is_empty() {
                         dbg!(store_gsuite);
                     }
                     transaction.commit().await?;
-                    println!("{}", file_id);
+                    println!("{}", file.id);
                 }
             }
         }

@@ -100,17 +100,17 @@ mod tests {
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(parent, "child_dir", InodeId::Dir(child_dir)).create(&mut transaction).await?;
-            Dirent::new(parent, "child_file", InodeId::File(child_file)).create(&mut transaction).await?;
-            Dirent::new(parent, "child_symlink", InodeId::Symlink(child_symlink)).create(&mut transaction).await?;
+            Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
+            Dirent::new(parent.id, "child_file", InodeId::File(child_file.id)).create(&mut transaction).await?;
+            Dirent::new(parent.id, "child_symlink", InodeId::Symlink(child_symlink.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            assert_eq!(list_dir(&mut transaction, child_dir).await?, vec![]);
-            assert_eq!(list_dir(&mut transaction, parent).await?, vec![
-                Dirent::new(parent, "child_dir", InodeId::Dir(child_dir)),
-                Dirent::new(parent, "child_file", InodeId::File(child_file)),
-                Dirent::new(parent, "child_symlink", InodeId::Symlink(child_symlink)),
+            assert_eq!(list_dir(&mut transaction, child_dir.id).await?, vec![]);
+            assert_eq!(list_dir(&mut transaction, parent.id).await?, vec![
+                Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)),
+                Dirent::new(parent.id, "child_file", InodeId::File(child_file.id)),
+                Dirent::new(parent.id, "child_symlink", InodeId::Symlink(child_symlink.id)),
             ]);
 
             Ok(())
@@ -132,7 +132,7 @@ mod tests {
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let result = Dirent::new(parent, "self", InodeId::Dir(parent)).create(&mut transaction).await;
+            let result = Dirent::new(parent.id, "self", InodeId::Dir(parent.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: new row for relation \"dirents\" violates check constraint \"dirents_check\""
@@ -150,13 +150,13 @@ mod tests {
             let birth = inode::Birth::here_and_now();
             let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(parent, "child_dir", InodeId::Dir(child_dir)).create(&mut transaction).await?;
+            Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
             for (column, value) in &[("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirents SET {} = {} WHERE parent = $1::bigint AND child_dir = $2::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&parent, &child_dir]).await;
+                let result = transaction.execute(query.as_str(), &[&parent.id, &child_dir.id]).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
                     "db error: ERROR: cannot change parent, basename, or child_*"
@@ -175,7 +175,7 @@ mod tests {
             let birth = inode::Birth::here_and_now();
             let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(parent, "child_dir", InodeId::Dir(child_dir)).create(&mut transaction).await?;
+            Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
@@ -193,11 +193,11 @@ mod tests {
             let birth = inode::Birth::here_and_now();
             let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(parent, "child_dir", InodeId::Dir(child_dir)).create(&mut transaction).await?;
+            Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let result = Dirent::new(parent, "child_dir_again", InodeId::Dir(child_dir)).create(&mut transaction).await;
+            let result = Dirent::new(parent.id, "child_dir_again", InodeId::Dir(child_dir.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
@@ -216,12 +216,12 @@ mod tests {
             let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let middle = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(parent, "middle", InodeId::Dir(middle)).create(&mut transaction).await?;
-            Dirent::new(middle, "child", InodeId::Dir(child)).create(&mut transaction).await?;
+            Dirent::new(parent.id, "middle", InodeId::Dir(middle.id)).create(&mut transaction).await?;
+            Dirent::new(middle.id, "child", InodeId::Dir(child.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let result = Dirent::new(parent, "child", InodeId::Dir(child)).create(&mut transaction).await;
+            let result = Dirent::new(parent.id, "child", InodeId::Dir(child.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
@@ -244,7 +244,7 @@ mod tests {
 
             for basename in &["", "/", ".", "..", &"x".repeat(256)] {
                 let mut transaction = start_transaction(&mut client).await?;
-                let result = Dirent::new(parent, basename.to_string(), InodeId::Dir(child)).create(&mut transaction).await;
+                let result = Dirent::new(parent.id, basename.to_string(), InodeId::Dir(child.id)).create(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
                     "db error: ERROR: value for domain linux_basename violates check constraint \"linux_basename_check\""

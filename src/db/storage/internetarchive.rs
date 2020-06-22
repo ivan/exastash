@@ -74,11 +74,11 @@ mod tests {
             let mut client = get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let file_id = create_dummy_file(&mut transaction).await?;
+            let dummy = create_dummy_file(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[file_id]).await?, vec![]);
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![]);
 
             Ok(())
         }
@@ -89,13 +89,13 @@ mod tests {
             let mut client = get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let file_id = create_dummy_file(&mut transaction).await?;
-            let storage = Storage { file_id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
+            let dummy = create_dummy_file(&mut transaction).await?;
+            let storage = Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[file_id]).await?, vec![storage]);
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage]);
 
             Ok(())
         }
@@ -106,15 +106,15 @@ mod tests {
             let mut client = get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let file_id = create_dummy_file(&mut transaction).await?;
-            let storage1 = Storage { file_id, ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None };
-            let storage2 = Storage { file_id, ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) };
+            let dummy = create_dummy_file(&mut transaction).await?;
+            let storage1 = Storage { file_id: dummy.id, ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None };
+            let storage2 = Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) };
             storage1.create(&mut transaction).await?;
             storage2.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[file_id]).await?, vec![storage1, storage2]);
+            assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage1, storage2]);
 
             Ok(())
         }
@@ -131,15 +131,15 @@ mod tests {
             let mut client = get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let file_id = create_dummy_file(&mut transaction).await?;
-            let storage = Storage { file_id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
+            let dummy = create_dummy_file(&mut transaction).await?;
+            let storage = Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
             for (column, value) in &[("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_internetarchive SET {} = {} WHERE file_id = $1::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&file_id]).await;
+                let result = transaction.execute(query.as_str(), &[&dummy.id]).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id, ia_item, or pathname");
             }
 

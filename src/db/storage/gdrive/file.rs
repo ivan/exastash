@@ -218,7 +218,7 @@ pub(crate) mod tests {
             let mut client = get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let file_id = create_dummy_file(&mut transaction).await?;
+            let dummy = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
@@ -227,7 +227,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let storage = Storage { file_id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
+            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
@@ -235,7 +235,7 @@ pub(crate) mod tests {
             let result = remove_gdrive_files(&mut transaction, &[&file.id]).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                format!("db error: ERROR: gdrive_files={} is still referenced by storage_gdrive={}", file.id, file_id)
+                format!("db error: ERROR: gdrive_files={} is still referenced by storage_gdrive={}", file.id, dummy.id)
             );
 
             Ok(())
