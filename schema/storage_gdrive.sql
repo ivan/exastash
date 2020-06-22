@@ -3,7 +3,7 @@
 CREATE TABLE gdrive_parents (
     -- This is recommended to be set to the name of the Google Drive folder
     name    text     PRIMARY KEY,
-    parent  text     NOT NULL CHECK (parent ~ '\A[-_0-9A-Za-z]{28,160}\Z') UNIQUE,
+    parent  text     NOT NULL CHECK (parent ~ '\A[-_0-9A-Za-z]{19,160}\Z') UNIQUE,
     "full"  boolean  NOT NULL DEFAULT false
 );
 
