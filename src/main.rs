@@ -149,6 +149,14 @@ enum FileCommand {
         /// Local file from which content, mtime, and executable flag will be read
         #[structopt(name = "PATH")]
         path: String,
+
+        /// Store the file data in the database itself. Can be specified with other --store-* options.
+        #[structopt(long)]
+        store_inline: bool,
+
+        /// Store the file data in some gsuite domain. Can be specified multiple times or with other --store-* options.
+        #[structopt(long)]
+        store_gsuite: Vec<i16>,
     }
 }
 
@@ -300,16 +308,26 @@ async fn main() -> Result<()> {
         }
         ExastashCommand::File(file) => {
             match file {
-                FileCommand::Create { path } => {
+                FileCommand::Create { path, store_inline, store_gsuite } => {
                     let attr = fs::metadata(&path).await?;
                     let mtime = attr.modified()?.into();
                     let birth = db::inode::Birth::here_and_now();
                     let size = attr.len();
                     let permissions = attr.permissions();
                     let executable = permissions.mode() & 0o111 != 0;
-                    let dir_id = db::inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
+                    let file_id = db::inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
+                    if size > 0 && !store_inline && store_gsuite.is_empty() {
+                        bail!("a file with size > 0 needs storage, please specify a --store- option");
+                    }
+                    if store_inline {
+                        let content = fs::read(path).await?;
+                        db::storage::inline::Storage { file_id, content }.create(&mut transaction).await?;
+                    }
+                    if !store_gsuite.is_empty() {
+                        dbg!(store_gsuite);
+                    }
                     transaction.commit().await?;
-                    println!("{}", dir_id);
+                    println!("{}", file_id);
                 }
             }
         }
