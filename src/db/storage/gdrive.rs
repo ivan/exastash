@@ -72,6 +72,8 @@ pub struct GsuiteDomain {
     pub id: i16,
     /// The domain name
     pub domain: String,
+    /// id of the owner to upload files as
+    pub active_owner: i32,
     /// Name of the folder to upload files into (not the Google Drive id)
     pub active_parent: Option<String>,
 }
@@ -81,6 +83,8 @@ pub struct GsuiteDomain {
 pub struct NewGsuiteDomain {
     /// The domain name
     pub domain: String,
+    /// id of the owner to upload files as
+    pub active_owner: i32,
     /// Name of the folder to upload files into (not the Google Drive id)
     pub active_parent: Option<String>,
 }
@@ -89,12 +93,16 @@ impl NewGsuiteDomain {
     /// Create a gsuite_domain in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
-        let rows = transaction.query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id", &[&self.domain]).await?;
+        let rows = transaction.query(
+            "INSERT INTO gsuite_domains (domain, active_owner, active_parent)
+             VALUES ($1::text, $2::int, $3::text) RETURNING id",
+            &[&self.domain, &self.active_owner, &self.active_parent]).await?;
         let id = rows.get(0).unwrap().get(0);
         Ok(GsuiteDomain {
             id,
             domain: self.domain.clone(),
-            active_parent: self.active_parent.clone()
+            active_owner: self.active_owner,
+            active_parent: self.active_parent.clone(),
         })
     }
 }
