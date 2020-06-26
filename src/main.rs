@@ -242,7 +242,7 @@ enum GsuiteCommand {
 #[derive(StructOpt, Debug)]
 enum InternalCommand {
     #[structopt(name = "create-gdrive-file")]
-    /// Manage Google service accounts
+    /// Create a Google Drive file based on some local file
     CreateGdriveFile {
         /// Path to the local file to upload
         #[structopt(name = "PATH")]
