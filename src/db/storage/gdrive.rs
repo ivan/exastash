@@ -36,13 +36,13 @@ pub struct GdriveParent {
 
 impl GdriveParent {
     /// Create an gdrive_folder entity in the database.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
         transaction.execute(
             "INSERT INTO gdrive_parents (name, parent, \"full\")
              VALUES ($1::text, $2::text, $3::boolean)",
             &[&self.name, &self.parent, &self.full]
         ).await?;
-        Ok(())
+        Ok(self)
     }
 
     /// Find a gdrive_parent entity by name.
@@ -84,12 +84,12 @@ pub struct NewGsuiteDomain {
 impl NewGsuiteDomain {
     /// Create a gsuite_domain in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
         let rows = transaction.query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id", &[&self.domain]).await?;
         let id = rows.get(0).unwrap().get(0);
         Ok(GsuiteDomain {
             id,
-            domain: self.domain.clone(),
+            domain: self.domain,
         })
     }
 }
@@ -109,12 +109,12 @@ pub struct GdriveFilePlacement {
 impl GdriveFilePlacement {
     /// Create a gdrive_file_placement in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<GdriveFilePlacement> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<GdriveFilePlacement> {
         transaction.execute(
             "INSERT INTO gdrive_file_placement (domain, owner, parent)
              VALUES ($1::smallint, $2::int, $3::text)",
             &[&self.domain, &self.owner, &self.parent]).await?;
-        Ok(self.clone())
+        Ok(self)
     }
 
     /// Return a `Vec<GdriveFilePlacement>` for domain `domain`.
@@ -161,14 +161,14 @@ impl Storage {
     /// Note that the gsuite domain must already exist.
     /// Note that you must call file::create_gdrive_file for each gdrive file beforehand.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
         let gdrive_ids = self.gdrive_files.iter().map(|f| f.id.clone()).collect::<Vec<_>>();
         transaction.execute(
             "INSERT INTO storage_gdrive (file_id, gsuite_domain, cipher, cipher_key, gdrive_ids)
              VALUES ($1::bigint, $2::smallint, $3::cipher, $4::uuid, $5::text[])",
             &[&self.file_id, &self.gsuite_domain, &self.cipher, &SixteenBytes { bytes: self.cipher_key }, &gdrive_ids]
         ).await?;
-        Ok(())
+        Ok(self)
     }
 
     /// Return a list of gdrive storage entities where the data for a file can be retrieved.
@@ -234,8 +234,7 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1).await?;
             create_gdrive_file(&mut transaction, &file2).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
-            storage.create(&mut transaction).await?;
+            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
@@ -322,8 +321,7 @@ pub(crate) mod tests {
             create_gdrive_file(&mut transaction, &file1).await?;
             create_gdrive_file(&mut transaction, &file2).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] };
-            storage.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let pairs = [
@@ -357,8 +355,7 @@ pub(crate) mod tests {
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             create_gdrive_file(&mut transaction, &file).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] };
-            storage.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;

@@ -17,13 +17,13 @@ pub struct Storage {
 impl Storage {
     /// Create an inline storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
         transaction.execute(
             "INSERT INTO storage_inline (file_id, content)
              VALUES ($1::bigint, $2::bytea)",
             &[&self.file_id, &self.content]
         ).await?;
-        Ok(())
+        Ok(self)
     }
 
     /// Return a list of inline storage entities containing the data for a file.
@@ -77,8 +77,7 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, content: "some content".into() };
-            storage.create(&mut transaction).await?;
+            let storage = Storage { file_id: dummy.id, content: "some content".into() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
@@ -100,8 +99,7 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, content: "hello".into() };
-            storage.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, content: "hello".into() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             for (column, value) in &[("file_id", "100")] {

@@ -51,14 +51,14 @@ impl Dirent {
 
     /// Create a directory entry.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
         let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode_id(self.child);
         transaction.execute(
             "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
              VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)",
             &[&self.parent, &self.basename, &child_dir, &child_file, &child_symlink]
         ).await?;
-        Ok(())
+        Ok(self)
     }
 }
 

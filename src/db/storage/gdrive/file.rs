@@ -66,13 +66,17 @@ pub struct NewGdriveOwner {
 impl NewGdriveOwner {
     /// Create a gdrive_owner in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<GdriveOwner> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<GdriveOwner> {
         let rows = transaction.query(
             "INSERT INTO gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id",
             &[&self.domain, &self.owner]
         ).await?;
         let id = rows.get(0).unwrap().get(0);
-        Ok(GdriveOwner { id, domain: self.domain, owner: self.owner.clone() })
+        Ok(GdriveOwner {
+            id,
+            domain: self.domain,
+            owner: self.owner,
+        })
     }
 }
 
@@ -227,8 +231,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] };
-            storage.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;

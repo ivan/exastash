@@ -38,13 +38,13 @@ fn from_gsuite_application_secrets(rows: Vec<Row>) -> Result<Vec<GsuiteApplicati
 impl GsuiteApplicationSecret {
     /// Create a gsuite_application_secret in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
         transaction.execute(
             "INSERT INTO gsuite_application_secrets (domain_id, secret)
              VALUES ($1::smallint, $2::jsonb)",
             &[&self.domain_id, &self.secret]
         ).await?;
-        Ok(())
+        Ok(self)
     }
 
     /// Return a `Vec<GsuiteApplicationSecret>` of all gsuite_application_secrets.
@@ -99,13 +99,13 @@ fn from_gsuite_access_tokens(rows: Vec<Row>) -> Result<Vec<GsuiteAccessToken>> {
 impl GsuiteAccessToken {
     /// Create a gsuite_access_token in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
         transaction.execute(
             "INSERT INTO gsuite_access_tokens (owner_id, access_token, refresh_token, expires_at)
              VALUES ($1::int, $2::text, $3::text, $4::timestamptz)",
             &[&self.owner_id, &self.access_token, &self.refresh_token, &self.expires_at]
         ).await?;
-        Ok(())
+        Ok(self)
     }
 
     /// Delete this access token from the database, by its owner id.
@@ -153,7 +153,7 @@ pub struct GsuiteServiceAccount {
 impl GsuiteServiceAccount {
     /// Create a gsuite_service_account in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<()> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
         let k = &self.key;
         transaction.execute(
             "INSERT INTO gsuite_service_accounts (
@@ -165,7 +165,7 @@ impl GsuiteServiceAccount {
                 &k.auth_uri, &k.token_uri, &k.auth_provider_x509_cert_url, &k.client_x509_cert_url
             ]
         ).await?;
-        Ok(())
+        Ok(self)
     }
 
     /// Return a `Vec<GsuiteServiceAccount>` for the corresponding list of `owner_ids`.
@@ -247,8 +247,7 @@ mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let secret = GsuiteApplicationSecret { domain_id: domain.id, secret: serde_json::json!({}) };
-            secret.create(&mut transaction).await?;
+            GsuiteApplicationSecret { domain_id: domain.id, secret: serde_json::json!({}) }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
@@ -302,8 +301,7 @@ mod tests {
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let now = now_no_nanos();
-            let token = GsuiteAccessToken { owner_id: owner.id, access_token: "A".into(), refresh_token: "R".into(), expires_at: now };
-            token.create(&mut transaction).await?;
+            let token = GsuiteAccessToken { owner_id: owner.id, access_token: "A".into(), refresh_token: "R".into(), expires_at: now }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
@@ -361,8 +359,7 @@ mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let account = GsuiteServiceAccount { owner_id: owner.id, key: dummy_service_account_key() };
-            account.create(&mut transaction).await?;
+            let account = GsuiteServiceAccount { owner_id: owner.id, key: dummy_service_account_key() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;

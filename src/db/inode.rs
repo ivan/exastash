@@ -114,7 +114,7 @@ pub struct NewDir {
 impl NewDir {
     /// Create an entry for a directory in the database and return a `Dir`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<Dir> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Dir> {
         let rows = transaction.query(
             "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
              VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
@@ -125,7 +125,7 @@ impl NewDir {
         Ok(Dir {
             id,
             mtime: self.mtime,
-            birth: self.birth.clone(),
+            birth: self.birth,
         })
     }
 }
@@ -191,7 +191,7 @@ pub struct NewFile {
 impl NewFile {
     /// Create an entry for a file in the database and return a `File`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<File> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<File> {
         assert!(self.size >= 0, "size must be >= 0");
         let rows = transaction.query(
             "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
@@ -203,7 +203,7 @@ impl NewFile {
         Ok(File {
             id,
             mtime: self.mtime,
-            birth: self.birth.clone(),
+            birth: self.birth,
             size: self.size,
             executable: self.executable,
         })
@@ -266,7 +266,7 @@ pub struct NewSymlink {
 impl NewSymlink {
     /// Create an entry for a symlink in the database and return a `Symlink`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<Symlink> {
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Symlink> {
         let rows = transaction.query(
             "INSERT INTO symlinks (mtime, target, birth_time, birth_version, birth_hostname)
              VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
@@ -277,8 +277,8 @@ impl NewSymlink {
         Ok(Symlink {
             id,
             mtime: self.mtime,
-            birth: self.birth.clone(),
-            target: self.target.clone(),
+            birth: self.birth,
+            target: self.target,
         })
     }
 }
