@@ -72,8 +72,6 @@ pub struct GsuiteDomain {
     pub id: i16,
     /// The domain name
     pub domain: String,
-    /// Name of the folder to upload files into (not the Google Drive id)
-    pub active_parent: Option<String>,
 }
 
 /// A new domain name
@@ -81,8 +79,6 @@ pub struct GsuiteDomain {
 pub struct NewGsuiteDomain {
     /// The domain name
     pub domain: String,
-    /// Name of the folder to upload files into (not the Google Drive id)
-    pub active_parent: Option<String>,
 }
 
 impl NewGsuiteDomain {
@@ -94,8 +90,53 @@ impl NewGsuiteDomain {
         Ok(GsuiteDomain {
             id,
             domain: self.domain.clone(),
-            active_parent: self.active_parent.clone()
         })
+    }
+}
+
+/// G Suite domain-specific descriptor that specifies where to place new Google Drive
+/// files, and with which owner.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GdriveFilePlacement {
+    /// Domain ID
+    pub domain: i16,
+    /// Owner ID
+    pub owner: i32,
+    /// Google Drive folder id
+    pub parent: String,
+}
+
+impl GdriveFilePlacement {
+    /// Create a gdrive_file_placement in the database.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn create(&self, transaction: &mut Transaction<'_>) -> Result<GdriveFilePlacement> {
+        transaction.execute(
+            "INSERT INTO gdrive_file_placement (domain, owner, parent)
+             VALUES ($1::smallint, $2::int, $3::text)",
+            &[&self.domain, &self.owner, &self.parent]).await?;
+        Ok(self.clone())
+    }
+
+    /// Return a `Vec<GdriveFilePlacement>` for domain `domain`.
+    /// There is no error if the domain id does not exist.
+    /// If limit is not `None`, returns max `N` random rows.
+    pub async fn find_by_domain(transaction: &mut Transaction<'_>, domain: i16, limit: Option<i32>) -> Result<Vec<GdriveFilePlacement>> {
+        let limit_sql = match limit {
+            None => "".into(),
+            Some(num) => format!("ORDER BY random() LIMIT {}", num)
+        };
+        let sql = format!("SELECT domain, owner, parent FROM gdrive_file_placement {}", limit_sql);
+        let rows = transaction.query(sql.as_str(), &[&domain]).await?;
+
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(GdriveFilePlacement {
+                domain: row.get(0),
+                owner: row.get(1),
+                parent: row.get(2),
+            });
+        }
+        Ok(out)
     }
 }
 
@@ -173,18 +214,9 @@ pub(crate) mod tests {
         RelaxedCounter::new(1)
     });
 
-    static PARENT_COUNTER: Lazy<RelaxedCounter> = Lazy::new(|| {
-        RelaxedCounter::new(1)
-    });
-
     pub(crate) async fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
-        let counter = PARENT_COUNTER.inc();
-        let name = format!("fake_parent_{}", counter);
-        let parent = format!("fakefakefakefakefakefakefakefake_{}", counter);
-        GdriveParent { name: name.clone(), parent, full: false }.create(&mut transaction).await?;
-
         let domain = format!("{}.example.com", DOMAIN_COUNTER.inc());
-        Ok(NewGsuiteDomain { domain, active_parent: Some(name) }.create(&mut transaction).await?)
+        Ok(NewGsuiteDomain { domain }.create(&mut transaction).await?)
     }
 
     mod api {
