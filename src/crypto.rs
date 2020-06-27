@@ -102,7 +102,7 @@ impl Decoder for GcmDecoder {
 /// All `Bytes` must be of length block_size, except for the last `Bytes` which
 /// may be shorter.
 #[derive(Debug)]
-struct GcmEncoder {
+pub(crate) struct GcmEncoder {
     block_size: usize,
     key: LessSafeKey,
     block_number: u64,
@@ -110,7 +110,7 @@ struct GcmEncoder {
 }
 
 impl GcmEncoder {
-    fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
+    pub(crate) fn new(block_size: usize, key: LessSafeKey, first_block_number: u64) -> Self {
         assert!(block_size > 0, "block size must be > 0");
         GcmEncoder { block_size, key, block_number: first_block_number, finalized: false }
     }

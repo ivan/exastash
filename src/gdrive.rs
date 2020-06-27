@@ -1,6 +1,7 @@
 //! Functions to read from and write to Google Drive, without anything exastash-specific
 
 use anyhow::{anyhow, bail, ensure, Result};
+use bytes::Bytes;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use data_encoding::BASE64;
@@ -80,7 +81,7 @@ pub(crate) async fn create_gdrive_file<S, A>(
     filename: &str
 ) -> Result<GdriveUploadResponse>
 where
-    S: Stream<Item=Result<Vec<u8>, std::io::Error>> + Send + Sync + 'static,
+    S: Stream<Item=Result<Bytes, std::io::Error>> + Send + Sync + 'static,
     A: Future<Output=Result<String>>
 {
     let client = reqwest::Client::new();

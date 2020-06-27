@@ -164,7 +164,7 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
     )
 }
 
-fn get_aes_gcm_length(content_length: u64, block_size: usize) -> u64 {
+pub(crate) fn get_aes_gcm_length(content_length: u64, block_size: usize) -> u64 {
     // We want division to round up here, so fix it up by incrementing when needed
     let mut number_of_tags = content_length / block_size as u64;
     if content_length % block_size as u64 != 0 {

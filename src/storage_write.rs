@@ -5,12 +5,15 @@ use std::sync::Arc;
 use std::pin::Pin;
 use chrono::Utc;
 use anyhow::bail;
-use futures::{ready, stream::Stream, task::{Context, Poll}};
+use futures::{ready, stream::{Stream, StreamExt}, task::{Context, Poll}};
 use anyhow::Result;
+use bytes::{Bytes, BytesMut};
+use tokio_util::codec::Encoder;
 use crate::db::inode;
 use crate::db::storage::gdrive::{self, file::GdriveFile};
-use crate::storage_read::get_access_tokens;
+use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::create_gdrive_file;
+use crate::crypto::{GcmEncoder, gcm_create_key};
 use tokio_postgres::Transaction;
 use pin_project::pin_project;
 use parking_lot::Mutex;
@@ -84,7 +87,7 @@ where
 /// `filename` is the name of the file to create in Google Drive
 pub async fn create_gdrive_file_on_domain<S>(file_stream_fn: impl Fn(u64) -> S, size: u64, domain_id: i16, owner_id: i32, parent: &str, filename: &str) -> Result<GdriveFile>
 where
-    S: Stream<Item=Result<Vec<u8>, std::io::Error>> + Send + Sync + 'static
+    S: Stream<Item=Result<Bytes, std::io::Error>> + Send + Sync + 'static
 {
     let mut crc32c = None;
     let mut md5 = None;
@@ -163,14 +166,29 @@ where
     let parent_name = &placement.parent;
     let parent = gdrive::GdriveParent::find_by_name(transaction, parent_name).await?.unwrap();
 
+    let whole_block_size = 65536;
+    let block_size = whole_block_size - 16;
     let cipher_key = new_cipher_key();
-    // TODO: actually encrypt
     // TODO: append some random data to fill
-    let encrypted_stream_fn = file_stream_fn;
+    let encrypted_stream_fn = |offset| {
+        // TODO: support non-0 offset
+        assert_eq!(offset, 0);
+        let unencrypted = file_stream_fn(offset);
+
+        let key = gcm_create_key(cipher_key).unwrap();
+        let mut encoder = GcmEncoder::new(block_size, key, 0);
+
+        unencrypted.map(move |bytes| -> std::io::Result<Bytes> {
+            let mut out = BytesMut::new();
+            encoder.encode(bytes?.into(), &mut out).unwrap();
+            Ok(out.into())
+        })
+    };
 
     let filename = new_chunk_filename();
+    let size = get_aes_gcm_length(file.size as u64, block_size);
     let gdrive_file =
-        create_gdrive_file_on_domain(encrypted_stream_fn, file.size as u64, domain_id, placement.owner, &parent.parent, &filename).await?
+        create_gdrive_file_on_domain(encrypted_stream_fn, size, domain_id, placement.owner, &parent.parent, &filename).await?
         .create(transaction).await?;
     // terastash uploaded many files as multi-chunk files; exastash currently uploads everything as one chunk
     let gdrive_files = vec![gdrive_file];
