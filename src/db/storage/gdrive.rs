@@ -5,6 +5,7 @@ use tokio_postgres::Transaction;
 use postgres_types::{ToSql, FromSql};
 use serde::Serialize;
 use serde_hex::{SerHex, Strict};
+use self::file::GdriveFile;
 use crate::postgres::SixteenBytes;
 
 pub mod file;
@@ -193,7 +194,7 @@ impl Storage {
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
             let gdrive_file_ids: Vec<&str> = row.get(4);
-            let gdrive_files = file::get_gdrive_files(&mut transaction, &gdrive_file_ids[..]).await?;
+            let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_file_ids[..]).await?;
             let file = Storage {
                 file_id: row.get(0),
                 gsuite_domain: row.get(1),

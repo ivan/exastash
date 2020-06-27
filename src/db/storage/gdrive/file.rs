@@ -119,29 +119,29 @@ impl GdriveFile {
         transaction.execute("DELETE FROM gdrive_files WHERE id = ANY($1::text[])", &[&ids]).await?;
         Ok(())
     }
-}
 
-/// Return gdrive files with matching ids, in the same order as the ids.
-pub async fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
-    let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids]).await?;
-    let mut map: HashMap<String, GdriveFile> = HashMap::new();
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        let file = GdriveFile {
-            id: row.get(0),
-            owner_id: row.get(1),
-            md5: row.get::<_, SixteenBytes>(2).bytes,
-            crc32c: row.get::<_, UnsignedInt4>(3).value,
-            size: row.get(4),
-            last_probed: row.get(5),
-        };
-        map.insert(file.id.clone(), file);
+    /// Return gdrive files with matching ids, in the same order as the ids.
+    pub async fn find_by_ids_in_order(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
+        let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids]).await?;
+        let mut map: HashMap<String, GdriveFile> = HashMap::new();
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let file = GdriveFile {
+                id: row.get(0),
+                owner_id: row.get(1),
+                md5: row.get::<_, SixteenBytes>(2).bytes,
+                crc32c: row.get::<_, UnsignedInt4>(3).value,
+                size: row.get(4),
+                last_probed: row.get(5),
+            };
+            map.insert(file.id.clone(), file);
+        }
+        for id in ids {
+            let file = map.remove(id.to_owned()).ok_or_else(|| anyhow!("duplicate or nonexistent id given: {:?}", id))?;
+            out.push(file);
+        }
+        Ok(out)
     }
-    for id in ids {
-        let file = map.remove(id.to_owned()).ok_or_else(|| anyhow!("duplicate or nonexistent id given: {:?}", id))?;
-        out.push(file);
-    }
-    Ok(out)
 }
 
 #[cfg(test)]
@@ -182,23 +182,23 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let files = get_gdrive_files(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref()]).await?;
+            let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref()]).await?;
             assert_eq!(files, vec![file1.clone(), file2.clone()]);
 
             // Files are returned in the same order as ids
-            let files = get_gdrive_files(&mut transaction, &[file2.id.as_ref(), file1.id.as_ref()]).await?;
+            let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[file2.id.as_ref(), file1.id.as_ref()]).await?;
             assert_eq!(files, vec![file2.clone(), file1.clone()]);
 
             // Empty list is OK
-            let files = get_gdrive_files(&mut transaction, &[]).await?;
+            let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
 
             // Duplicate id is not OK
-            let result = get_gdrive_files(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), file1.id.as_ref()]).await;
+            let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), file1.id.as_ref()]).await;
             assert_eq!(result.err().expect("expected an error").to_string(), format!("duplicate or nonexistent id given: {:?}", file1.id));
 
             // Nonexistent id is not OK
-            let result = get_gdrive_files(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), "nonexistent"]).await;
+            let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), "nonexistent"]).await;
             assert_eq!(result.err().expect("expected an error").to_string(), "duplicate or nonexistent id given: \"nonexistent\"");
 
             Ok(())
