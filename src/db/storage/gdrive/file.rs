@@ -138,7 +138,7 @@ pub async fn get_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -
         map.insert(file.id.clone(), file);
     }
     for id in ids {
-        let file = map.remove(id.to_owned()).ok_or_else(|| anyhow!("duplicate id given"))?;
+        let file = map.remove(id.to_owned()).ok_or_else(|| anyhow!("duplicate or nonexistent id given: {:?}", id))?;
         out.push(file);
     }
     Ok(out)
@@ -195,7 +195,11 @@ pub(crate) mod tests {
 
             // Duplicate id is not OK
             let result = get_gdrive_files(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), file1.id.as_ref()]).await;
-            assert_eq!(result.err().expect("expected an error").to_string(), "duplicate id given");
+            assert_eq!(result.err().expect("expected an error").to_string(), format!("duplicate or nonexistent id given: {:?}", file1.id));
+
+            // Nonexistent id is not OK
+            let result = get_gdrive_files(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), "nonexistent"]).await;
+            assert_eq!(result.err().expect("expected an error").to_string(), "duplicate or nonexistent id given: \"nonexistent\"");
 
             Ok(())
         }
