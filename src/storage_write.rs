@@ -169,8 +169,9 @@ where
     let encrypted_stream_fn = file_stream_fn;
 
     let filename = new_chunk_filename();
-    let gdrive_file = create_gdrive_file_on_domain(encrypted_stream_fn, file.size as u64, domain_id, placement.owner, &parent.parent, &filename).await?;
-    gdrive::file::create_gdrive_file(transaction, &gdrive_file).await?;
+    let gdrive_file =
+        create_gdrive_file_on_domain(encrypted_stream_fn, file.size as u64, domain_id, placement.owner, &parent.parent, &filename).await?
+        .create(transaction).await?;
     // terastash uploaded many files as multi-chunk files; exastash currently uploads everything as one chunk
     let gdrive_files = vec![gdrive_file];
 

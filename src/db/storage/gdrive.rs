@@ -167,7 +167,6 @@ pub struct Storage {
 impl Storage {
     /// Create an gdrive storage entity in the database.
     /// Note that the gsuite domain must already exist.
-    /// Note that you must call file::create_gdrive_file for each gdrive file beforehand.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
         let gdrive_ids = self.gdrive_files.iter().map(|f| f.id.clone()).collect::<Vec<_>>();
@@ -214,7 +213,7 @@ pub(crate) mod tests {
     use crate::db::start_transaction;
     use crate::db::tests::get_client;
     use crate::db::inode::tests::create_dummy_file;
-    use file::{create_gdrive_file, GdriveFile};
+    use file::GdriveFile;
     use atomic_counter::{AtomicCounter, RelaxedCounter};
     use once_cell::sync::Lazy;
 
@@ -237,10 +236,8 @@ pub(crate) mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let file1 = GdriveFile { id: "X".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
-            let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None };
-            create_gdrive_file(&mut transaction, &file1).await?;
-            create_gdrive_file(&mut transaction, &file2).await?;
+            let file1 = GdriveFile { id: "X".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None }.create(&mut transaction).await?;
+            let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None }.create(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] }.create(&mut transaction).await?;
             transaction.commit().await?;
@@ -277,8 +274,7 @@ pub(crate) mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let file1 = GdriveFile { id: "F".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file1).await?;
+            let file1 = GdriveFile { id: "F".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1, file2] };
@@ -324,10 +320,8 @@ pub(crate) mod tests {
             let dummy = create_dummy_file(&mut transaction).await?;
             let id1 = "Y".repeat(28);
             let id2 = "Z".repeat(28);
-            let file1 = GdriveFile { id: id1.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            let file2 = GdriveFile { id: id2.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file1).await?;
-            create_gdrive_file(&mut transaction, &file2).await?;
+            let file1 = GdriveFile { id: id1.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
+            let _file2 = GdriveFile { id: id2.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file1] }.create(&mut transaction).await?;
             transaction.commit().await?;
@@ -360,8 +354,7 @@ pub(crate) mod tests {
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file).await?;
+            let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file] }.create(&mut transaction).await?;
             transaction.commit().await?;

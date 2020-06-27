@@ -78,8 +78,7 @@ mod tests {
             let storage2 = internetarchive::Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path2".into(), darked: true, last_probed: None }.create(&mut transaction).await?;
 
             // gdrive
-            let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            gdrive::file::create_gdrive_file(&mut transaction, &gdrive_file).await?;
+            let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let domain = gdrive::tests::create_dummy_domain(&mut transaction).await?;
             let storage3 = gdrive::Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![gdrive_file] }.create(&mut transaction).await?;
 

@@ -101,22 +101,24 @@ pub struct GdriveFile {
     pub last_probed: Option<DateTime<Utc>>,
 }
 
-/// Create a gdrive_file in the database.
-/// Does not commit the transaction, you must do so yourself.
-pub async fn create_gdrive_file(transaction: &mut Transaction<'_>, file: &GdriveFile) -> Result<()> {
-    transaction.execute(
-        "INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
-         VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)",
-        &[&file.id, &file.owner_id, &SixteenBytes { bytes: file.md5 }, &UnsignedInt4 { value: file.crc32c }, &file.size, &file.last_probed]
-    ).await?;
-    Ok(())
-}
+impl GdriveFile {
+    /// Create a gdrive_file in the database.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<GdriveFile> {
+        transaction.execute(
+            "INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
+            VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)",
+            &[&self.id, &self.owner_id, &SixteenBytes { bytes: self.md5 }, &UnsignedInt4 { value: self.crc32c }, &self.size, &self.last_probed]
+        ).await?;
+        Ok(self)
+    }
 
-/// Remove gdrive files in the database.
-/// Does not commit the transaction, you must do so yourself.
-pub async fn remove_gdrive_files(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<()> {
-    transaction.execute("DELETE FROM gdrive_files WHERE id = ANY($1::text[])", &[&ids]).await?;
-    Ok(())
+    /// Remove gdrive files in the database.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove_by_ids(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<()> {
+        transaction.execute("DELETE FROM gdrive_files WHERE id = ANY($1::text[])", &[&ids]).await?;
+        Ok(())
+    }
 }
 
 /// Return gdrive files with matching ids, in the same order as the ids.
@@ -175,10 +177,8 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner.id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
-            let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) };
-            create_gdrive_file(&mut transaction, &file1).await?;
-            create_gdrive_file(&mut transaction, &file2).await?;
+            let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner.id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None }.create(&mut transaction).await?;
+            let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
@@ -208,12 +208,11 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file = GdriveFile { id: "Q".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file).await?;
+            let file = GdriveFile { id: "Q".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            remove_gdrive_files(&mut transaction, &[&file.id]).await?;
+            GdriveFile::remove_by_ids(&mut transaction, &[&file.id]).await?;
             transaction.commit().await?;
 
             Ok(())
@@ -228,8 +227,7 @@ pub(crate) mod tests {
             let dummy = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file).await?;
+            let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             // create_storage expects the domain to already be committed
             transaction.commit().await?;
 
@@ -238,7 +236,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let result = remove_gdrive_files(&mut transaction, &[&file.id]).await;
+            let result = GdriveFile::remove_by_ids(&mut transaction, &[&file.id]).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
                 format!("db error: ERROR: gdrive_files={} is still referenced by storage_gdrive={}", file.id, dummy.id)
@@ -261,8 +259,7 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file).await?;
+            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let new_id = format!("'{}'", "C".repeat(28));
@@ -289,8 +286,7 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file = GdriveFile { id: "D".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
-            create_gdrive_file(&mut transaction, &file).await?;
+            let _ = GdriveFile { id: "D".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
