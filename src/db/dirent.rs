@@ -6,6 +6,7 @@ use tokio_postgres::Transaction;
 
 /// A (dir, file, symlink) tuple that is useful when interacting with
 /// the dirents table.
+#[must_use]
 #[derive(Debug, Copy, Clone)]
 pub struct InodeTuple(pub Option<i64>, pub Option<i64>, pub Option<i64>);
 

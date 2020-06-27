@@ -1,13 +1,17 @@
 //! Functions to write content to storage
 
+use rand::Rng;
 use std::sync::Arc;
 use std::pin::Pin;
+use chrono::Utc;
 use anyhow::bail;
 use futures::{ready, stream::Stream, task::{Context, Poll}};
 use anyhow::Result;
-use crate::db::storage::gdrive::file::GdriveFile;
+use crate::db::inode;
+use crate::db::storage::gdrive::{self, file::GdriveFile};
 use crate::storage_read::get_access_tokens;
 use crate::gdrive::create_gdrive_file;
+use tokio_postgres::Transaction;
 use pin_project::pin_project;
 use parking_lot::Mutex;
 use md5::{Md5, Digest};
@@ -123,4 +127,60 @@ where
         size: size as i64,
         last_probed: None,
     })
+}
+
+// Match terastash's filenames
+#[inline]
+fn new_chunk_filename() -> String {
+    let now = Utc::now();
+    let secs = now.timestamp();
+    let nanos = now.timestamp_subsec_nanos();
+    let random = rand::thread_rng().gen::<[u8; 16]>();
+    format!("{}-{}-{}", secs, nanos, hex::encode(random))
+}
+
+#[inline]
+fn new_cipher_key() -> [u8; 16] {
+    rand::thread_rng().gen::<[u8; 16]>()
+}
+
+/// Write the content of a file to a G Suite domain.
+/// Caller must commit the transaction themselves.
+pub async fn write_to_gdrive<S>(
+    transaction: &mut Transaction<'_>,
+    file_stream_fn: impl Fn(u64) -> S,
+    file: &inode::File,
+    domain_id: i16
+) -> Result<()>
+where
+    S: Stream<Item=Result<Vec<u8>, std::io::Error>> + Send + Sync + 'static
+{
+    let mut placements = gdrive::GdriveFilePlacement::find_by_domain(transaction, domain_id, Some(1)).await?;
+    if placements.is_empty() {
+        bail!("database has no gdrive_file_placement for domain={}", domain_id);
+    }
+    let placement = placements.pop().unwrap();
+    let parent_name = &placement.parent;
+    let parent = gdrive::GdriveParent::find_by_name(transaction, parent_name).await?.unwrap();
+
+    let cipher_key = new_cipher_key();
+    // TODO: actually encrypt
+    // TODO: append some random data to fill
+    let encrypted_stream_fn = file_stream_fn;
+
+    let filename = new_chunk_filename();
+    let gdrive_file = create_gdrive_file_on_domain(encrypted_stream_fn, file.size as u64, domain_id, placement.owner, &parent.parent, &filename).await?;
+    gdrive::file::create_gdrive_file(transaction, &gdrive_file).await?;
+    // terastash uploaded many files as multi-chunk files; exastash currently uploads everything as one chunk
+    let gdrive_files = vec![gdrive_file];
+
+    gdrive::Storage {
+        file_id: file.id,
+        gsuite_domain: domain_id,
+        cipher: gdrive::Cipher::Aes128Gcm,
+        cipher_key,
+        gdrive_files,
+    }.create(transaction).await?;
+
+    Ok(())
 }

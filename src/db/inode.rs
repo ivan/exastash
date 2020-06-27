@@ -45,6 +45,7 @@ impl InodeId {
 }
 
 /// birth_time, birth_version, and birth_hostname for a dir/file/symlink
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Birth {
     /// The time at which a dir, file, or symlink was created
@@ -64,6 +65,7 @@ impl Birth {
 }
 
 /// A directory
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Dir {
     /// ID
@@ -103,6 +105,7 @@ impl Dir {
 }
 
 /// A new directory
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewDir {
     /// Modification time
@@ -131,6 +134,7 @@ impl NewDir {
 }
 
 /// A file
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct File {
     /// ID
@@ -176,6 +180,7 @@ impl File {
 }
 
 /// A new file
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewFile {
     /// Modification time
@@ -211,6 +216,7 @@ impl NewFile {
 }
 
 /// A symbolic link
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Symlink {
     /// ID
@@ -253,6 +259,7 @@ impl Symlink {
 }
 
 /// A new symbolic link
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewSymlink {
     /// Modification time

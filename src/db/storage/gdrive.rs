@@ -10,6 +10,7 @@ use crate::postgres::SixteenBytes;
 pub mod file;
 
 /// The encryption algorithm used to encrypt the chunks
+#[must_use]
 #[postgres(name = "cipher")]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, ToSql, FromSql, Serialize)]
 pub enum Cipher {
@@ -24,6 +25,7 @@ pub enum Cipher {
 }
 
 /// A Google Drive folder into which files are uploaded
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GdriveParent {
     /// Arbitrary name for the folder
@@ -66,6 +68,7 @@ impl GdriveParent {
 }
 
 /// A domain where Google Drive files are stored
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GsuiteDomain {
     /// ID for this domain
@@ -75,6 +78,7 @@ pub struct GsuiteDomain {
 }
 
 /// A new domain name
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct NewGsuiteDomain {
     /// The domain name
@@ -96,6 +100,7 @@ impl NewGsuiteDomain {
 
 /// G Suite domain-specific descriptor that specifies where to place new Google Drive
 /// files, and with which owner.
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GdriveFilePlacement {
     /// Domain ID
@@ -125,7 +130,10 @@ impl GdriveFilePlacement {
             None => "".into(),
             Some(num) => format!("ORDER BY random() LIMIT {}", num)
         };
-        let sql = format!("SELECT domain, owner, parent FROM gdrive_file_placement {}", limit_sql);
+        let sql = format!(
+            "SELECT domain, owner, parent FROM gdrive_file_placement
+             WHERE domain = $1::smallint
+             {}", limit_sql);
         let rows = transaction.query(sql.as_str(), &[&domain]).await?;
 
         let mut out = Vec::with_capacity(rows.len());

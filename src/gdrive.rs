@@ -103,8 +103,13 @@ where
         .send()
         .await?;
 
-    let upload_url = initial_response.headers().get("Location")
-        .ok_or_else(|| anyhow!("did not get Location header in response to initial upload request"))?
+    let status = initial_response.status();
+    if status != 200 {
+        bail!("expected status 200 in response to initial upload request, got {}", status);
+    }
+    let headers = initial_response.headers();
+    let upload_url = headers.get("Location")
+        .ok_or_else(|| anyhow!("did not get Location header in response to initial upload request: {:#?}", headers))?
         .to_str()?;
     let stream = file_stream_fn(0);
     let body = reqwest::Body::wrap_stream(stream);
@@ -115,6 +120,10 @@ where
         .await?;
     // TODO: retry/resume partial uploads
 
+    let status = upload_response.status();
+    if status != 200 {
+        bail!("expected status 200 in response to upload request, got {}", status);
+    }
     let response: GdriveUploadResponse = upload_response.json().await?;
 
     if response.kind != "drive#file" {

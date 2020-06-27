@@ -10,6 +10,7 @@ use serde_hex::{SerHex, Strict};
 use crate::postgres::{SixteenBytes, UnsignedInt4};
 
 /// An owner of Google Drive files
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GdriveOwner {
     /// ID for this owner
@@ -55,6 +56,7 @@ impl GdriveOwner {
 }
 
 /// A new owner of Google Drive files
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct NewGdriveOwner {
     /// The G Suite domain this owner is associated with
@@ -81,6 +83,7 @@ impl NewGdriveOwner {
 }
 
 /// A file in Google Drive, as Google understands it
+#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GdriveFile {
     /// Google Drive's file_id

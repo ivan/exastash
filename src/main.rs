@@ -154,9 +154,9 @@ enum FileCommand {
         #[structopt(long)]
         store_inline: bool,
 
-        /// Store the file data in some gsuite domain. Can be specified multiple times or with other --store-* options.
+        /// Store the file data in some gsuite domain (specified by id). Can be specified multiple times and with other --store-* options.
         #[structopt(long)]
-        store_gsuite: Vec<i16>,
+        store_gdrive: Vec<i16>,
     }
 }
 
@@ -308,7 +308,7 @@ async fn main() -> Result<()> {
         }
         ExastashCommand::File(file) => {
             match file {
-                FileCommand::Create { path, store_inline, store_gsuite } => {
+                FileCommand::Create { path, store_inline, store_gdrive } => {
                     let attr = fs::metadata(&path).await?;
                     let mtime = attr.modified()?.into();
                     let birth = db::inode::Birth::here_and_now();
@@ -316,15 +316,22 @@ async fn main() -> Result<()> {
                     let permissions = attr.permissions();
                     let executable = permissions.mode() & 0o111 != 0;
                     let file = db::inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
-                    if size > 0 && !store_inline && store_gsuite.is_empty() {
+                    if size > 0 && !store_inline && store_gdrive.is_empty() {
                         bail!("a file with size > 0 needs storage, please specify a --store- option");
                     }
                     if store_inline {
-                        let content = fs::read(path).await?;
+                        let content = fs::read(path.clone()).await?;
                         db::storage::inline::Storage { file_id: file.id, content }.create(&mut transaction).await?;
                     }
-                    if !store_gsuite.is_empty() {
-                        dbg!(store_gsuite);
+                    if !store_gdrive.is_empty() {
+                        let file_stream_fn = |offset| {
+                            // TODO: support non-0 offset if we implement upload retries
+                            assert_eq!(offset, 0);
+                            fs::read(path.clone()).into_stream()
+                        };
+                        for domain in store_gdrive {
+                            storage_write::write_to_gdrive(&mut transaction, file_stream_fn, &file, domain).await?;
+                        }
                     }
                     transaction.commit().await?;
                     println!("{}", file.id);
@@ -335,8 +342,7 @@ async fn main() -> Result<()> {
             match dirent {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
                     let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode_id()?;
-                    let dirent = db::dirent::Dirent::new(parent_dir_id, basename, child);
-                    dirent.create(&mut transaction).await?;
+                    db::dirent::Dirent::new(parent_dir_id, basename, child).create(&mut transaction).await?;
                     transaction.commit().await?;
                 }
             }
@@ -446,8 +452,7 @@ async fn main() -> Result<()> {
                         ApplicationSecretCommand::Import { domain_id, json_file } => {
                             let content = fs::read(json_file).await?;
                             let json = serde_json::from_slice(&content)?;
-                            let secret = GsuiteApplicationSecret { domain_id: *domain_id, secret: json };
-                            secret.create(&mut transaction).await?;
+                            GsuiteApplicationSecret { domain_id: *domain_id, secret: json }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }
@@ -465,8 +470,7 @@ async fn main() -> Result<()> {
                             let content = fs::read(json_file).await?;
                             let key: ServiceAccountKey = serde_json::from_slice(&content)?;
                             assert_eq!(key.key_type, Some("service_account".into()));
-                            let account = GsuiteServiceAccount { owner_id: *owner_id, key };
-                            account.create(&mut transaction).await?;
+                            GsuiteServiceAccount { owner_id: *owner_id, key }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }
