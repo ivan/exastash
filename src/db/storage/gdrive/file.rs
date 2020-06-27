@@ -1,9 +1,11 @@
 //! CRUD operations for Google Drive files
 
+use std::hash::Hash;
 use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use postgres::Row;
+use postgres_types::ToSql;
 use tokio_postgres::Transaction;
 use serde::Serialize;
 use serde_hex::{SerHex, Strict};
@@ -121,7 +123,10 @@ impl GdriveFile {
     }
 
     /// Return gdrive files with matching ids, in the same order as the ids.
-    pub async fn find_by_ids_in_order(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
+    pub async fn find_by_ids_in_order<T>(transaction: &mut Transaction<'_>, ids: &[T]) -> Result<Vec<GdriveFile>>
+    where
+        T: AsRef<str> + Sync + ToSql + Hash + Eq + ToString
+    {
         let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids]).await?;
         let mut map: HashMap<String, GdriveFile> = HashMap::new();
         let mut out = Vec::with_capacity(rows.len());
@@ -137,7 +142,7 @@ impl GdriveFile {
             map.insert(file.id.clone(), file);
         }
         for id in ids {
-            let file = map.remove(id.to_owned()).ok_or_else(|| anyhow!("duplicate or nonexistent id given: {:?}", id))?;
+            let file = map.remove(&id.to_string()).ok_or_else(|| anyhow!("duplicate or nonexistent id given: {:?}", id))?;
             out.push(file);
         }
         Ok(out)
@@ -182,23 +187,19 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref()]).await?;
+            let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file1.id, &file2.id]).await?;
             assert_eq!(files, vec![file1.clone(), file2.clone()]);
 
             // Files are returned in the same order as ids
-            let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[file2.id.as_ref(), file1.id.as_ref()]).await?;
+            let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file2.id, &file1.id]).await?;
             assert_eq!(files, vec![file2.clone(), file1.clone()]);
 
-            // Empty list is OK
-            let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[]).await?;
-            assert_eq!(files, vec![]);
-
             // Duplicate id is not OK
-            let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), file1.id.as_ref()]).await;
+            let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file1.id, &file2.id, &file1.id]).await;
             assert_eq!(result.err().expect("expected an error").to_string(), format!("duplicate or nonexistent id given: {:?}", file1.id));
 
             // Nonexistent id is not OK
-            let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[file1.id.as_ref(), file2.id.as_ref(), "nonexistent"]).await;
+            let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file1.id, &file2.id, &"nonexistent".into()]).await;
             assert_eq!(result.err().expect("expected an error").to_string(), "duplicate or nonexistent id given: \"nonexistent\"");
 
             Ok(())

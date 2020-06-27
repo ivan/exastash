@@ -14,6 +14,7 @@ use chrono::DateTime;
 use tracing_subscriber::EnvFilter;
 use exastash::db;
 use exastash::db::storage::{Storage, get_storage};
+use exastash::db::storage::gdrive::file::GdriveFile;
 use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
@@ -241,8 +242,8 @@ enum GsuiteCommand {
 
 #[derive(StructOpt, Debug)]
 enum InternalCommand {
-    #[structopt(name = "create-gdrive-file")]
     /// Create a Google Drive file based on some local file
+    #[structopt(name = "create-gdrive-file")]
     CreateGdriveFile {
         /// Path to the local file to upload
         #[structopt(name = "PATH")]
@@ -263,6 +264,17 @@ enum InternalCommand {
         /// Google Drive filename for the new file
         #[structopt(name = "FILENAME")]
         filename: String,
+    },
+    /// Write a sequence of Google Drive files to stdout
+    #[structopt(name = "cat-gdrive-files")]
+    CatGdriveFiles {
+        /// gsuite_domain to read from
+        #[structopt(name = "DOMAIN_ID")]
+        domain_id: i16,
+
+        /// ID of the Google Drive file to read
+        #[structopt(name = "FILE_ID")]
+        file_ids: Vec<String>,
     },
 }
 
@@ -499,6 +511,18 @@ async fn main() -> Result<()> {
                     let gdrive_file = storage_write::create_gdrive_file_on_domain(file_stream_fn, size, *domain_id, *owner_id, parent, filename).await?;
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                     println!("{}", j);
+                }
+                InternalCommand::CatGdriveFiles { domain_id, file_ids } => {
+                    let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, file_ids).await?;
+                    for gdrive_file in &gdrive_files {
+                        let stream = storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?;
+                        let mut read = stream
+                            .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                            .into_async_read()
+                            .compat();
+                        let mut stdout = tokio::io::stdout();
+                        tokio::io::copy(&mut read, &mut stdout).await?;
+                    }
                 }
             }
         }
