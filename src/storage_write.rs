@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::pin::Pin;
 use chrono::Utc;
 use anyhow::bail;
-use futures::{ready, stream::{Stream, StreamExt}, task::{Context, Poll}};
+use futures::{ready, stream::{Stream, TryStreamExt}, task::{Context, Poll}};
 use anyhow::Result;
 use bytes::{Bytes, BytesMut};
 use tokio_util::codec::Encoder;
@@ -178,10 +178,10 @@ where
         let key = gcm_create_key(cipher_key).unwrap();
         let mut encoder = GcmEncoder::new(block_size, key, 0);
 
-        unencrypted.map(move |bytes| -> std::io::Result<Bytes> {
+        unencrypted.map_ok(move |bytes| -> Bytes {
             let mut out = BytesMut::new();
-            encoder.encode(bytes?.into(), &mut out).unwrap();
-            Ok(out.into())
+            encoder.encode(bytes.into(), &mut out).unwrap();
+            out.into()
         })
     };
 
