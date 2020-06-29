@@ -3,9 +3,10 @@
 use rand::Rng;
 use std::sync::Arc;
 use std::pin::Pin;
+use std::cmp::min;
 use chrono::Utc;
 use anyhow::bail;
-use futures::{ready, stream::{Stream, TryStreamExt}, task::{Context, Poll}};
+use futures::{ready, stream::{self, Stream, StreamExt, TryStreamExt}, task::{Context, Poll}};
 use anyhow::Result;
 use bytes::{Bytes, BytesMut};
 use tokio_util::codec::Encoder;
@@ -14,6 +15,7 @@ use crate::db::storage::gdrive::{self, file::GdriveFile};
 use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::create_gdrive_file;
 use crate::crypto::{GcmEncoder, gcm_create_key};
+use crate::conceal_size::conceal_size;
 use tokio_postgres::Transaction;
 use pin_project::pin_project;
 use parking_lot::Mutex;
@@ -147,6 +149,31 @@ fn new_cipher_key() -> [u8; 16] {
     rand::thread_rng().gen::<[u8; 16]>()
 }
 
+struct RandomPadding {
+    bytes_left: u64,
+}
+
+impl RandomPadding {
+    fn new(bytes: u64) -> Self {
+        Self { bytes_left: bytes }
+    }
+}
+
+impl Iterator for RandomPadding {
+    type Item = Bytes;
+
+    fn next(&mut self) -> Option<Bytes> {
+        if self.bytes_left == 0 {
+            return None
+        }
+        let count = min(65536, self.bytes_left);
+        self.bytes_left -= count;
+        let mut rng = rand::thread_rng();
+        let bytes: Vec<u8> = (0..count).map(|_| { rng.gen::<u8>() }).collect();
+        Some(Bytes::from(bytes))
+    }
+}
+
 /// Write the content of a file to a G Suite domain.
 /// Caller must commit the transaction themselves.
 pub async fn write_to_gdrive<S>(
@@ -168,8 +195,11 @@ where
 
     let whole_block_size = 65536;
     let block_size = whole_block_size - 16;
+    let encrypted_size = get_aes_gcm_length(file.size as u64, block_size);
+    let gdrive_file_size = conceal_size(encrypted_size);
+    let padding_size = gdrive_file_size - encrypted_size;
+
     let cipher_key = new_cipher_key();
-    // TODO: append some random data to fill
     let encrypted_stream_fn = |offset| {
         // TODO: support non-0 offset
         assert_eq!(offset, 0);
@@ -182,15 +212,17 @@ where
             let mut out = BytesMut::new();
             encoder.encode(bytes.into(), &mut out).unwrap();
             out.into()
-        })
+        }).chain(
+            stream::iter(RandomPadding::new(padding_size))
+            .map(|bytes| Ok(bytes))
+        )
     };
 
     let filename = new_chunk_filename();
-    let size = get_aes_gcm_length(file.size as u64, block_size);
     let gdrive_file =
-        create_gdrive_file_on_domain(encrypted_stream_fn, size, domain_id, placement.owner, &parent.parent, &filename).await?
+        create_gdrive_file_on_domain(encrypted_stream_fn, gdrive_file_size, domain_id, placement.owner, &parent.parent, &filename).await?
         .create(transaction).await?;
-    // terastash uploaded many files as multi-chunk files; exastash currently uploads everything as one chunk
+    // terastash uploaded large files as multi-chunk files; exastash currently uploads all files as one chunk
     let gdrive_files = vec![gdrive_file];
 
     gdrive::Storage {
@@ -202,4 +234,31 @@ where
     }.create(transaction).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_random_padding() {
+        let out: Vec<Bytes> = RandomPadding::new(0).collect();
+        assert_eq!(out.len(), 0);
+
+        let out: Vec<Bytes> = RandomPadding::new(1).collect();
+        assert_eq!(out.len(), 1);
+
+        let out: Vec<Bytes> = RandomPadding::new(65536).collect();
+        assert_eq!(out.len(), 1);
+
+        // Try to ensure data is actually random
+        let out2: Vec<Bytes> = RandomPadding::new(65536).collect();
+        assert_ne!(out2, out);
+
+        let out: Vec<Bytes> = RandomPadding::new(65536 + 1).collect();
+        assert_eq!(out.len(), 2);
+
+        let out: Vec<Bytes> = RandomPadding::new(65536 * 2).collect();
+        assert_eq!(out.len(), 2);
+    }
 }

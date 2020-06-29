@@ -25,7 +25,7 @@ fn round_up_to_nearest(n: u64, nearest: u64) -> u64 {
 
 /// For tiny files (< 2KB), return 16
 /// For non-tiny files, return (2^floor(log2(n)))/128
-pub(crate) fn get_concealment_size(n: u64) -> u64 {
+fn get_concealment_size(n: u64) -> u64 {
     // Use an average wasteage of 1/256 (~.39%) and max wasteage of 1/128
     let ret = 2_u64.pow(floor_log2(n)) / 128;
     max(16, ret)
