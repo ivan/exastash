@@ -49,25 +49,6 @@ enum ExastashCommand {
         selector: InodeSelector,
     },
 
-    #[structopt(name = "ls")]
-    /// List a dir, file, or symlink
-    Ls {
-        #[structopt(short = "j")]
-        /// Print just the filenames
-        just_names: bool,
-
-        #[structopt(flatten)]
-        selector: InodeSelector,
-    },
-
-    #[structopt(name = "find")]
-    /// Recursively list a dir, like `find`
-    /// This cannot start at a file or symlink because it may have multiple names.
-    Find {
-        #[structopt(flatten)]
-        selector: InodeSelector,
-    },
-
     #[structopt(name = "gsuite")]
     /// G Suite-related commands
     Gsuite(GsuiteCommand),
@@ -128,6 +109,16 @@ impl InodeSelector {
     }
 }
 
+async fn resolve_path(transaction: &mut Transaction<'_>, root: Option<i64>, path: &str) -> Result<InodeId> {
+    let root = root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
+    let path_components: Vec<&str> = if path == "" {
+        vec![]
+    } else {
+        path.split('/').collect()
+    };
+    walk_path(transaction, root, &path_components).await
+}
+
 #[derive(StructOpt, Debug)]
 struct PathOrFileId {
     /// file id.
@@ -148,22 +139,39 @@ struct PathOrFileId {
 
 impl PathOrFileId {
     async fn to_file_id(&self, transaction: &mut Transaction<'_>) -> Result<i64> {
-        let file_id = match (self.file_id, &self.path) {
+        Ok(match (self.file_id, &self.path) {
             (Some(id), None) => id,
-            (None, Some(path)) => {
-                let root = self.root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
-                let path_components: Vec<&str> = if path == "" {
-                    vec![]
-                } else {
-                    path.split('/').collect()
-                };
-                walk_path(transaction, root, &path_components).await?.file_id()?
-            },
-            _ => {
-                bail!("either file_id or path must be specified but not both");
-            }
-        };
-        Ok(file_id)
+            (None, Some(path)) => resolve_path(transaction, self.root, path).await?.file_id()?,
+            _ => bail!("either file_id or path must be specified but not both"),
+        })
+    }
+}
+
+#[derive(StructOpt, Debug)]
+struct PathOrDirId {
+    /// dir id.
+    /// One of {dir id, path} must be given.
+    #[structopt(long, short = "i")]
+    dir_id: Option<i64>,
+
+    /// Path consisting only of slash-separated basenames, no leading / or . or ..
+    /// One of {dir id, path} must be given.
+    #[structopt(long, short = "p")]
+    path: Option<String>,
+
+    /// A directory id specifying the dir from which to start path traversal.
+    /// Must be provided if path is provided.
+    #[structopt(long, short = "r")]
+    root: Option<i64>,
+}
+
+impl PathOrDirId {
+    async fn to_dir_id(&self, transaction: &mut Transaction<'_>) -> Result<i64> {
+        Ok(match (self.dir_id, &self.path) {
+            (Some(id), None) => id,
+            (None, Some(path)) => resolve_path(transaction, self.root, path).await?.dir_id()?,
+            _ => bail!("either dir_id or path must be specified but not both"),
+        })
     }
 }
 
@@ -172,6 +180,25 @@ enum DirCommand {
     /// Create an unparented directory (for e.g. use as a root inode) and print its id to stdout
     #[structopt(name = "create")]
     Create,
+
+    #[structopt(name = "ls")]
+    /// List a dir, file, or symlink
+    Ls {
+        #[structopt(short = "j")]
+        /// Print just the filenames
+        just_names: bool,
+
+        #[structopt(flatten)]
+        selector: PathOrDirId,
+    },
+
+    #[structopt(name = "find")]
+    /// Recursively list a dir, like `find`
+    /// This cannot start at a file or symlink because it may have multiple names.
+    Find {
+        #[structopt(flatten)]
+        selector: PathOrDirId,
+    },
 }
 
 #[derive(StructOpt, Debug)]
@@ -355,6 +382,22 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", dir.id);
                 }
+                DirCommand::Ls { just_names, selector } => {
+                    let dir_id = selector.to_dir_id(&mut transaction).await?;
+                    let dirents = db::dirent::list_dir(&mut transaction, dir_id).await?;
+                    for dirent in dirents {
+                        if just_names {
+                            println!("{}", dirent.basename);
+                        } else {
+                            // TODO: print: inode, size, mtime, filename[decoration]
+                            println!("{}", dirent.basename);
+                        }
+                    }
+                }
+                DirCommand::Find { selector } => {
+                    let dir_id = selector.to_dir_id(&mut transaction).await?;
+                    find(&mut transaction, &[], dir_id).await?;
+                }
             }
         }
         ExastashCommand::File(file) => {
@@ -417,22 +460,6 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                 }
             }
-        }
-        ExastashCommand::Ls { just_names, selector } => {
-            let inode_id = selector.to_inode_id(&mut transaction).await?;
-            let dirents = db::dirent::list_dir(&mut transaction, inode_id.dir_id()?).await?;
-            for dirent in dirents {
-                if just_names {
-                    println!("{}", dirent.basename);
-                } else {
-                    // TODO: print: inode, size, mtime, filename[decoration]
-                    println!("{}", dirent.basename);
-                }
-            }
-        }
-        ExastashCommand::Find { selector } => {
-            let dir_id = selector.to_inode_id(&mut transaction).await?.dir_id()?;
-            find(&mut transaction, &[], dir_id).await?;
         }
         ExastashCommand::Info { selector } => {
             let inode_id = selector.to_inode_id(&mut transaction).await?;
