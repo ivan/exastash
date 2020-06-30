@@ -49,13 +49,6 @@ enum ExastashCommand {
         selector: InodeSelector,
     },
 
-    #[structopt(name = "cat")]
-    /// Output a file's content to stdout
-    Cat {
-        #[structopt(flatten)]
-        selector: InodeSelector,
-    },
-
     #[structopt(name = "ls")]
     /// List a dir, file, or symlink
     Ls {
@@ -136,6 +129,45 @@ impl InodeSelector {
 }
 
 #[derive(StructOpt, Debug)]
+struct PathOrFileId {
+    /// file id.
+    /// One of {file id, path} must be given.
+    #[structopt(long, short = "i")]
+    file_id: Option<i64>,
+
+    /// Path consisting only of slash-separated basenames, no leading / or . or ..
+    /// One of {file id, path} must be given.
+    #[structopt(long, short = "p")]
+    path: Option<String>,
+
+    /// A directory id specifying the dir from which to start path traversal.
+    /// Must be provided if path is provided.
+    #[structopt(long, short = "r")]
+    root: Option<i64>,
+}
+
+impl PathOrFileId {
+    async fn to_file_id(&self, transaction: &mut Transaction<'_>) -> Result<i64> {
+        let file_id = match (self.file_id, &self.path) {
+            (Some(id), None) => id,
+            (None, Some(path)) => {
+                let root = self.root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
+                let path_components: Vec<&str> = if path == "" {
+                    vec![]
+                } else {
+                    path.split('/').collect()
+                };
+                walk_path(transaction, root, &path_components).await?.file_id()?
+            },
+            _ => {
+                bail!("either file_id or path must be specified but not both");
+            }
+        };
+        Ok(file_id)
+    }
+}
+
+#[derive(StructOpt, Debug)]
 enum DirCommand {
     /// Create an unparented directory (for e.g. use as a root inode) and print its id to stdout
     #[structopt(name = "create")]
@@ -158,7 +190,14 @@ enum FileCommand {
         /// Store the file data in some gsuite domain (specified by id). Can be specified multiple times and with other --store-* options.
         #[structopt(long)]
         store_gdrive: Vec<i16>,
-    }
+    },
+
+    #[structopt(name = "cat")]
+    /// Output a file's content to stdout
+    Cat {
+        #[structopt(flatten)]
+        selector: PathOrFileId,
+    },
 }
 
 #[derive(StructOpt, Debug)]
@@ -348,6 +387,26 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", file.id);
                 }
+                FileCommand::Cat { selector } => {
+                    let file_id = selector.to_file_id(&mut transaction).await?;
+                    let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
+                    ensure!(files.len() == 1, "no such file with id={}", file_id);
+                    let file = &files[0];
+
+                    let storages = get_storage(&mut transaction, &[file_id]).await?;
+                    match storages.get(0) {
+                        Some(storage) => {
+                            let stream = storage_read::read(&file, &storage).await?;
+                            let mut read = stream
+                                .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                                .into_async_read()
+                                .compat();
+                            let mut stdout = tokio::io::stdout();
+                            tokio::io::copy(&mut read, &mut stdout).await?;
+                        }
+                        None => bail!("file with id={} has no storage", file_id)
+                    }
+                }        
             }
         }
         ExastashCommand::Dirent(dirent) => {
@@ -424,38 +483,6 @@ async fn main() -> Result<()> {
 
             let j = serde_json::to_string_pretty(&inode)?;
             println!("{}", j);
-        }
-        ExastashCommand::Cat { selector } => {
-            let inode_id = selector.to_inode_id(&mut transaction).await?;
-            match inode_id {
-                InodeId::File(file_id) => {
-                    let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
-                    ensure!(files.len() == 1, "no such file with id={}", file_id);
-                    let file = &files[0];
-
-                    let storages = get_storage(&mut transaction, &[file_id]).await?;
-                    match storages.get(0) {
-                        Some(storage) => {
-                            let stream = storage_read::read(&file, &storage).await?;
-                            let mut read = stream
-                                .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                                .into_async_read()
-                                .compat();
-                            let mut stdout = tokio::io::stdout();
-                            tokio::io::copy(&mut read, &mut stdout).await?;
-                        }
-                        None => bail!("file with id={} has no storage", file_id)
-                    }
-                }
-                InodeId::Dir(_) => {
-                    bail!("cannot cat a dir");
-                }
-                InodeId::Symlink(_) => {
-                    // Symlink may point outside the exastash filesystem, so we don't
-                    // handle any of them here.
-                    bail!("cannot cat a symlink");
-                }
-            }
         }
         ExastashCommand::Gsuite(command) => {
             match &command {
