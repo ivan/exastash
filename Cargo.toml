@@ -63,4 +63,6 @@ ring = { git = "https://github.com/ludios/ring", branch = "prime" }
 debug = false
 
 [profile.release]
+lto = true
+codegen-units = 1
 overflow-checks = true
