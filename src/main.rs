@@ -13,7 +13,7 @@ use tracing_subscriber::EnvFilter;
 use exastash::db;
 use exastash::db::storage::get_storage;
 use exastash::db::storage::gdrive::file::GdriveFile;
-use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink};
+use exastash::db::inode::{InodeId, Inode, File, NewFile, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
 use exastash::info::json_info;
@@ -311,7 +311,7 @@ async fn main() -> Result<()> {
                 DirCommand::Create => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
-                    let dir = db::inode::NewDir { mtime, birth }.create(&mut transaction).await?;
+                    let dir = NewDir { mtime, birth }.create(&mut transaction).await?;
                     transaction.commit().await?;
                     println!("{}", dir.id);
                 }
@@ -346,7 +346,7 @@ async fn main() -> Result<()> {
                     let size = attr.len();
                     let permissions = attr.permissions();
                     let executable = permissions.mode() & 0o111 != 0;
-                    let file = db::inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
+                    let file = NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
                     if size > 0 && !store_inline && store_gdrive.is_empty() {
                         bail!("a file with size > 0 needs storage, please specify a --store- option");
                     }
@@ -401,7 +401,11 @@ async fn main() -> Result<()> {
         ExastashCommand::Symlink(symlink) => {
             match symlink {
                 SymlinkCommand::Create { target } => {
-                    todo!()
+                    let mtime = Utc::now();
+                    let birth = db::inode::Birth::here_and_now();
+                    let symlink = NewSymlink { mtime, birth, target }.create(&mut transaction).await?;
+                    transaction.commit().await?;
+                    println!("{}", symlink.id);
                 }
                 SymlinkCommand::Info { id } => {
                     let mut symlinks = Symlink::find_by_ids(&mut transaction, &[id]).await?;
