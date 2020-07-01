@@ -132,10 +132,11 @@ enum SymlinkCommand {
 
 arg_enum! {
     #[derive(Debug)]
+    #[allow(non_camel_case_types)]
     enum ResolveKind {
-        Dir,
-        File,
-        Symlink,
+        dir,
+        file,
+        symlink,
     }
 }
 
@@ -179,11 +180,11 @@ enum DirentCommand {
     /// Resolve paths to dir, file, or symlink ids
     #[structopt(name = "resolve")]
     Resolve {
-        /// Kind of entity to resolve: "dir", "file", or "symlink"
-        #[structopt(name = "KIND", possible_values = &ResolveKind::variants(), case_insensitive = true)]
+        /// Kind of entity to resolve. If a path resolves to another kind, it will be skipped.
+        #[structopt(name = "KIND", possible_values = &ResolveKind::variants())]
         kind: ResolveKind,
 
-        /// Root dir id from which to resolve paths
+        /// Dir id of root dir from which to resolve paths
         #[structopt(name = "ROOT_DIR_ID")]
         root: i64,
        
@@ -441,9 +442,9 @@ async fn main() -> Result<()> {
                     for path in paths {
                         let inode = resolve_path(&mut transaction, root, &path).await?;
                         match kind {
-                            ResolveKind::Dir     => if let InodeId::Dir(id)     = inode { println!("{}", id) },
-                            ResolveKind::File    => if let InodeId::File(id)    = inode { println!("{}", id) },
-                            ResolveKind::Symlink => if let InodeId::Symlink(id) = inode { println!("{}", id) },
+                            ResolveKind::dir     => if let InodeId::Dir(id)     = inode { println!("{}", id) },
+                            ResolveKind::file    => if let InodeId::File(id)    = inode { println!("{}", id) },
+                            ResolveKind::symlink => if let InodeId::Symlink(id) = inode { println!("{}", id) },
                         }    
                     }
                 }
