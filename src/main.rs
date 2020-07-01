@@ -188,7 +188,8 @@ enum DirentCommand {
         #[structopt(name = "ROOT_DIR_ID")]
         root: i64,
        
-        /// Path consisting only of slash-separated basenames. There is no handling of '.', '..', or duplicate or leading '/'
+        /// Path consisting only of slash-separated basenames. There is no handling of
+        /// '.', '..', duplicate '/', leading '/', or trailing '/'
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
