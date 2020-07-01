@@ -332,8 +332,8 @@ enum InternalCommand {
         filename: String,
     },
     /// Write a sequence of Google Drive files to stdout
-    #[structopt(name = "cat-gdrive-files")]
-    CatGdriveFiles {
+    #[structopt(name = "read-gdrive-files")]
+    ReadGdriveFiles {
         /// gsuite_domain to read from
         #[structopt(name = "DOMAIN_ID")]
         domain_id: i16,
@@ -566,7 +566,7 @@ async fn main() -> Result<()> {
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                     println!("{}", j);
                 }
-                InternalCommand::CatGdriveFiles { domain_id, file_ids } => {
+                InternalCommand::ReadGdriveFiles { domain_id, file_ids } => {
                     let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, file_ids).await?;
                     for gdrive_file in &gdrive_files {
                         let stream = storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?;
