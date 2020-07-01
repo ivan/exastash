@@ -45,8 +45,8 @@ enum ExastashCommand {
     #[structopt(name = "dirent")]
     Dirent(DirentCommand),
 
-    #[structopt(name = "gsuite")]
     /// Commands to work with G Suite
+    #[structopt(name = "gsuite")]
     Gsuite(GsuiteCommand),
 
     #[structopt(name = "internal")]
@@ -60,30 +60,9 @@ enum DirCommand {
     #[structopt(name = "create")]
     Create,
 
-    #[structopt(name = "info")]
     /// Show info for a dir
+    #[structopt(name = "info")]
     Info {
-        /// dir id
-        #[structopt(name = "ID")]
-        id: i64,
-    },
-
-    #[structopt(name = "ls")]
-    /// List a dir, file, or symlink
-    Ls {
-        #[structopt(short = "j")]
-        /// Print just the filenames
-        just_names: bool,
-
-        /// dir id
-        #[structopt(name = "ID")]
-        id: i64,
-    },
-
-    #[structopt(name = "find")]
-    /// Recursively list a dir, like `find`
-    /// This cannot start at a file or symlink because it may have multiple names.
-    Find {
         /// dir id
         #[structopt(name = "ID")]
         id: i64,
@@ -123,8 +102,8 @@ enum FileCommand {
 
 #[derive(StructOpt, Debug)]
 enum ContentCommand {
-    #[structopt(name = "read")]
     /// Output a file's content to stdout
+    #[structopt(name = "read")]
     Read {
         /// file id
         #[structopt(name = "ID")]
@@ -141,8 +120,8 @@ enum SymlinkCommand {
         target: String,
     },
 
-    #[structopt(name = "info")]
     /// Show info for a symlink
+    #[structopt(name = "info")]
     Info {
         /// symlink id
         #[structopt(name = "ID")]
@@ -169,6 +148,22 @@ enum DirentCommand {
 
         #[structopt(long, short = "s")]
         child_symlink: Option<i64>,
+    },
+
+    /// List the children of a dir
+    #[structopt(name = "list")]
+    List {
+        /// dir id
+        #[structopt(name = "ID")]
+        id: i64,
+    },
+
+    /// Recursively list a dir, like `find`
+    #[structopt(name = "find")]
+    Find {
+        /// dir id
+        #[structopt(name = "ID")]
+        id: i64,
     },
 }
 
@@ -321,20 +316,6 @@ async fn main() -> Result<()> {
                     let dir = dirs.pop().unwrap();
                     println!("{}", json_info(&mut transaction, Inode::Dir(dir)).await?);
                 }
-                DirCommand::Ls { just_names, id } => {
-                    let dirents = db::dirent::list_dir(&mut transaction, id).await?;
-                    for dirent in dirents {
-                        if just_names {
-                            println!("{}", dirent.basename);
-                        } else {
-                            // TODO: print: inode, size, mtime, filename[decoration]
-                            println!("{}", dirent.basename);
-                        }
-                    }
-                }
-                DirCommand::Find { id } => {
-                    find(&mut transaction, &[], id).await?;
-                }
             }
         }
         ExastashCommand::File(file) => {
@@ -421,6 +402,15 @@ async fn main() -> Result<()> {
                     let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode_id()?;
                     db::dirent::Dirent::new(parent_dir_id, basename, child).create(&mut transaction).await?;
                     transaction.commit().await?;
+                }
+                DirentCommand::List { id } => {
+                    let dirents = db::dirent::list_dir(&mut transaction, id).await?;
+                    for dirent in dirents {
+                        println!("{}", dirent.basename);
+                    }
+                }
+                DirentCommand::Find { id } => {
+                    find(&mut transaction, &[], id).await?;
                 }
             }
         }
