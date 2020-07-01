@@ -54,100 +54,6 @@ enum ExastashCommand {
     Internal(InternalCommand),
 }
 
-async fn resolve_path(transaction: &mut Transaction<'_>, root: Option<i64>, path: &str) -> Result<InodeId> {
-    let root = root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
-    let path_components: Vec<&str> = if path == "" {
-        vec![]
-    } else {
-        path.split('/').collect()
-    };
-    walk_path(transaction, root, &path_components).await
-}
-
-#[derive(StructOpt, Debug)]
-struct PathOrFileId {
-    /// file id.
-    /// One of {file id, path} must be given.
-    #[structopt(long, short = "i")]
-    file_id: Option<i64>,
-
-    /// Path consisting only of slash-separated basenames, no leading / or . or ..
-    /// One of {file id, path} must be given.
-    #[structopt(long, short = "p")]
-    path: Option<String>,
-
-    /// A dir id specifying the dir from which to start path traversal.
-    /// Must be provided if path is provided.
-    #[structopt(long, short = "r")]
-    root: Option<i64>,
-}
-
-impl PathOrFileId {
-    async fn to_file_id(&self, transaction: &mut Transaction<'_>) -> Result<i64> {
-        Ok(match (self.file_id, &self.path) {
-            (Some(id), None) => id,
-            (None, Some(path)) => resolve_path(transaction, self.root, path).await?.file_id()?,
-            _ => bail!("either file_id or path must be specified but not both"),
-        })
-    }
-}
-
-#[derive(StructOpt, Debug)]
-struct PathOrDirId {
-    /// dir id.
-    /// One of {dir id, path} must be given.
-    #[structopt(long, short = "i")]
-    dir_id: Option<i64>,
-
-    /// Path consisting only of slash-separated basenames, no leading / or . or ..
-    /// One of {dir id, path} must be given.
-    #[structopt(long, short = "p")]
-    path: Option<String>,
-
-    /// A dir id specifying the dir from which to start path traversal.
-    /// Must be provided if path is provided.
-    #[structopt(long, short = "r")]
-    root: Option<i64>,
-}
-
-impl PathOrDirId {
-    async fn to_dir_id(&self, transaction: &mut Transaction<'_>) -> Result<i64> {
-        Ok(match (self.dir_id, &self.path) {
-            (Some(id), None) => id,
-            (None, Some(path)) => resolve_path(transaction, self.root, path).await?.dir_id()?,
-            _ => bail!("either dir_id or path must be specified but not both"),
-        })
-    }
-}
-
-#[derive(StructOpt, Debug)]
-struct PathOrSymlinkId {
-    /// symlink id.
-    /// One of {symlink id, path} must be given.
-    #[structopt(long, short = "i")]
-    symlink_id: Option<i64>,
-
-    /// Path consisting only of slash-separated basenames, no leading / or . or ..
-    /// One of {symlink id, path} must be given.
-    #[structopt(long, short = "p")]
-    path: Option<String>,
-
-    /// A dir id specifying the dir from which to start path traversal.
-    /// Must be provided if path is provided.
-    #[structopt(long, short = "r")]
-    root: Option<i64>,
-}
-
-impl PathOrSymlinkId {
-    async fn to_symlink_id(&self, transaction: &mut Transaction<'_>) -> Result<i64> {
-        Ok(match (self.symlink_id, &self.path) {
-            (Some(id), None) => id,
-            (None, Some(path)) => resolve_path(transaction, self.root, path).await?.symlink_id()?,
-            _ => bail!("either symlink_id or path must be specified but not both"),
-        })
-    }
-}
-
 #[derive(StructOpt, Debug)]
 enum DirCommand {
     /// Create an unparented directory (for e.g. use as a root inode) and print its id to stdout
@@ -157,8 +63,9 @@ enum DirCommand {
     #[structopt(name = "info")]
     /// Show info for a dir
     Info {
-        #[structopt(flatten)]
-        selector: PathOrDirId,
+        /// dir id
+        #[structopt(name = "ID")]
+        id: i64,
     },
 
     #[structopt(name = "ls")]
@@ -168,16 +75,18 @@ enum DirCommand {
         /// Print just the filenames
         just_names: bool,
 
-        #[structopt(flatten)]
-        selector: PathOrDirId,
+        /// dir id
+        #[structopt(name = "ID")]
+        id: i64,
     },
 
     #[structopt(name = "find")]
     /// Recursively list a dir, like `find`
     /// This cannot start at a file or symlink because it may have multiple names.
     Find {
-        #[structopt(flatten)]
-        selector: PathOrDirId,
+        /// dir id
+        #[structopt(name = "ID")]
+        id: i64,
     },
 }
 
@@ -199,11 +108,12 @@ enum FileCommand {
         store_gdrive: Vec<i16>,
     },
 
-    /// Show info for a dir
+    /// Show info for a file
     #[structopt(name = "info")]
     Info {
-        #[structopt(flatten)]
-        selector: PathOrFileId,
+        /// file id
+        #[structopt(name = "ID")]
+        id: i64,
     },
 
     /// Commands for working with file content
@@ -216,8 +126,9 @@ enum ContentCommand {
     #[structopt(name = "read")]
     /// Output a file's content to stdout
     Read {
-        #[structopt(flatten)]
-        selector: PathOrFileId,
+        /// file id
+        #[structopt(name = "ID")]
+        id: i64,
     },
 }
 
@@ -233,8 +144,9 @@ enum SymlinkCommand {
     #[structopt(name = "info")]
     /// Show info for a symlink
     Info {
-        #[structopt(flatten)]
-        selector: PathOrSymlinkId,
+        /// symlink id
+        #[structopt(name = "ID")]
+        id: i64,
     },
 }
 
@@ -355,6 +267,16 @@ enum InternalCommand {
     },
 }
 
+async fn resolve_path(transaction: &mut Transaction<'_>, root: Option<i64>, path: &str) -> Result<InodeId> {
+    let root = root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
+    let path_components: Vec<&str> = if path == "" {
+        vec![]
+    } else {
+        path.split('/').collect()
+    };
+    walk_path(transaction, root, &path_components).await
+}
+
 #[async_recursion]
 async fn find(transaction: &mut Transaction<'_>, segments: &[&str], dir_id: i64) -> Result<()> {
     let path_string = match segments {
@@ -393,16 +315,14 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", dir.id);
                 }
-                DirCommand::Info { selector } => {
-                    let id = selector.to_dir_id(&mut transaction).await?;
+                DirCommand::Info { id } => {
                     let mut dirs = Dir::find_by_ids(&mut transaction, &[id]).await?;
                     ensure!(!dirs.is_empty(), "dir id={:?} does not exist in database", id);
                     let dir = dirs.pop().unwrap();
                     println!("{}", json_info(&mut transaction, Inode::Dir(dir)).await?);
                 }
-                DirCommand::Ls { just_names, selector } => {
-                    let dir_id = selector.to_dir_id(&mut transaction).await?;
-                    let dirents = db::dirent::list_dir(&mut transaction, dir_id).await?;
+                DirCommand::Ls { just_names, id } => {
+                    let dirents = db::dirent::list_dir(&mut transaction, id).await?;
                     for dirent in dirents {
                         if just_names {
                             println!("{}", dirent.basename);
@@ -412,9 +332,8 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                DirCommand::Find { selector } => {
-                    let dir_id = selector.to_dir_id(&mut transaction).await?;
-                    find(&mut transaction, &[], dir_id).await?;
+                DirCommand::Find { id } => {
+                    find(&mut transaction, &[], id).await?;
                 }
             }
         }
@@ -448,8 +367,7 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", file.id);
                 }
-                FileCommand::Info { selector } => {
-                    let id = selector.to_file_id(&mut transaction).await?;
+                FileCommand::Info { id } => {
                     let mut files = File::find_by_ids(&mut transaction, &[id]).await?;
                     ensure!(!files.is_empty(), "file id={:?} does not exist in database", id);
                     let file = files.pop().unwrap();
@@ -457,13 +375,12 @@ async fn main() -> Result<()> {
                 }
                 FileCommand::Content(content) => {
                     match content {
-                        ContentCommand::Read { selector } => {
-                            let file_id = selector.to_file_id(&mut transaction).await?;
-                            let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
-                            ensure!(files.len() == 1, "no such file with id={}", file_id);
+                        ContentCommand::Read { id } => {
+                            let files = File::find_by_ids(&mut transaction, &[id]).await?;
+                            ensure!(files.len() == 1, "no such file with id={}", id);
                             let file = &files[0];
         
-                            let storages = get_storage(&mut transaction, &[file_id]).await?;
+                            let storages = get_storage(&mut transaction, &[id]).await?;
                             match storages.get(0) {
                                 Some(storage) => {
                                     let stream = storage_read::read(&file, &storage).await?;
@@ -474,7 +391,7 @@ async fn main() -> Result<()> {
                                     let mut stdout = tokio::io::stdout();
                                     tokio::io::copy(&mut read, &mut stdout).await?;
                                 }
-                                None => bail!("file with id={} has no storage", file_id)
+                                None => bail!("file with id={} has no storage", id)
                             }
                         }
                     }
@@ -486,8 +403,7 @@ async fn main() -> Result<()> {
                 SymlinkCommand::Create { target } => {
                     todo!()
                 }
-                SymlinkCommand::Info { selector } => {
-                    let id = selector.to_symlink_id(&mut transaction).await?;
+                SymlinkCommand::Info { id } => {
                     let mut symlinks = Symlink::find_by_ids(&mut transaction, &[id]).await?;
                     ensure!(!symlinks.is_empty(), "symlink id={:?} does not exist in database", id);
                     let symlink = symlinks.pop().unwrap();
