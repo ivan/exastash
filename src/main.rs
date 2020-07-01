@@ -29,7 +29,7 @@ use yup_oauth2::ServiceAccountKey;
 #[structopt(version_message = "Print version information")]
 /// exastash
 enum ExastashCommand {
-    /// Commands to work with dirs
+    /// Commands to work with directories
     #[structopt(name = "dir")]
     Dir(DirCommand),
 
@@ -37,11 +37,11 @@ enum ExastashCommand {
     #[structopt(name = "file")]
     File(FileCommand),
 
-    /// Commands to work with symlinks
+    /// Commands to work with symbolic links
     #[structopt(name = "symlink")]
     Symlink(SymlinkCommand),
 
-    /// Commands to work with dirents
+    /// Commands to work with directory entries
     #[structopt(name = "dirent")]
     Dirent(DirentCommand),
 
@@ -342,7 +342,7 @@ enum InternalCommand {
         #[structopt(name = "FILENAME")]
         filename: String,
     },
-    /// Write a sequence of Google Drive files to stdout
+    /// Read the contents of a sequence of Google Drive files to stdout
     #[structopt(name = "read-gdrive-files")]
     ReadGdriveFiles {
         /// gsuite_domain to read from
