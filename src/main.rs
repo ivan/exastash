@@ -1,13 +1,14 @@
 use tracing::info;
 use async_recursion::async_recursion;
 use clap::arg_enum;
-use anyhow::{bail, ensure, Error, Result};
+use anyhow::{anyhow, bail, ensure, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use futures::future::FutureExt;
 use tokio::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::collections::HashMap;
 use tokio_postgres::Transaction;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing_subscriber::EnvFilter;
@@ -61,12 +62,12 @@ enum DirCommand {
     #[structopt(name = "create")]
     Create,
 
-    /// Show info for a dir
+    /// Show info for zero or more dirs
     #[structopt(name = "info")]
     Info {
         /// dir id
         #[structopt(name = "ID")]
-        id: i64,
+        ids: Vec<i64>,
     },
 }
 
@@ -88,12 +89,12 @@ enum FileCommand {
         store_gdrive: Vec<i16>,
     },
 
-    /// Show info for a file
+    /// Show info for zero or more files
     #[structopt(name = "info")]
     Info {
         /// file id
         #[structopt(name = "ID")]
-        id: i64,
+        ids: Vec<i64>,
     },
 
     /// Commands for working with file content
@@ -121,12 +122,12 @@ enum SymlinkCommand {
         target: String,
     },
 
-    /// Show info for a symlink
+    /// Show info for zero or more symlinks
     #[structopt(name = "info")]
     Info {
         /// symlink id
         #[structopt(name = "ID")]
-        id: i64,
+        ids: Vec<i64>,
     },
 }
 
@@ -337,11 +338,14 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", dir.id);
                 }
-                DirCommand::Info { id } => {
-                    let mut dirs = Dir::find_by_ids(&mut transaction, &[id]).await?;
-                    ensure!(!dirs.is_empty(), "dir id={:?} does not exist in database", id);
-                    let dir = dirs.pop().unwrap();
-                    println!("{}", json_info(&mut transaction, Inode::Dir(dir)).await?);
+                DirCommand::Info { ids } => {
+                    let dirs = Dir::find_by_ids(&mut transaction, &ids).await?;
+                    let mut map: HashMap<i64, Dir> = dirs.into_iter().map(|dir| (dir.id, dir)).collect();
+                    for id in ids {
+                        let dir = map.remove(&id)
+                            .ok_or_else(|| anyhow!("dir with id={} not in database, or duplicate id given", id))?;
+                        println!("{}", json_info(&mut transaction, Inode::Dir(dir)).await?);
+                    }
                 }
             }
         }
@@ -375,11 +379,14 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", file.id);
                 }
-                FileCommand::Info { id } => {
-                    let mut files = File::find_by_ids(&mut transaction, &[id]).await?;
-                    ensure!(!files.is_empty(), "file id={:?} does not exist in database", id);
-                    let file = files.pop().unwrap();
-                    println!("{}", json_info(&mut transaction, Inode::File(file)).await?);
+                FileCommand::Info { ids } => {
+                    let files = File::find_by_ids(&mut transaction, &ids).await?;
+                    let mut map: HashMap<i64, File> = files.into_iter().map(|file| (file.id, file)).collect();
+                    for id in ids {
+                        let file = map.remove(&id)
+                            .ok_or_else(|| anyhow!("file with id={} not in database, or duplicate id given", id))?;
+                        println!("{}", json_info(&mut transaction, Inode::File(file)).await?);
+                    }
                 }
                 FileCommand::Content(content) => {
                     match content {
@@ -415,11 +422,14 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", symlink.id);
                 }
-                SymlinkCommand::Info { id } => {
-                    let mut symlinks = Symlink::find_by_ids(&mut transaction, &[id]).await?;
-                    ensure!(!symlinks.is_empty(), "symlink id={:?} does not exist in database", id);
-                    let symlink = symlinks.pop().unwrap();
-                    println!("{}", json_info(&mut transaction, Inode::Symlink(symlink)).await?);
+                SymlinkCommand::Info { ids } => {
+                    let symlinks = Symlink::find_by_ids(&mut transaction, &ids).await?;
+                    let mut map: HashMap<i64, Symlink> = symlinks.into_iter().map(|symlink| (symlink.id, symlink)).collect();
+                    for id in ids {
+                        let symlink = map.remove(&id)
+                            .ok_or_else(|| anyhow!("symlink with id={} not in database, or duplicate id given", id))?;
+                        println!("{}", json_info(&mut transaction, Inode::Symlink(symlink)).await?);
+                    }
                 }
             }
         }
