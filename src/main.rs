@@ -9,15 +9,14 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use tokio_postgres::Transaction;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
-use serde::Serialize;
-use chrono::DateTime;
 use tracing_subscriber::EnvFilter;
 use exastash::db;
-use exastash::db::storage::{Storage, get_storage};
+use exastash::db::storage::get_storage;
 use exastash::db::storage::gdrive::file::GdriveFile;
-use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink, Birth};
+use exastash::db::inode::{InodeId, Inode, File, Dir, Symlink};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
+use exastash::info::json_info;
 use exastash::oauth;
 use exastash::{storage_read, storage_write};
 use futures::stream::TryStreamExt;
@@ -30,83 +29,29 @@ use yup_oauth2::ServiceAccountKey;
 #[structopt(version_message = "Print version information")]
 /// exastash
 enum ExastashCommand {
-    /// Subcommands to work with dirs
+    /// Commands to work with dirs
     #[structopt(name = "dir")]
     Dir(DirCommand),
 
-    /// Subcommands to work with files
+    /// Commands to work with files
     #[structopt(name = "file")]
     File(FileCommand),
 
-    /// Subcommands to work with dirents
+    /// Commands to work with symlinks
+    #[structopt(name = "symlink")]
+    Symlink(SymlinkCommand),
+
+    /// Commands to work with dirents
     #[structopt(name = "dirent")]
     Dirent(DirentCommand),
 
-    #[structopt(name = "info")]
-    /// Show info for a dir, file, or symlink
-    Info {
-        #[structopt(flatten)]
-        selector: InodeSelector,
-    },
-
     #[structopt(name = "gsuite")]
-    /// G Suite-related commands
+    /// Commands to work with G Suite
     Gsuite(GsuiteCommand),
 
     #[structopt(name = "internal")]
     /// Internal commands for debugging
     Internal(InternalCommand),
-}
-
-#[derive(StructOpt, Debug)]
-struct InodeSelector {
-    /// directory id.
-    /// Only one of the four (dir, file, symlink, path) can be given.
-    #[structopt(long, short = "d")]
-    dir: Option<i64>,
-
-    /// file id.
-    /// Only one of the four (dir, file, symlink, path) can be given.
-    #[structopt(long, short = "f")]
-    file: Option<i64>,
-
-    /// symlink id.
-    /// Only one of the four (dir, file, symlink, path) can be given.
-    #[structopt(long, short = "s")]
-    symlink: Option<i64>,
-
-    /// Path consisting only of slash-separated basenames, no leading / or . or ..
-    /// Only one of the four (dir, file, symlink, path) can be given.
-    #[structopt(long, short = "p")]
-    path: Option<String>,
-
-    /// A directory id specifying the dir from which to start path traversal.
-    /// Must be provided if path is provided.
-    #[structopt(long, short = "r")]
-    root: Option<i64>,
-}
-
-impl InodeSelector {
-    async fn to_inode_id(&self, transaction: &mut Transaction<'_>) -> Result<InodeId> {
-        let inode = match (self.dir.or(self.file).or(self.symlink), &self.path) {
-            (Some(_), None) => {
-                db::dirent::InodeTuple(self.dir, self.file, self.symlink).to_inode_id()?
-            },
-            (None, Some(path)) => {
-                let root = self.root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
-                let path_components: Vec<&str> = if path == "" {
-                    vec![]
-                } else {
-                    path.split('/').collect()
-                };
-                walk_path(transaction, root, &path_components).await?
-            },
-            _ => {
-                bail!("either dir|file|symlink or path must be specified but not both");
-            }
-        };
-        Ok(inode)
-    }
 }
 
 async fn resolve_path(transaction: &mut Transaction<'_>, root: Option<i64>, path: &str) -> Result<InodeId> {
@@ -131,7 +76,7 @@ struct PathOrFileId {
     #[structopt(long, short = "p")]
     path: Option<String>,
 
-    /// A directory id specifying the dir from which to start path traversal.
+    /// A dir id specifying the dir from which to start path traversal.
     /// Must be provided if path is provided.
     #[structopt(long, short = "r")]
     root: Option<i64>,
@@ -159,7 +104,7 @@ struct PathOrDirId {
     #[structopt(long, short = "p")]
     path: Option<String>,
 
-    /// A directory id specifying the dir from which to start path traversal.
+    /// A dir id specifying the dir from which to start path traversal.
     /// Must be provided if path is provided.
     #[structopt(long, short = "r")]
     root: Option<i64>,
@@ -176,10 +121,45 @@ impl PathOrDirId {
 }
 
 #[derive(StructOpt, Debug)]
+struct PathOrSymlinkId {
+    /// symlink id.
+    /// One of {symlink id, path} must be given.
+    #[structopt(long, short = "i")]
+    symlink_id: Option<i64>,
+
+    /// Path consisting only of slash-separated basenames, no leading / or . or ..
+    /// One of {symlink id, path} must be given.
+    #[structopt(long, short = "p")]
+    path: Option<String>,
+
+    /// A dir id specifying the dir from which to start path traversal.
+    /// Must be provided if path is provided.
+    #[structopt(long, short = "r")]
+    root: Option<i64>,
+}
+
+impl PathOrSymlinkId {
+    async fn to_symlink_id(&self, transaction: &mut Transaction<'_>) -> Result<i64> {
+        Ok(match (self.symlink_id, &self.path) {
+            (Some(id), None) => id,
+            (None, Some(path)) => resolve_path(transaction, self.root, path).await?.symlink_id()?,
+            _ => bail!("either symlink_id or path must be specified but not both"),
+        })
+    }
+}
+
+#[derive(StructOpt, Debug)]
 enum DirCommand {
     /// Create an unparented directory (for e.g. use as a root inode) and print its id to stdout
     #[structopt(name = "create")]
     Create,
+
+    #[structopt(name = "info")]
+    /// Show info for a dir
+    Info {
+        #[structopt(flatten)]
+        selector: PathOrDirId,
+    },
 
     #[structopt(name = "ls")]
     /// List a dir, file, or symlink
@@ -219,11 +199,42 @@ enum FileCommand {
         store_gdrive: Vec<i16>,
     },
 
-    #[structopt(name = "cat")]
-    /// Output a file's content to stdout
-    Cat {
+    /// Show info for a dir
+    #[structopt(name = "info")]
+    Info {
         #[structopt(flatten)]
         selector: PathOrFileId,
+    },
+
+    /// Commands for working with file content
+    #[structopt(name = "content")]
+    Content(ContentCommand),
+}
+
+#[derive(StructOpt, Debug)]
+enum ContentCommand {
+    #[structopt(name = "read")]
+    /// Output a file's content to stdout
+    Read {
+        #[structopt(flatten)]
+        selector: PathOrFileId,
+    },
+}
+
+#[derive(StructOpt, Debug)]
+enum SymlinkCommand {
+    /// Create a symlink
+    #[structopt(name = "create")]
+    Create {
+        #[structopt(name = "TARGET")]
+        target: String,
+    },
+
+    #[structopt(name = "info")]
+    /// Show info for a symlink
+    Info {
+        #[structopt(flatten)]
+        selector: PathOrSymlinkId,
     },
 }
 
@@ -382,6 +393,13 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", dir.id);
                 }
+                DirCommand::Info { selector } => {
+                    let id = selector.to_dir_id(&mut transaction).await?;
+                    let mut dirs = Dir::find_by_ids(&mut transaction, &[id]).await?;
+                    ensure!(!dirs.is_empty(), "dir id={:?} does not exist in database", id);
+                    let dir = dirs.pop().unwrap();
+                    println!("{}", json_info(&mut transaction, Inode::Dir(dir)).await?);
+                }
                 DirCommand::Ls { just_names, selector } => {
                     let dir_id = selector.to_dir_id(&mut transaction).await?;
                     let dirents = db::dirent::list_dir(&mut transaction, dir_id).await?;
@@ -430,26 +448,51 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", file.id);
                 }
-                FileCommand::Cat { selector } => {
-                    let file_id = selector.to_file_id(&mut transaction).await?;
-                    let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
-                    ensure!(files.len() == 1, "no such file with id={}", file_id);
-                    let file = &files[0];
-
-                    let storages = get_storage(&mut transaction, &[file_id]).await?;
-                    match storages.get(0) {
-                        Some(storage) => {
-                            let stream = storage_read::read(&file, &storage).await?;
-                            let mut read = stream
-                                .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                                .into_async_read()
-                                .compat();
-                            let mut stdout = tokio::io::stdout();
-                            tokio::io::copy(&mut read, &mut stdout).await?;
+                FileCommand::Info { selector } => {
+                    let id = selector.to_file_id(&mut transaction).await?;
+                    let mut files = File::find_by_ids(&mut transaction, &[id]).await?;
+                    ensure!(!files.is_empty(), "file id={:?} does not exist in database", id);
+                    let file = files.pop().unwrap();
+                    println!("{}", json_info(&mut transaction, Inode::File(file)).await?);
+                }
+                FileCommand::Content(content) => {
+                    match content {
+                        ContentCommand::Read { selector } => {
+                            let file_id = selector.to_file_id(&mut transaction).await?;
+                            let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
+                            ensure!(files.len() == 1, "no such file with id={}", file_id);
+                            let file = &files[0];
+        
+                            let storages = get_storage(&mut transaction, &[file_id]).await?;
+                            match storages.get(0) {
+                                Some(storage) => {
+                                    let stream = storage_read::read(&file, &storage).await?;
+                                    let mut read = stream
+                                        .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                                        .into_async_read()
+                                        .compat();
+                                    let mut stdout = tokio::io::stdout();
+                                    tokio::io::copy(&mut read, &mut stdout).await?;
+                                }
+                                None => bail!("file with id={} has no storage", file_id)
+                            }
                         }
-                        None => bail!("file with id={} has no storage", file_id)
                     }
-                }        
+                }
+            }
+        }
+        ExastashCommand::Symlink(symlink) => {
+            match symlink {
+                SymlinkCommand::Create { target } => {
+                    todo!()
+                }
+                SymlinkCommand::Info { selector } => {
+                    let id = selector.to_symlink_id(&mut transaction).await?;
+                    let mut symlinks = Symlink::find_by_ids(&mut transaction, &[id]).await?;
+                    ensure!(!symlinks.is_empty(), "symlink id={:?} does not exist in database", id);
+                    let symlink = symlinks.pop().unwrap();
+                    println!("{}", json_info(&mut transaction, Inode::Symlink(symlink)).await?);
+                }
             }
         }
         ExastashCommand::Dirent(dirent) => {
@@ -460,56 +503,6 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                 }
             }
-        }
-        ExastashCommand::Info { selector } => {
-            let inode_id = selector.to_inode_id(&mut transaction).await?;
-
-            let mut inodes = Inode::find_by_inode_ids(&mut transaction, &[inode_id]).await?;
-            assert!(inodes.len() <= 1);
-            if inodes.is_empty() {
-                bail!("inode {:?} does not exist in database", inode_id);
-            }
-            let inode = inodes.pop().unwrap();
-
-            #[derive(Serialize)]
-            struct FileWithStorages {
-                id: i64,
-                mtime: DateTime<Utc>,
-                birth: Birth,
-                size: i64,
-                executable: bool,
-                storages: Vec<Storage>,
-            }
-
-            #[derive(Serialize)]
-            #[serde(tag = "type")]
-            enum InodeWithStorages {
-                #[serde(rename = "dir")]
-                Dir(Dir),
-                #[serde(rename = "file")]
-                File(FileWithStorages),
-                #[serde(rename = "symlink")]
-                Symlink(Symlink),
-            }
-
-            let inode = match inode {
-                Inode::File(file) => {
-                    let storages = get_storage(&mut transaction, &[file.id]).await?;
-                    InodeWithStorages::File(FileWithStorages {
-                        id: file.id,
-                        mtime: file.mtime,
-                        birth: file.birth,
-                        size: file.size,
-                        executable: file.executable,
-                        storages,
-                    })
-                }
-                Inode::Dir(dir) => InodeWithStorages::Dir(dir),
-                Inode::Symlink(symlink) => InodeWithStorages::Symlink(symlink),
-            };
-
-            let j = serde_json::to_string_pretty(&inode)?;
-            println!("{}", j);
         }
         ExastashCommand::Gsuite(command) => {
             match &command {

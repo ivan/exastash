@@ -33,6 +33,7 @@ pub mod db;
 pub mod postgres;
 pub(crate) mod gdrive;
 pub(crate) mod crypto;
+pub mod info;
 pub mod oauth;
 pub mod storage_read;
 pub mod storage_write;
