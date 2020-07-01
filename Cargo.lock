@@ -353,6 +353,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
+ "clap",
  "crc32c",
  "ctr",
  "custom_debug_derive",

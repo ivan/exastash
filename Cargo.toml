@@ -25,6 +25,7 @@ num = "0.3"
 regex = "1.0"
 gethostname = "0.2"
 hex = "0.4"
+clap = "2.0"
 structopt = "0.3"
 rand = "0.7"
 # Waiting for https://github.com/briansmith/ring/pull/909

@@ -1,6 +1,7 @@
 use tracing::info;
 use async_recursion::async_recursion;
-use anyhow::{anyhow, bail, ensure, Error, Result};
+use clap::arg_enum;
+use anyhow::{bail, ensure, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use futures::future::FutureExt;
@@ -129,6 +130,15 @@ enum SymlinkCommand {
     },
 }
 
+arg_enum! {
+    #[derive(Debug)]
+    enum ResolveKind {
+        Dir,
+        File,
+        Symlink,
+    }
+}
+
 #[derive(StructOpt, Debug)]
 enum DirentCommand {
     /// Create a dirent
@@ -164,6 +174,22 @@ enum DirentCommand {
         /// dir id
         #[structopt(name = "ID")]
         id: i64,
+    },
+
+    /// Resolve paths to dir, file, or symlink ids
+    #[structopt(name = "resolve")]
+    Resolve {
+        /// Kind of entity to resolve: "dir", "file", or "symlink"
+        #[structopt(name = "KIND", possible_values = &ResolveKind::variants(), case_insensitive = true)]
+        kind: ResolveKind,
+
+        /// Root dir id from which to resolve paths
+        #[structopt(name = "ROOT_DIR_ID")]
+        root: i64,
+       
+        /// Path consisting only of slash-separated basenames. There is no handling of '.', '..', or duplicate or leading '/'
+        #[structopt(name = "PATH")]
+        paths: Vec<String>,
     },
 }
 
@@ -262,8 +288,7 @@ enum InternalCommand {
     },
 }
 
-async fn resolve_path(transaction: &mut Transaction<'_>, root: Option<i64>, path: &str) -> Result<InodeId> {
-    let root = root.ok_or_else(|| anyhow!("If path is specified, root dir id must also be specified"))?;
+async fn resolve_path(transaction: &mut Transaction<'_>, root: i64, path: &str) -> Result<InodeId> {
     let path_components: Vec<&str> = if path == "" {
         vec![]
     } else {
@@ -411,6 +436,16 @@ async fn main() -> Result<()> {
                 }
                 DirentCommand::Find { id } => {
                     find(&mut transaction, &[], id).await?;
+                }
+                DirentCommand::Resolve { kind, root, paths } => {
+                    for path in paths {
+                        let inode = resolve_path(&mut transaction, root, &path).await?;
+                        match kind {
+                            ResolveKind::Dir     => if let InodeId::Dir(id)     = inode { println!("{}", id) },
+                            ResolveKind::File    => if let InodeId::File(id)    = inode { println!("{}", id) },
+                            ResolveKind::Symlink => if let InodeId::Symlink(id) = inode { println!("{}", id) },
+                        }    
+                    }
                 }
             }
         }
