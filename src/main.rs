@@ -173,9 +173,9 @@ enum DirentCommand {
         ids: Vec<i64>,
     },
 
-    /// Recursively list a dir, like `find`
-    #[structopt(name = "find")]
-    Find {
+    /// Walk a dir recursively and print path info in JSON format
+    #[structopt(name = "walk")]
+    Walk {
         /// dir id
         #[structopt(name = "ID")]
         id: i64,
@@ -304,17 +304,24 @@ async fn resolve_path(transaction: &mut Transaction<'_>, root: i64, path: &str) 
 }
 
 #[async_recursion]
-async fn find(transaction: &mut Transaction<'_>, segments: &[&str], dir_id: i64) -> Result<()> {
+async fn walk_dir(transaction: &mut Transaction<'_>, root: i64, segments: &[&str], dir_id: i64) -> Result<()> {
     let path_string = match segments {
         [] => "".into(),
         parts => format!("{}/", parts.join("/")),
     };
     let dirents = Dirent::find_by_parents(transaction, &[dir_id]).await?;
     for dirent in dirents {
-        println!("{}{}", path_string, dirent.basename);
+        let j = json!({
+            "root":       root,
+            "path":       format!("{}{}", path_string, dirent.basename),
+            "dir_id":     if let InodeId::Dir(id)     = dirent.child { Some(id) } else { None },
+            "file_id":    if let InodeId::File(id)    = dirent.child { Some(id) } else { None },
+            "symlink_id": if let InodeId::Symlink(id) = dirent.child { Some(id) } else { None },
+        });
+        println!("{}", j);
         if let InodeId::Dir(dir_id) = dirent.child {
             let segments = [segments, &[&dirent.basename]].concat();
-            find(transaction, &segments, dir_id).await?;
+            walk_dir(transaction, root, &segments, dir_id).await?;
         }
     }
     Ok(())
@@ -456,8 +463,8 @@ async fn main() -> Result<()> {
                         println!("{}", j);
                     }
                 }
-                DirentCommand::Find { id } => {
-                    find(&mut transaction, &[], id).await?;
+                DirentCommand::Walk { id } => {
+                    walk_dir(&mut transaction, id, &[], id).await?;
                 }
                 DirentCommand::Resolve { kind, root, paths } => {
                     for path in paths {
