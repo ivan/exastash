@@ -10,6 +10,16 @@ use tokio_postgres::Transaction;
 #[derive(Debug, Copy, Clone)]
 pub struct InodeTuple(pub Option<i64>, pub Option<i64>, pub Option<i64>);
 
+impl From<InodeId> for InodeTuple {
+    fn from(inode: InodeId) -> InodeTuple {
+        match inode {
+            InodeId::Dir(id)     => InodeTuple(Some(id), None, None),
+            InodeId::File(id)    => InodeTuple(None, Some(id), None),
+            InodeId::Symlink(id) => InodeTuple(None, None, Some(id)),
+        }
+    }
+}
+
 impl InodeTuple {
     /// Converts an `InodeTuple` to an `InodeId`.
     /// Exactly one value must be Some, else this returns an error.
@@ -19,16 +29,6 @@ impl InodeTuple {
             InodeTuple(None, Some(id), None) => Ok(InodeId::File(id)),
             InodeTuple(None, None, Some(id)) => Ok(InodeId::Symlink(id)),
             _                                => bail!("tuple {:?} does not have exactly 1 Some", self),
-        }
-    }
-
-    /// Converts an `InodeId` to an `InodeTuple`.
-    /// One value will be Some, the rest will be None.
-    pub fn from_inode_id(inode: InodeId) -> InodeTuple {
-        match inode {
-            InodeId::Dir(id)     => InodeTuple(Some(id), None, None),
-            InodeId::File(id)    => InodeTuple(None, Some(id), None),
-            InodeId::Symlink(id) => InodeTuple(None, None, Some(id)),
         }
     }
 }
@@ -53,7 +53,7 @@ impl Dirent {
     /// Create a directory entry.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
-        let InodeTuple(child_dir, child_file, child_symlink) = InodeTuple::from_inode_id(self.child);
+        let InodeTuple(child_dir, child_file, child_symlink) = self.child.into();
         transaction.execute(
             "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
              VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)",
