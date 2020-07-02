@@ -1,7 +1,8 @@
 //! CRUD operations for dirent entities in PostgreSQL
 
 use crate::db::inode::InodeId;
-use anyhow::{bail, Result};
+use std::convert::{TryFrom, TryInto};
+use anyhow::{bail, Error, Result};
 use tokio_postgres::Transaction;
 
 /// A (dir, file, symlink) tuple that is useful when interacting with
@@ -20,15 +21,15 @@ impl From<InodeId> for InodeTuple {
     }
 }
 
-impl InodeTuple {
-    /// Converts an `InodeTuple` to an `InodeId`.
-    /// Exactly one value must be Some, else this returns an error.
-    pub fn to_inode_id(self) -> Result<InodeId> {
-        match self {
+impl TryFrom<InodeTuple> for InodeId {
+    type Error = Error;
+
+    fn try_from(tuple: InodeTuple) -> Result<InodeId> {
+        match tuple {
             InodeTuple(Some(id), None, None) => Ok(InodeId::Dir(id)),
             InodeTuple(None, Some(id), None) => Ok(InodeId::File(id)),
             InodeTuple(None, None, Some(id)) => Ok(InodeId::Symlink(id)),
-            _                                => bail!("tuple {:?} does not have exactly 1 Some", self),
+            _                                => bail!("tuple {:?} does not have exactly 1 Some", tuple),
         }
     }
 }
@@ -73,7 +74,7 @@ pub async fn list_dir(transaction: &mut Transaction<'_>, parent: i64) -> Result<
         let parent = row.get(0);
         let basename: String = row.get(1);
         let tuple = InodeTuple(row.get(2), row.get(3), row.get(4));
-        let inode_id = tuple.to_inode_id()?;
+        let inode_id = tuple.try_into()?;
         let dirent = Dirent::new(parent, basename, inode_id);
         out.push(dirent);
     }

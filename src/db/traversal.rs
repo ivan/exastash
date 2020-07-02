@@ -1,6 +1,7 @@
 //! Functions for walking a path from a base_dir
 
 use anyhow::{anyhow, Result};
+use std::convert::TryInto;
 use tokio_postgres::Transaction;
 use crate::db::dirent::InodeTuple;
 use crate::db::inode::InodeId;
@@ -18,7 +19,7 @@ pub async fn walk_path(transaction: &mut Transaction<'_>, base_dir: i64, path_co
         assert!(rows.len() <= 1, "expected <= 1 rows");
         let dir_id = current_inode.dir_id()?;
         let row = rows.get(0).ok_or_else(|| anyhow!("no such dirent {:?} under dir {:?}", component, dir_id))?;
-        current_inode = InodeTuple(row.get(0), row.get(1), row.get(2)).to_inode_id()?;
+        current_inode = InodeTuple(row.get(0), row.get(1), row.get(2)).try_into()?;
     }
     Ok(current_inode)
 }

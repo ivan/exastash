@@ -6,6 +6,7 @@ use structopt::StructOpt;
 use chrono::Utc;
 use futures::future::FutureExt;
 use tokio::fs;
+use std::convert::TryInto;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::collections::HashMap;
@@ -436,7 +437,7 @@ async fn main() -> Result<()> {
         ExastashCommand::Dirent(dirent) => {
             match dirent {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
-                    let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).to_inode_id()?;
+                    let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).try_into()?;
                     db::dirent::Dirent::new(parent_dir_id, basename, child).create(&mut transaction).await?;
                     transaction.commit().await?;
                 }
