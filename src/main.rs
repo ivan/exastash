@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use tokio_postgres::Transaction;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing_subscriber::EnvFilter;
+use serde_json::json;
 use exastash::db;
 use exastash::db::storage::get_storage;
 use exastash::db::storage::gdrive::file::GdriveFile;
@@ -63,7 +64,7 @@ enum DirCommand {
     #[structopt(name = "create")]
     Create,
 
-    /// Show info for zero or more dirs
+    /// Print info in JSON format for zero or more dirs
     #[structopt(name = "info")]
     Info {
         /// dir id
@@ -90,7 +91,7 @@ enum FileCommand {
         store_gdrive: Vec<i16>,
     },
 
-    /// Show info for zero or more files
+    /// Print info in JSON format for zero or more dirs
     #[structopt(name = "info")]
     Info {
         /// file id
@@ -123,7 +124,7 @@ enum SymlinkCommand {
         target: String,
     },
 
-    /// Show info for zero or more symlinks
+    /// Print info in JSON format for zero or more dirs
     #[structopt(name = "info")]
     Info {
         /// symlink id
@@ -163,7 +164,7 @@ enum DirentCommand {
         child_symlink: Option<i64>,
     },
 
-    /// List the children of a dir
+    /// List the children for a dirent in JSON format
     #[structopt(name = "list")]
     List {
         /// dir id
@@ -444,7 +445,14 @@ async fn main() -> Result<()> {
                 DirentCommand::List { id } => {
                     let dirents = db::dirent::list_dir(&mut transaction, id).await?;
                     for dirent in dirents {
-                        println!("{}", dirent.basename);
+                        let j = json!({
+                            "parent":        dirent.parent,
+                            "basename":      dirent.basename,
+                            "child_dir":     if let InodeId::Dir(id)     = dirent.child { Some(id) } else { None },
+                            "child_file":    if let InodeId::File(id)    = dirent.child { Some(id) } else { None },
+                            "child_symlink": if let InodeId::Symlink(id) = dirent.child { Some(id) } else { None },
+                        });
+                        println!("{}", j);
                     }
                 }
                 DirentCommand::Find { id } => {
