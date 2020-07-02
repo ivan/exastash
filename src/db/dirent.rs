@@ -62,23 +62,24 @@ impl Dirent {
         ).await?;
         Ok(self)
     }
-}
 
-/// Return the children of a directory.
-pub async fn list_dir(transaction: &mut Transaction<'_>, parent: i64) -> Result<Vec<Dirent>> {
-    let rows = transaction.query(
-        "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
-         WHERE parent = $1::bigint", &[&parent]).await?;
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        let parent = row.get(0);
-        let basename: String = row.get(1);
-        let tuple = InodeTuple(row.get(2), row.get(3), row.get(4));
-        let inode_id = tuple.try_into()?;
-        let dirent = Dirent::new(parent, basename, inode_id);
-        out.push(dirent);
+    /// Return a `Vec<Dirent>` for all `Dirent`s with the given parents.
+    /// There is no error on missing parents.
+    pub async fn find_by_parents(transaction: &mut Transaction<'_>, parents: &[i64]) -> Result<Vec<Dirent>> {
+        let rows = transaction.query(
+            "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
+             WHERE parent = ANY($1::bigint[])", &[&parents]).await?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let parent = row.get(0);
+            let basename: String = row.get(1);
+            let tuple = InodeTuple(row.get(2), row.get(3), row.get(4));
+            let inode_id = tuple.try_into()?;
+            let dirent = Dirent::new(parent, basename, inode_id);
+            out.push(dirent);
+        }
+        Ok(out)
     }
-    Ok(out)
 }
 
 #[cfg(test)]
@@ -108,8 +109,8 @@ mod tests {
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            assert_eq!(list_dir(&mut transaction, child_dir.id).await?, vec![]);
-            assert_eq!(list_dir(&mut transaction, parent.id).await?, vec![
+            assert_eq!(Dirent::find_by_parents(&mut transaction, &[child_dir.id]).await?, vec![]);
+            assert_eq!(Dirent::find_by_parents(&mut transaction, &[parent.id]).await?, vec![
                 Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)),
                 Dirent::new(parent.id, "child_file", InodeId::File(child_file.id)),
                 Dirent::new(parent.id, "child_symlink", InodeId::Symlink(child_symlink.id)),

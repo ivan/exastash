@@ -18,6 +18,7 @@ use exastash::db;
 use exastash::db::storage::get_storage;
 use exastash::db::storage::gdrive::file::GdriveFile;
 use exastash::db::inode::{InodeId, Inode, File, NewFile, Dir, NewDir, Symlink, NewSymlink};
+use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
 use exastash::info::json_info;
@@ -164,12 +165,12 @@ enum DirentCommand {
         child_symlink: Option<i64>,
     },
 
-    /// List the children for a dirent in JSON format
+    /// List a dir's children in JSON format, for zero or more parent dirs
     #[structopt(name = "list")]
     List {
         /// dir id
         #[structopt(name = "ID")]
-        id: i64,
+        ids: Vec<i64>,
     },
 
     /// Recursively list a dir, like `find`
@@ -308,7 +309,7 @@ async fn find(transaction: &mut Transaction<'_>, segments: &[&str], dir_id: i64)
         [] => "".into(),
         parts => format!("{}/", parts.join("/")),
     };
-    let dirents = db::dirent::list_dir(transaction, dir_id).await?;
+    let dirents = Dirent::find_by_parents(transaction, &[dir_id]).await?;
     for dirent in dirents {
         println!("{}{}", path_string, dirent.basename);
         if let InodeId::Dir(dir_id) = dirent.child {
@@ -438,12 +439,12 @@ async fn main() -> Result<()> {
         ExastashCommand::Dirent(dirent) => {
             match dirent {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
-                    let child = db::dirent::InodeTuple(child_dir, child_file, child_symlink).try_into()?;
-                    db::dirent::Dirent::new(parent_dir_id, basename, child).create(&mut transaction).await?;
+                    let child = InodeTuple(child_dir, child_file, child_symlink).try_into()?;
+                    Dirent::new(parent_dir_id, basename, child).create(&mut transaction).await?;
                     transaction.commit().await?;
                 }
-                DirentCommand::List { id } => {
-                    let dirents = db::dirent::list_dir(&mut transaction, id).await?;
+                DirentCommand::List { ids } => {
+                    let dirents = Dirent::find_by_parents(&mut transaction, &ids).await?;
                     for dirent in dirents {
                         let j = json!({
                             "parent":        dirent.parent,
