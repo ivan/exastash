@@ -5,7 +5,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use yup_oauth2::ServiceAccountKey;
 use tokio_postgres::{Transaction, Row};
-use custom_debug_derive::CustomDebug;
+use custom_debug_derive::Debug as CustomDebug;
 
 #[inline]
 fn elide<T: fmt::Debug>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
