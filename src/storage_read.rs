@@ -97,6 +97,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
     }
     let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
     for access_token in &access_tokens {
+        debug!("trying access token {}", access_token);
         let response = request_gdrive_file(&gdrive_file.id, access_token).await?;
         let headers = response.headers();
         debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
