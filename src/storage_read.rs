@@ -41,8 +41,11 @@ pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> 
 
     let mut tokens = vec![];
 
+    // Regardless of file owner, service accounts are presumed to have been granted
+    // read access to all or most files on the domain.
+    //
     // Always try a random service account first, because we have more service
-    // accounts than regular accounts, making us less likely to run into daily
+    // accounts than regular accounts, thus making us less likely to run into daily
     // per-account transfer limits.
     for service_account in GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(1)).await? {
         let auth = yup_oauth2::ServiceAccountAuthenticator::builder(service_account.key).build().await?;
