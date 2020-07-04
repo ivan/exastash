@@ -31,36 +31,28 @@ pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> 
     let mut client = db::postgres_client_production().await?;
     let mut transaction = db::start_transaction(&mut client).await?;
 
-    let mut owner_ids = vec![];
-    let mut consider_service_accounts = true;
+    let all_owners = GdriveOwner::find_by_domain_ids(&mut transaction, &[domain_id]).await?;
+    let all_owner_ids: Vec<_> = all_owners.iter().map(|owner| owner.id).collect();
+    let owner_ids = match owner_id {
+        // Old files in our database have no recorded owner, so we may need to try all owners.
+        None => all_owner_ids.clone(),
+        Some(id) => vec![id],
+    };
+
     let mut tokens = vec![];
 
-    match owner_id {
-        None => {
-            // Old files in our database have no recorded owner.  If we do not have
-            // a recorded owner, we do not need to try service accounts because we
-            // did not upload any of those old files with service accounts.
-            consider_service_accounts = false;
-            for owner in GdriveOwner::find_by_domain_ids(&mut transaction, &[domain_id]).await? {
-                owner_ids.push(owner.id);
-            }
-        }
-        Some(owner_id) => {
-            owner_ids.push(owner_id);
-        }
+    // Always try a random service account first, because we have more service
+    // accounts than regular accounts, making us less likely to run into daily
+    // per-account transfer limits.
+    for service_account in GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(1)).await? {
+        let auth = yup_oauth2::ServiceAccountAuthenticator::builder(service_account.key).build().await?;
+        let scopes = &["https://www.googleapis.com/auth/drive"];
+        let token = auth.token(scopes).await?;
+        tokens.push(token.as_str().to_string());
     }
 
     for token in GsuiteAccessToken::find_by_owner_ids(&mut transaction, &owner_ids).await? {
         tokens.push(token.access_token);
-    }
-
-    if consider_service_accounts {
-        for service_account in GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &owner_ids, Some(1)).await? {
-            let auth = yup_oauth2::ServiceAccountAuthenticator::builder(service_account.key).build().await?;
-            let scopes = &["https://www.googleapis.com/auth/drive"];
-            let token = auth.token(scopes).await?;
-            tokens.push(token.as_str().to_string());
-        }
     }
 
     Ok(tokens)
