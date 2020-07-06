@@ -109,7 +109,7 @@ where
             bail!("no access tokens were available for domain_id={} owner_id={}", domain_id, owner_id);
         }
         let access_token = access_tokens.pop().unwrap();
-        Ok(access_token.into())
+        Ok(access_token)
     };
 
     let response = create_gdrive_file(hashing_stream_fn, access_token_fn, size, parent, filename).await?;
@@ -214,7 +214,7 @@ where
             out.into()
         }).chain(
             stream::iter(RandomPadding::new(padding_size))
-            .map(|bytes| Ok(bytes))
+            .map(Ok)
         )
     };
 
