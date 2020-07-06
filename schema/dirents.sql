@@ -22,7 +22,7 @@ CREATE DOMAIN linux_basename AS text
 -- Columns are ordered for optimal packing, be careful
 CREATE TABLE dirents (
     parent        bigint          NOT NULL                    REFERENCES dirs (id),
-    -- Exactly one of these
+    -- This CHECK constraint is just an early check that cannot prevent cycles
     child_dir     bigint          CHECK (child_dir != parent) REFERENCES dirs (id),
     child_file    bigint                                      REFERENCES files (id),
     child_symlink bigint                                      REFERENCES symlinks (id),
@@ -37,10 +37,29 @@ CREATE TABLE dirents (
 -- dirents REFERENCES dirs/files/symlinks tables and we may want to delete rows
 -- from those tables, so we need indexes to avoid full table scans of dirents.
 --
--- UNIQUE because a directory cannot have more than one parent
+-- UNIQUE INDEX on child_dir because a directory cannot have more than one parent.
+-- While multiple parents could be desired in some cases, there are no tools that
+-- expect or handle this properly when recursively copying or deleting.
+--
+-- Note that a unique index cannot prevent cycles from forming because constraints
+-- can be deferred (e.g. INSERT A->B, B->A), so we must use a trigger to prevent cycles.
 CREATE UNIQUE INDEX dirents_child_dir_index     ON dirents (child_dir);
 CREATE        INDEX dirents_child_file_index    ON dirents (child_file);
 CREATE        INDEX dirents_child_symlink_index ON dirents (child_symlink);
+
+-- TODO make sure we lock rows for sharing - don't want to let concurrent transactions muck things up
+CREATE OR REPLACE FUNCTION dirents_ensure_no_cycles() RETURNS trigger AS $$
+DECLARE
+
+BEGIN
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER dirents_check_insert
+    BEFORE UPDATE ON dirents
+    FOR EACH ROW
+    EXECUTE FUNCTION dirents_ensure_no_cycles();
 
 CREATE TRIGGER dirents_check_update
     BEFORE UPDATE ON dirents

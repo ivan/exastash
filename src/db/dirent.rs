@@ -233,6 +233,28 @@ mod tests {
             Ok(())
         }
 
+        /// Cannot create a cycle by parenting a directory into one of its children
+        #[tokio::test]
+        async fn test_directory_cannot_be_put_in_cycle() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let birth = inode::Birth::here_and_now();
+            let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            let middle = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(parent.id, "middle", InodeId::Dir(middle.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let result = Dirent::new(middle.id, "parent", InodeId::Dir(parent.id)).create(&mut transaction).await;
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
+            );
+
+            Ok(())
+        }
+
         /// Basename cannot be "", "/", ".", or ".."
         /// Basename cannot be > 255 bytes
         #[tokio::test]
