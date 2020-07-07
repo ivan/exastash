@@ -44,10 +44,13 @@ mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
             let root_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(1, make_basename("root_dir"), InodeId::Dir(root_dir.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(1, make_basename("root_dir"), InodeId::Dir(root_dir.id)).create(&mut transaction).await?;
             Dirent::new(root_dir.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             Dirent::new(root_dir.id, "child_file", InodeId::File(child_file.id)).create(&mut transaction).await?;
             Dirent::new(root_dir.id, "child_symlink", InodeId::Symlink(child_symlink.id)).create(&mut transaction).await?;

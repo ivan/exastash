@@ -418,6 +418,23 @@ pub(crate) mod tests {
             Ok(())
         }
 
+        /// Cannot insert more than one directory per transaction (otherwise cycles could be created)
+        #[tokio::test]
+        async fn test_cannot_create_more_than_one_dir() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let birth = Birth::here_and_now();
+            let _ = NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            let result = NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await;
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: cannot insert more than one dir per transaction"
+            );
+
+            Ok(())
+        }
+
         /// Can change mtime on a dir
         #[tokio::test]
         async fn test_can_change_dir_mutables() -> Result<()> {

@@ -111,10 +111,13 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
             let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(1, make_basename("parent"), InodeId::Dir(parent.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(1, make_basename("parent"), InodeId::Dir(parent.id)).create(&mut transaction).await?;
             Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             Dirent::new(parent.id, "child_file", InodeId::File(child_file.id)).create(&mut transaction).await?;
             Dirent::new(parent.id, "child_symlink", InodeId::Symlink(child_symlink.id)).create(&mut transaction).await?;
@@ -223,8 +226,11 @@ pub(crate) mod tests {
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
             let middle = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            let child = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("middle"), InodeId::Dir(middle.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let child = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(middle.id, make_basename("child"), InodeId::Dir(child.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 

@@ -57,6 +57,28 @@ CREATE TABLE symlinks (
 );
 
 
+-- We limit inserts to one dir at a time. Because a dir must be a parent of some
+-- existing directory, this prevents the creation of cycles like an A->B, B->A
+-- not connected to the root dir.
+CREATE OR REPLACE FUNCTION dirs_check_insert() RETURNS trigger AS $$
+DECLARE
+    transaction_has_dir_insert text;
+BEGIN
+    transaction_has_dir_insert := current_setting('stash.transaction_has_dir_insert', /* missing_ok */true);
+    IF transaction_has_dir_insert = '1' THEN
+        RAISE EXCEPTION 'cannot insert more than one dir per transaction';
+    END IF;
+    PERFORM set_config('stash.transaction_has_dir_insert', '1', /* transaction_local */true);
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER dirs_check_insert
+    AFTER INSERT ON dirs
+    FOR EACH ROW
+    EXECUTE FUNCTION dirs_check_insert();
+
+
 CREATE TRIGGER dirs_check_update
     BEFORE UPDATE ON dirs
     FOR EACH ROW
