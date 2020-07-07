@@ -422,9 +422,8 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_can_change_dir_mutables() -> Result<()> {
             let mut client = get_client().await;
-            let mut transaction = start_transaction(&mut client).await?;
-            let dir = NewDir { mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
-            transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&dir.id]).await?;
+            let transaction = start_transaction(&mut client).await?;
+            transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&1i64]).await?;
             transaction.commit().await?;
             Ok(())
         }
@@ -433,13 +432,12 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_cannot_change_dir_immutables() -> Result<()> {
             let mut client = get_client().await;
-            let mut transaction = start_transaction(&mut client).await?;
-            let dir = NewDir { mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
+            let transaction = start_transaction(&mut client).await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
-                let result = transaction.execute(query.as_str(), &[&dir.id]).await;
+                let result = transaction.execute(query.as_str(), &[&1i64]).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {
                     assert_eq!(msg, "db error: ERROR: column \"id\" can only be updated to DEFAULT");

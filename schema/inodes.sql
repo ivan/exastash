@@ -7,7 +7,7 @@ CREATE DOMAIN symlink_pathname AS text
     -- Linux does not allow empty pathnames: https://lwn.net/Articles/551224/
     CHECK (octet_length(VALUE) >= 1 AND octet_length(VALUE) <= 1024);
 
-CREATE DOMAIN hostname AS text CHECK (octet_length(VALUE) >= 1 AND octet_length(VALUE) <= 253);
+CREATE DOMAIN hostname AS text CHECK (octet_length(VALUE) <= 253);
 
 -- Instead of occupying an entire 64-bit inode space in these tables, we store smaller ids that
 -- can be mapped into a 64-bit inode range by e.g. a FUSE server serving a filesystem.
@@ -29,7 +29,11 @@ CREATE TABLE dirs (
     -- When/where/with what exastash version was this inode produced?
     birth_version   smallint          NOT NULL REFERENCES exastash_versions (id),
     birth_hostname  hostname          NOT NULL
+
+    -- A CONSTRAINT is added to this table in dirents.sql
 );
+-- This should always get id=1
+INSERT INTO dirs VALUES (DEFAULT, now(), now(), 41, '');
 
 CREATE TABLE files (
     -- Limit of 2T can be raised if needed

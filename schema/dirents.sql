@@ -21,45 +21,37 @@ CREATE DOMAIN linux_basename AS text
 
 -- Columns are ordered for optimal packing, be careful
 CREATE TABLE dirents (
-    parent        bigint          NOT NULL                    REFERENCES dirs (id),
-    -- This CHECK constraint is just an early check that cannot prevent cycles
-    child_dir     bigint          CHECK (child_dir != parent) REFERENCES dirs (id),
-    child_file    bigint                                      REFERENCES files (id),
-    child_symlink bigint                                      REFERENCES symlinks (id),
+    parent        bigint          NOT NULL,
+    child_dir     bigint          CHECK (child_dir != parent OR (parent = 1 AND child_dir = 1)),
+    child_file    bigint,
+    child_symlink bigint,
     basename      linux_basename  NOT NULL,
 
     -- Ensure exactly one type of child is set
     CHECK (num_nonnulls(child_dir, child_file, child_symlink) = 1),
 
+    -- Use deferrable constraints because we mutually FK dirs to dirents. Do that
+    -- because we do not want to allow directories to be orphaned in the tree.  Do
+    -- that because orphaned directories can't be re-parented without scanning the
+    -- entire child tree for potential cycles.
+    CONSTRAINT dirents_child_dir_fkey     FOREIGN KEY (child_dir)     REFERENCES stash.dirs (id)     DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT dirents_child_file_fkey    FOREIGN KEY (child_file)    REFERENCES stash.files (id)    DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT dirents_child_symlink_fkey FOREIGN KEY (child_symlink) REFERENCES stash.symlinks (id) DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT dirents_parent_fkey        FOREIGN KEY (parent)        REFERENCES stash.dirs (id)     DEFERRABLE INITIALLY DEFERRED,
+
     PRIMARY KEY (parent, basename)
 );
+INSERT INTO dirents VALUES (1, 1, NULL, NULL, 'the root directory is its own parent in dirents because the dirs table requires all dirs to be a child_dir of some dir');
 
 -- dirents REFERENCES dirs/files/symlinks tables and we may want to delete rows
 -- from those tables, so we need indexes to avoid full table scans of dirents.
 --
 -- UNIQUE INDEX on child_dir because a directory cannot have more than one parent.
--- While multiple parents could be desired in some cases, there are no tools that
--- expect or handle this properly when recursively copying or deleting.
---
--- Note that a unique index cannot prevent cycles from forming because constraints
--- can be deferred (e.g. INSERT A->B, B->A), so we must use a trigger to prevent cycles.
+-- "Hard linked" directories are not desired because there are no tools that
+-- expect or handle them properly when recursively copying or deleting.
 CREATE UNIQUE INDEX dirents_child_dir_index     ON dirents (child_dir);
 CREATE        INDEX dirents_child_file_index    ON dirents (child_file);
 CREATE        INDEX dirents_child_symlink_index ON dirents (child_symlink);
-
--- TODO make sure we lock rows for sharing - don't want to let concurrent transactions muck things up
-CREATE OR REPLACE FUNCTION dirents_ensure_no_cycles() RETURNS trigger AS $$
-DECLARE
-
-BEGIN
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER dirents_check_insert
-    BEFORE UPDATE ON dirents
-    FOR EACH ROW
-    EXECUTE FUNCTION dirents_ensure_no_cycles();
 
 CREATE TRIGGER dirents_check_update
     BEFORE UPDATE ON dirents
@@ -69,3 +61,7 @@ CREATE TRIGGER dirents_check_update
 CREATE TRIGGER dirents_forbid_truncate
     BEFORE TRUNCATE ON dirents
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
+ALTER TABLE dirs
+    -- See comment in `CREATE TABLE dirents` above for why we mututally FK.
+    ADD CONSTRAINT dirs_id_fkey FOREIGN KEY (id) REFERENCES dirents (child_dir) DEFERRABLE INITIALLY DEFERRED;
