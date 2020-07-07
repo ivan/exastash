@@ -440,7 +440,12 @@ pub(crate) mod tests {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&dir.id]).await;
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_*");
+                let msg = result.err().expect("expected an error").to_string();
+                if *column == "id" {
+                    assert_eq!(msg, "db error: ERROR: column \"id\" can only be updated to DEFAULT");
+                } else {
+                    assert_eq!(msg, "db error: ERROR: cannot change id or birth_*");
+                }
             }
             Ok(())
         }
@@ -475,7 +480,12 @@ pub(crate) mod tests {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE files SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&file.id]).await;
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id or birth_*");
+                let msg = result.err().expect("expected an error").to_string();
+                if *column == "id" {
+                    assert_eq!(msg, "db error: ERROR: column \"id\" can only be updated to DEFAULT");
+                } else {
+                    assert_eq!(msg, "db error: ERROR: cannot change id or birth_*");
+                }
             }
             Ok(())
         }
@@ -504,7 +514,12 @@ pub(crate) mod tests {
                 let transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE symlinks SET {} = {} WHERE id = $1::bigint", column, value);
                 let result = transaction.execute(query.as_str(), &[&symlink.id]).await;
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, target, or birth_*");
+                let msg = result.err().expect("expected an error").to_string();
+                if *column == "id" {
+                    assert_eq!(msg, "db error: ERROR: column \"id\" can only be updated to DEFAULT");
+                } else {
+                    assert_eq!(msg, "db error: ERROR: cannot change id, target, or birth_*");
+                }
             }
             Ok(())
         }
