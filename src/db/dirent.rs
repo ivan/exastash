@@ -156,6 +156,25 @@ pub(crate) mod tests {
             Ok(())
         }
 
+        /// Cannot insert more than one dirent per transaction (otherwise cycles could be created)
+        #[tokio::test]
+        async fn test_cannot_create_more_than_one_dirent() -> Result<()> {
+            let mut client = get_client().await;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let birth  = inode::Birth::here_and_now();
+            let one    = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            let two    = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            let _      = Dirent::new(one.id, make_basename("two"), InodeId::Dir(two.id)).create(&mut transaction).await?;
+            let result = Dirent::new(two.id, make_basename("one"), InodeId::Dir(one.id)).create(&mut transaction).await;
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: cannot insert more than one dirent with a child_dir per transaction"
+            );
+
+            Ok(())
+        }
+
         /// Cannot UPDATE any row in dirents table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
