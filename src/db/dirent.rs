@@ -63,6 +63,16 @@ impl Dirent {
         Ok(self)
     }
 
+    /// Remove a directory entry.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove(transaction: &mut Transaction<'_>, parent: i64, basename: &str) -> Result<()> {
+        transaction.execute(
+            "DELETE FROM dirents WHERE parent = $1::bigint AND basename = $2::text",
+            &[&parent, &basename]
+        ).await?;
+        Ok(())
+    }
+
     /// Return a `Vec<Dirent>` for all `Dirent`s with the given parents.
     /// There is no error on missing parents.
     pub async fn find_by_parents(transaction: &mut Transaction<'_>, parents: &[i64]) -> Result<Vec<Dirent>> {
@@ -169,7 +179,46 @@ pub(crate) mod tests {
             let result = Dirent::new(two.id, make_basename("one"), InodeId::Dir(one.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                "db error: ERROR: cannot insert more than one dirent with a child_dir per transaction"
+                "db error: ERROR: cannot insert or delete more than one dirent with a child_dir per transaction"
+            );
+
+            Ok(())
+        }
+
+        /// Cannot create a dirents cycle by removing a dirent and creating a replacement
+        #[tokio::test]
+        async fn test_cannot_create_dirents_cycle() -> Result<()> {
+            let mut client = get_client().await;
+
+            let birth  = inode::Birth::here_and_now();
+            
+            let mut transaction = start_transaction(&mut client).await?;
+            let test = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(1, make_basename("test_cannot_create_dirents_cycle"), InodeId::Dir(test.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let a = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(test.id, "a", InodeId::Dir(a.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let b = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(a.id, "b", InodeId::Dir(b.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = start_transaction(&mut client).await?;
+            let c = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(b.id, "c", InodeId::Dir(c.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            // Try to remove a -> b, add c -> b (which would create a cycle b -> c -> b)
+            let mut transaction = start_transaction(&mut client).await?;
+            Dirent::remove(&mut transaction, a.id, "b").await?;
+            let result = Dirent::new(c.id, "b", InodeId::Dir(b.id)).create(&mut transaction).await;
+            assert_eq!(
+                result.err().expect("expected an error").to_string(),
+                "db error: ERROR: cannot insert or delete more than one dirent with a child_dir per transaction"
             );
 
             Ok(())

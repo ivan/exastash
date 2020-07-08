@@ -53,33 +53,36 @@ CREATE UNIQUE INDEX dirents_child_dir_index     ON dirents (child_dir);
 CREATE        INDEX dirents_child_file_index    ON dirents (child_file);
 CREATE        INDEX dirents_child_symlink_index ON dirents (child_symlink);
 
--- We limit inserts to one dirent at a time. Because a dir must be a parent of some
--- existing directory, this prevents the creation of cycles like an A->B, B->A
--- not connected to the root dir.
+-- We limit inserts and deletes to one dirent at a time. Because a dir must be a
+-- parent of some existing directory, this prevents the creation of cycles like an
+-- A->B, B->A not connected to the root dir, or the re-parenting a directory to a
+-- subdir of itself.
 --
 -- This must be on dirents instead of dirs because dirents is where cycles can
 -- actually be created (including in a follow-up transaction to replace dirents
 -- for some existing dirs).
-CREATE OR REPLACE FUNCTION dirents_check_insert() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION dirents_check_insert_or_delete() RETURNS trigger AS $$
 DECLARE
-    transaction_has_dirent_dir_child_insert text;
+    transaction_touched_dirent_dir_child text;
 BEGIN
-    IF NEW.child_dir IS NULL THEN
+    IF TG_OP = 'INSERT' AND NEW.child_dir IS NULL THEN
+        RETURN NULL;
+    ELSIF TG_OP = 'DELETE' AND OLD.child_dir IS NULL THEN
         RETURN NULL;
     END IF;
-    transaction_has_dirent_dir_child_insert := current_setting('stash.transaction_has_dirent_dir_child_insert', /* missing_ok */true);
-    IF transaction_has_dirent_dir_child_insert = '1' THEN
-        RAISE EXCEPTION 'cannot insert more than one dirent with a child_dir per transaction';
+    transaction_touched_dirent_dir_child := current_setting('stash.transaction_touched_dirent_dir_child', /* missing_ok */true);
+    IF transaction_touched_dirent_dir_child = '1' THEN
+        RAISE EXCEPTION 'cannot insert or delete more than one dirent with a child_dir per transaction';
     END IF;
-    PERFORM set_config('stash.transaction_has_dirent_dir_child_insert', '1', /* transaction_local */true);
+    PERFORM set_config('stash.transaction_touched_dirent_dir_child', '1', /* transaction_local */true);
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER dirents_check_insert
-    AFTER INSERT ON dirents
+CREATE TRIGGER dirents_check_insert_or_delete
+    AFTER INSERT OR DELETE ON dirents
     FOR EACH ROW
-    EXECUTE FUNCTION dirents_check_insert();
+    EXECUTE FUNCTION dirents_check_insert_or_delete();
 
 CREATE TRIGGER dirents_check_update
     BEFORE UPDATE ON dirents
