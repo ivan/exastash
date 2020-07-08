@@ -153,13 +153,14 @@ impl GdriveFile {
 pub(crate) mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::get_client;
+    use crate::db::tests::{MAIN_TEST_INSTANCE, TRUNCATE_TEST_INSTANCE};
     use crate::db::inode::tests::create_dummy_file;
     use crate::db::storage::gdrive::tests::create_dummy_domain;
     use crate::db::storage::gdrive::{Storage, Cipher};
     use atomic_counter::{AtomicCounter, RelaxedCounter};
     use once_cell::sync::Lazy;
     use crate::util;
+    use serial_test::serial;
 
     static OWNER_COUNTER: Lazy<RelaxedCounter> = Lazy::new(|| {
         RelaxedCounter::new(1)
@@ -177,7 +178,7 @@ pub(crate) mod tests {
         // Can create gdrive files
         #[tokio::test]
         async fn test_create_gdrive_file() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -208,7 +209,7 @@ pub(crate) mod tests {
         // Can remove gdrive files not referenced by storage_gdrive
         #[tokio::test]
         async fn test_remove_gdrive_files() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -226,7 +227,7 @@ pub(crate) mod tests {
         // Cannot remove gdrive files that are referenced by storage_gdrive
         #[tokio::test]
         async fn test_cannot_remove_gdrive_files_still_referenced() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -259,7 +260,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in gdrive_files table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -285,8 +286,9 @@ pub(crate) mod tests {
 
         /// Cannot TRUNCATE gdrive_files table
         #[tokio::test]
+        #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = TRUNCATE_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;

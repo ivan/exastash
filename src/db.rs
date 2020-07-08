@@ -41,7 +41,7 @@ pub async fn start_transaction<'a>(client: &'a mut Client) -> Result<Transaction
 mod tests {
     use super::*;
     use std::process::Command;
-    use once_cell::sync::{OnceCell, Lazy};
+    use once_cell::sync::Lazy;
     use postgres::NoTls;
 
     fn postgres_temp_instance_uri() -> String {
@@ -67,29 +67,39 @@ mod tests {
         }
     }
 
-    static DATABASE_URI: Lazy<String> = Lazy::new(postgres_temp_instance_uri);
-    static DDL_APPLIED: OnceCell<bool> = OnceCell::new();
-
-    pub(crate) async fn get_client() -> Client {
-        let uri = &*DATABASE_URI;
-        DDL_APPLIED.get_or_init(|| {
-            apply_ddl(uri, "schema/schema.sql");
-            true
-        });
-
-        let (client, connection) = tokio_postgres::connect(&uri, NoTls).await.unwrap();
-
-        // The connection object performs the actual communication with the database,
-        // so spawn it off to run on its own.
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
-
-        client
+    pub(crate) struct PostgresTestInstance {
+        uri: String,
     }
 
+    impl PostgresTestInstance {
+        pub(crate) fn new() -> Self {
+            let uri = postgres_temp_instance_uri();
+            apply_ddl(&uri, "schema/schema.sql");
+            PostgresTestInstance { uri }
+        }
+
+        pub(crate) async fn get_client(&self) -> Client {
+            let (client, connection) = tokio_postgres::connect(&self.uri, NoTls).await.unwrap();
+    
+            // The connection object performs the actual communication with the database,
+            // so spawn it off to run on its own.
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    eprintln!("connection error: {}", e);
+                }
+            });
+    
+            client
+        }
+    }
+
+    pub(crate) static MAIN_TEST_INSTANCE: Lazy<PostgresTestInstance> = Lazy::new(PostgresTestInstance::new);
+    pub(crate) static TRUNCATE_TEST_INSTANCE: Lazy<PostgresTestInstance> = Lazy::new(PostgresTestInstance::new);
+
+    /// Note that TRUNCATE tests should be run in the separate `TRUNCATE_TEST_INSTANCE`
+    /// because it will otherwise frequently cause other running transactions to raise
+    /// `deadlock detected`. That happens on the non-TRUNCATE transaction only because
+    /// we have a mutual FK set up between dirs and dirents.
     pub(crate) async fn assert_cannot_truncate(transaction: &mut Transaction<'_>, table: &str) {
         let statement = format!("TRUNCATE {} CASCADE", table);
         let result = transaction.execute(statement.as_str(), &[]).await;
@@ -103,7 +113,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_transaction() -> Result<()> {
-        let mut client = get_client().await;
+        let mut client = MAIN_TEST_INSTANCE.get_client().await;
         let _ = start_transaction(&mut client).await?;
         Ok(())
     }

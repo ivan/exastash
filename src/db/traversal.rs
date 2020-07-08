@@ -28,7 +28,7 @@ pub async fn walk_path(transaction: &mut Transaction<'_>, base_dir: i64, path_co
 mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::get_client;
+    use crate::db::tests::MAIN_TEST_INSTANCE;
     use crate::db::dirent::Dirent;
     use chrono::Utc;
     use crate::db::inode;
@@ -39,7 +39,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_walk_path() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();

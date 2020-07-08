@@ -43,7 +43,7 @@ pub async fn get_storage(transaction: &mut Transaction<'_>, file_ids: &[i64]) ->
 mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::get_client;
+    use crate::db::tests::MAIN_TEST_INSTANCE;
     use crate::db::inode::tests::create_dummy_file;
 
     mod api {
@@ -52,7 +52,7 @@ mod tests {
         /// If there is no storage for a file, get_storage returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -68,7 +68,7 @@ mod tests {
         /// inline, gdrive, internetarchive
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
 

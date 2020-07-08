@@ -212,11 +212,12 @@ impl Storage {
 pub(crate) mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::get_client;
+    use crate::db::tests::{MAIN_TEST_INSTANCE, TRUNCATE_TEST_INSTANCE};
     use crate::db::inode::tests::create_dummy_file;
     use file::GdriveFile;
     use atomic_counter::{AtomicCounter, RelaxedCounter};
     use once_cell::sync::Lazy;
+    use serial_test::serial;
 
     static DOMAIN_COUNTER: Lazy<RelaxedCounter> = Lazy::new(|| {
         RelaxedCounter::new(1)
@@ -233,7 +234,7 @@ pub(crate) mod tests {
         /// If we add a gdrive storage for a file, get_storage returns that storage
         #[tokio::test]
         async fn test_create_storage_get_storage() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -252,7 +253,7 @@ pub(crate) mod tests {
         /// Cannot reference a nonexistent gdrive file
         #[tokio::test]
         async fn test_cannot_reference_nonexistent_gdrive_file() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -271,7 +272,7 @@ pub(crate) mod tests {
         /// Cannot reference a nonexistent gdrive file even when other gdrive files do exist
         #[tokio::test]
         async fn test_cannot_reference_nonexistent_gdrive_file_even_if_some_exist() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -291,7 +292,7 @@ pub(crate) mod tests {
         /// Cannot have empty gdrive_files
         #[tokio::test]
         async fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -315,7 +316,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in storage_gdrive table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -350,8 +351,9 @@ pub(crate) mod tests {
 
         /// Cannot TRUNCATE storage_gdrive table
         #[tokio::test]
+        #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = TRUNCATE_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;

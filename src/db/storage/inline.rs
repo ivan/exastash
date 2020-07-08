@@ -49,8 +49,9 @@ impl Storage {
 mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::get_client;
+    use crate::db::tests::{MAIN_TEST_INSTANCE, TRUNCATE_TEST_INSTANCE};
     use crate::db::inode::tests::create_dummy_file;
+    use serial_test::serial;
 
     mod api {
         use super::*;
@@ -58,7 +59,7 @@ mod tests {
         /// If there is no inline storage for a file, find_by_file_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -73,7 +74,7 @@ mod tests {
         /// If we add an inline storage for a file, find_by_file_ids returns that storage
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -95,7 +96,7 @@ mod tests {
         /// Cannot UPDATE file_id on storage_inline table
         #[tokio::test]
         async fn test_cannot_change_immutables() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = MAIN_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -114,8 +115,9 @@ mod tests {
 
         /// Cannot TRUNCATE storage_inline table
         #[tokio::test]
+        #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = get_client().await;
+            let mut client = TRUNCATE_TEST_INSTANCE.get_client().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             assert_cannot_truncate(&mut transaction, "storage_inline").await;
