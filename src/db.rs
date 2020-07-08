@@ -102,8 +102,8 @@ mod tests {
 
     /// Note that TRUNCATE tests should be run in the separate `TRUNCATE_TEST_INSTANCE`
     /// because it will otherwise frequently cause other running transactions to raise
-    /// `deadlock detected`. That happens on the non-TRUNCATE transaction only because
-    /// we have a mutual FK set up between dirs and dirents.
+    /// `deadlock detected`. That happens on the non-TRUNCATE transaction frequently
+    /// because we have a mutual FK set up between dirs and dirents.
     pub(crate) async fn assert_cannot_truncate(transaction: &mut Transaction<'_>, table: &str) {
         let statement = format!("TRUNCATE {} CASCADE", table);
         let result = transaction.execute(statement.as_str(), &[]).await;
