@@ -104,11 +104,7 @@ mod tests {
         let statement = format!("TRUNCATE {} CASCADE", table);
         let result = transaction.execute(statement.as_str(), &[]).await;
         let msg = result.err().expect("expected an error").to_string();
-        // Also allow "deadlock detected" because of concurrent transactions: the
-        // BEFORE TRUNCATE trigger does not run before PostgreSQL's lock checks
-        assert!(
-            msg == "db error: ERROR: truncate is forbidden" ||
-            msg == "db error: ERROR: deadlock detected", msg);
+        assert_eq!(msg, "db error: ERROR: truncate is forbidden");
     }
 
     #[tokio::test]
