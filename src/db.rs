@@ -46,7 +46,11 @@ mod tests {
 
     fn postgres_temp_instance_uri() -> String {
         let mut command = Command::new("pg_tmp");
-        let stdout = command.output().expect("failed to execute pg_tmp").stdout;
+        // "Shut down and remove the database after the specified timeout. If one or more clients
+        // are still connected then pg_tmp sleeps and retries again after the same interval."
+        let timeout = 10;
+        let args = &["-w", &timeout.to_string()];
+        let stdout = command.args(args).output().expect("failed to execute pg_tmp").stdout;
         let database_uri = String::from_utf8(stdout).expect("could not parse pg_tmp output as UTF-8");
         // Add a &user= to fix "no PostgreSQL user name specified in startup packet"
         let user = env_var("USER").unwrap();
