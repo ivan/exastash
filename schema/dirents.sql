@@ -30,14 +30,10 @@ CREATE TABLE dirents (
     -- Ensure exactly one type of child is set
     CHECK (num_nonnulls(child_dir, child_file, child_symlink) = 1),
 
-    -- Use deferrable constraints because we mutually FK dirs to dirents. Do that
-    -- because we do not want to allow directories to be orphaned in the tree.  Do
-    -- that because orphaned directories can't be re-parented without scanning the
-    -- entire child tree for potential cycles.
-    CONSTRAINT dirents_child_dir_fkey     FOREIGN KEY (child_dir)     REFERENCES stash.dirs (id)     DEFERRABLE INITIALLY DEFERRED,
-    CONSTRAINT dirents_child_file_fkey    FOREIGN KEY (child_file)    REFERENCES stash.files (id)    DEFERRABLE INITIALLY DEFERRED,
-    CONSTRAINT dirents_child_symlink_fkey FOREIGN KEY (child_symlink) REFERENCES stash.symlinks (id) DEFERRABLE INITIALLY DEFERRED,
-    CONSTRAINT dirents_parent_fkey        FOREIGN KEY (parent)        REFERENCES stash.dirs (id)     DEFERRABLE INITIALLY DEFERRED,
+    CONSTRAINT dirents_child_dir_fkey     FOREIGN KEY (child_dir)     REFERENCES stash.dirs (id),
+    CONSTRAINT dirents_child_file_fkey    FOREIGN KEY (child_file)    REFERENCES stash.files (id),
+    CONSTRAINT dirents_child_symlink_fkey FOREIGN KEY (child_symlink) REFERENCES stash.symlinks (id),
+    CONSTRAINT dirents_parent_fkey        FOREIGN KEY (parent)        REFERENCES stash.dirs (id),
 
     PRIMARY KEY (parent, basename)
 );
@@ -94,5 +90,8 @@ CREATE TRIGGER dirents_forbid_truncate
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
 
 ALTER TABLE dirs
-    -- See comment in `CREATE TABLE dirents` above for why we mututally FK.
+    -- Use deferrable constraints because we mutually FK dirs to dirents. Do that
+    -- because we do not want to allow directories to be orphaned in the tree.  Do
+    -- that because orphaned directories can't be re-parented without scanning the
+    -- entire child tree for potential cycles.
     ADD CONSTRAINT dirs_id_fkey FOREIGN KEY (id) REFERENCES dirents (child_dir) DEFERRABLE INITIALLY DEFERRED;
