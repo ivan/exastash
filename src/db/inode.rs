@@ -356,6 +356,18 @@ pub(crate) mod tests {
             Ok(())
         }
 
+        /// Cannot create dir without it being a child_dir of something in dirents
+        #[tokio::test]
+        async fn test_cannot_create_dir_without_dirent() -> Result<()> {
+            let mut client = get_client().await;
+            let mut transaction = start_transaction(&mut client).await?;
+            let _ = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
+            let result = transaction.commit().await;
+            let msg = result.err().expect("expected an error").to_string();
+            assert_eq!(msg, "db error: ERROR: insert or update on table \"dirs\" violates foreign key constraint \"dirs_id_fkey\"");
+            Ok(())
+        }
+
         /// File::find_by_ids returns empty Vec when given no ids
         #[tokio::test]
         async fn test_file_find_by_ids_empty() -> Result<()> {
