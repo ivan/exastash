@@ -63,7 +63,13 @@ enum ExastashCommand {
 enum DirCommand {
     /// Create an unparented directory (for e.g. use as a root inode) and print its id to stdout
     #[structopt(name = "create")]
-    Create,
+    Create {
+        #[structopt(name = "PARENT_DIR_ID")]
+        parent_dir_id: i64,
+
+        #[structopt(name = "BASENAME")]
+        basename: String,
+    },
 
     /// Print info in JSON format for zero or more dirs
     #[structopt(name = "info")]
@@ -341,10 +347,11 @@ async fn main() -> Result<()> {
     match cmd {
         ExastashCommand::Dir(dir) => {
             match dir {
-                DirCommand::Create => {
+                DirCommand::Create { parent_dir_id, basename } => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
                     let dir = NewDir { mtime, birth }.create(&mut transaction).await?;
+                    Dirent::new(parent_dir_id, basename, InodeId::Dir(dir.id)).create(&mut transaction).await?;
                     transaction.commit().await?;
                     println!("{}", dir.id);
                 }
