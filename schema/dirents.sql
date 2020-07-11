@@ -60,12 +60,21 @@ CREATE        INDEX dirents_child_symlink_index ON dirents (child_symlink);
 CREATE OR REPLACE FUNCTION dirents_check_insert_or_delete() RETURNS trigger AS $$
 DECLARE
     transaction_touched_dirent_dir_child text;
+    unsafe_internal_dirent_creation text;
 BEGIN
+    -- file and symlink children cannot create cycles
     IF TG_OP = 'INSERT' AND NEW.child_dir IS NULL THEN
         RETURN NULL;
     ELSIF TG_OP = 'DELETE' AND OLD.child_dir IS NULL THEN
         RETURN NULL;
     END IF;
+
+    -- escape hatch for populate-exastash and to-be-implemented directory move operation
+    unsafe_internal_dirent_creation := current_setting('stash.unsafe_internal_dirent_creation', /* missing_ok */true);
+    IF unsafe_internal_dirent_creation = '1' THEN
+        RETURN NULL;
+    END IF;
+
     transaction_touched_dirent_dir_child := current_setting('stash.transaction_touched_dirent_dir_child', /* missing_ok */true);
     IF transaction_touched_dirent_dir_child = '1' THEN
         RAISE EXCEPTION 'cannot insert or delete more than one dirent with a child_dir per transaction';
