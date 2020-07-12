@@ -23,6 +23,7 @@ use exastash::db::inode::{InodeId, Inode, File, NewFile, Dir, NewDir, Symlink, N
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
+use exastash::fuse;
 use exastash::info::json_info;
 use exastash::oauth;
 use exastash::{storage_read, storage_write};
@@ -56,9 +57,13 @@ enum ExastashCommand {
     #[structopt(name = "gsuite")]
     Gsuite(GsuiteCommand),
 
-    #[structopt(name = "internal")]
     /// Internal commands for debugging
+    #[structopt(name = "internal")]
     Internal(InternalCommand),
+
+    /// FUSE
+    #[structopt(name = "fuse")]
+    Fuse(FuseCommand),
 }
 
 #[derive(StructOpt, Debug)]
@@ -289,6 +294,7 @@ enum InternalCommand {
         #[structopt(name = "FILENAME")]
         filename: String,
     },
+
     /// Read the contents of a sequence of Google Drive files to stdout
     #[structopt(name = "read-gdrive-files")]
     ReadGdriveFiles {
@@ -300,6 +306,17 @@ enum InternalCommand {
         #[structopt(name = "FILE_ID")]
         file_ids: Vec<String>,
     },
+}
+
+#[derive(StructOpt, Debug)]
+enum FuseCommand {
+    /// Run a FUSE server
+    #[structopt(name = "run")]
+    Run {
+        /// Where to mount the exastash root
+        #[structopt(name = "MOUNTPOINT")]
+        mountpoint: String,
+    }
 }
 
 async fn resolve_path(transaction: &mut Transaction<'_>, root: i64, path: &str) -> Result<InodeId> {
@@ -553,6 +570,13 @@ async fn main() -> Result<()> {
                         let mut stdout = tokio::io::stdout();
                         tokio::io::copy(&mut read, &mut stdout).await?;
                     }
+                }
+            }
+        }
+        ExastashCommand::Fuse(command) => {
+            match &command {
+                FuseCommand::Run { mountpoint } => {
+                    fuse::run(mountpoint.into()).await?;
                 }
             }
         }

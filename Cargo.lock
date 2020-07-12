@@ -57,6 +57,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85bb70cc08ec97ca5450e6eba421deeea5f172c0fc61f78b5357b2a8e8be195f"
 
 [[package]]
+name = "arc-swap"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d25d88fd6b8041580a654f9d0c581a047baee2b3efee13275f2fc392fc75034"
+
+[[package]]
 name = "array-init"
 version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -352,11 +358,14 @@ dependencies = [
  "hex",
  "hyper",
  "hyper-rustls 0.21.0",
+ "libc",
  "md-5",
  "num",
  "once_cell",
  "parking_lot 0.11.0",
  "pin-project",
+ "polyfuse",
+ "polyfuse-tokio",
  "postgres",
  "postgres-protocol",
  "postgres-types",
@@ -861,6 +870,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3728d817d99e5ac407411fa471ff9800a778d88a24685968b36824eaf4bee400"
 
 [[package]]
+name = "memoffset"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c198b026e1bbf08a937e94c6c60f9ec4a2267f5b0d2eec9c1b21b061ce2be55f"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1140,6 +1158,37 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "polyfuse"
+version = "0.3.3"
+source = "git+https://github.com/ubnt-intrepid/polyfuse#8caf917254b1b1312a02ad56c62836471e50e172"
+dependencies = [
+ "async-trait",
+ "bitflags",
+ "bytes",
+ "futures",
+ "lazy_static",
+ "libc",
+ "memoffset",
+ "pin-project-lite",
+ "smallvec 0.6.13",
+ "tracing",
+]
+
+[[package]]
+name = "polyfuse-tokio"
+version = "0.2.0"
+source = "git+https://github.com/ubnt-intrepid/polyfuse#8caf917254b1b1312a02ad56c62836471e50e172"
+dependencies = [
+ "bytes",
+ "futures",
+ "libc",
+ "mio",
+ "polyfuse",
+ "tokio",
+ "tracing",
+]
 
 [[package]]
 name = "postgres"
@@ -1649,6 +1698,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "signal-hook-registry"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94f478ede9f64724c5d173d7bb56099ec3e2d9fc2774aac65d34b8b890405f41"
+dependencies = [
+ "arc-swap",
+ "libc",
+]
+
+[[package]]
 name = "siphasher"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1833,8 +1892,10 @@ dependencies = [
  "mio",
  "mio-uds",
  "pin-project-lite",
+ "signal-hook-registry",
  "slab",
  "tokio-macros",
+ "winapi 0.3.9",
 ]
 
 [[package]]

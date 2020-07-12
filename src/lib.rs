@@ -31,6 +31,7 @@ pub(crate) mod ranges;
 pub(crate) mod retry;
 pub(crate) mod util;
 pub mod db;
+pub mod fuse;
 pub mod postgres;
 pub(crate) mod gdrive;
 pub(crate) mod crypto;
