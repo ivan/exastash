@@ -20,7 +20,6 @@
     trivial_casts,
     trivial_numeric_casts,
     unused_import_braces,
-    unused_lifetimes,
     variant_size_differences,
 )]
 // TODO: remove after initial development

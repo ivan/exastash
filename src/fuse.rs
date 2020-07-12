@@ -135,7 +135,7 @@ impl Server {
 
         let mut entries = Vec::with_capacity(3);
         let mut total_len = 0usize;
-        for entry in self.dir_entries.iter().skip(offset as usize) {
+        for entry in self.dir_entries.iter().skip(offset) {
             let entry = entry.as_ref();
             if total_len + entry.len() > size {
                 break;
@@ -172,7 +172,7 @@ impl Filesystem for Server {
 
 fn root_attr() -> FileAttr {
     let mut attr = FileAttr::default();
-    attr.set_mode(libc::S_IFDIR as u32 | 0o555);
+    attr.set_mode(libc::S_IFDIR | 0o555);
     attr.set_ino(ROOT_INO);
     attr.set_nlink(2);
     attr.set_uid(unsafe { libc::getuid() });
@@ -182,7 +182,7 @@ fn root_attr() -> FileAttr {
 
 fn hello_attr() -> FileAttr {
     let mut attr = FileAttr::default();
-    attr.set_mode(libc::S_IFREG as u32 | 0o444);
+    attr.set_mode(libc::S_IFREG | 0o444);
     attr.set_ino(HELLO_INO);
     attr.set_nlink(1);
     attr.set_uid(unsafe { libc::getuid() });
