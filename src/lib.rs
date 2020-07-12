@@ -22,8 +22,11 @@
     unused_import_braces,
     variant_size_differences,
 )]
-// TODO: remove after initial development
-#![allow(dead_code)]
+#![allow(
+    clippy::len_zero,
+    // TODO: remove after initial development
+    dead_code,
+)]
 
 pub(crate) mod conceal_size;
 pub(crate) mod ranges;

@@ -28,6 +28,7 @@ pub async fn postgres_client_production() -> Result<Client> {
 }
 
 /// Return a transaction with search_path set to 'stash' and isolation level REPEATABLE READ.
+#[allow(clippy::needless_lifetimes)] // https://github.com/rust-lang/rust-clippy/issues/4746
 pub async fn start_transaction<'a>(client: &'a mut Client) -> Result<Transaction<'a>> {
     let transaction = client.build_transaction().start().await?;
     transaction.execute("SET search_path TO stash", &[]).await?;
