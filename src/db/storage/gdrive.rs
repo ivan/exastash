@@ -129,7 +129,7 @@ impl GdriveFilePlacement {
     pub async fn find_by_domain(transaction: &mut Transaction<'_>, domain: i16, limit: Option<i32>) -> Result<Vec<GdriveFilePlacement>> {
         let limit_sql = match limit {
             None => "".into(),
-            Some(num) => format!("ORDER BY random() LIMIT {}", num)
+            Some(num) => format!("ORDER BY random() LIMIT {num}")
         };
         let sql = format!(
             "SELECT domain, owner, parent FROM gdrive_file_placement
@@ -224,7 +224,8 @@ pub(crate) mod tests {
     });
 
     pub(crate) async fn create_dummy_domain(mut transaction: &mut Transaction<'_>) -> Result<GsuiteDomain> {
-        let domain = format!("{}.example.com", DOMAIN_COUNTER.inc());
+        let num = DOMAIN_COUNTER.inc();
+        let domain = format!("{num}.example.com");
         Ok(NewGsuiteDomain { domain }.create(&mut transaction).await?)
     }
 
@@ -333,12 +334,12 @@ pub(crate) mod tests {
                 ("gsuite_domain", "100"),
                 ("cipher", "'AES_128_CTR'::cipher"),
                 ("cipher_key", "'1111-1111-1111-1111-1111-1111-1111-1111'::uuid"),
-                ("gdrive_ids", &format!("'{{\"{}\",\"{}\"}}'::text[]", id1, id2))
+                ("gdrive_ids", &format!("'{{\"{id1}\",\"{id2}\"}}'::text[]"))
             ];
 
             for (column, value) in &pairs {
                 let transaction = start_transaction(&mut client).await?;
-                let query = format!("UPDATE storage_gdrive SET {} = {} WHERE file_id = $1::bigint", column, value);
+                let query = format!("UPDATE storage_gdrive SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = transaction.execute(query.as_str(), &[&dummy.id]).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),

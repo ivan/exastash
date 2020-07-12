@@ -109,7 +109,8 @@ pub(crate) mod tests {
     });
 
     pub(crate) fn make_basename(prefix: &str) -> String {
-        format!("{}_{}", prefix, BASENAME_COUNTER.inc())
+        let num = BASENAME_COUNTER.inc();
+        format!("{prefix}_{num}")
     }
 
     mod api {
@@ -238,7 +239,7 @@ pub(crate) mod tests {
 
             for (column, value) in &[("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
                 let transaction = start_transaction(&mut client).await?;
-                let query = format!("UPDATE dirents SET {} = {} WHERE parent = $1::bigint AND child_dir = $2::bigint", column, value);
+                let query = format!("UPDATE dirents SET {column} = {value} WHERE parent = $1::bigint AND child_dir = $2::bigint");
                 let result = transaction.execute(query.as_str(), &[&1i64, &child_dir.id]).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),

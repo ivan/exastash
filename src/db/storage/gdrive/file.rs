@@ -276,7 +276,7 @@ pub(crate) mod tests {
                 ("size", "2")
             ] {
                 let transaction = start_transaction(&mut client).await?;
-                let query = format!("UPDATE gdrive_files SET {} = {} WHERE id = $1", column, value);
+                let query = format!("UPDATE gdrive_files SET {column} = {value} WHERE id = $1");
                 let result = transaction.execute(query.as_str(), &[&file.id]).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, md5, crc32c, or size");
             }

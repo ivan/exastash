@@ -450,7 +450,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let transaction = start_transaction(&mut client).await?;
-                let query = format!("UPDATE dirs SET {} = {} WHERE id = $1::bigint", column, value);
+                let query = format!("UPDATE dirs SET {column} = {value} WHERE id = $1::bigint");
                 let result = transaction.execute(query.as_str(), &[&1i64]).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {
@@ -490,7 +490,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let transaction = start_transaction(&mut client).await?;
-                let query = format!("UPDATE files SET {} = {} WHERE id = $1::bigint", column, value);
+                let query = format!("UPDATE files SET {column} = {value} WHERE id = $1::bigint");
                 let result = transaction.execute(query.as_str(), &[&file.id]).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {
@@ -524,7 +524,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let transaction = start_transaction(&mut client).await?;
-                let query = format!("UPDATE symlinks SET {} = {} WHERE id = $1::bigint", column, value);
+                let query = format!("UPDATE symlinks SET {column} = {value} WHERE id = $1::bigint");
                 let result = transaction.execute(query.as_str(), &[&symlink.id]).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {

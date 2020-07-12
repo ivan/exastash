@@ -20,7 +20,7 @@ pub async fn postgres_client_production() -> Result<Client> {
     // so spawn it off to run on its own.
     tokio::spawn(async move {
         if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
+            eprintln!("connection error: {e}");
         }
     });
 
@@ -54,7 +54,7 @@ mod tests {
         let database_uri = String::from_utf8(stdout).expect("could not parse pg_tmp output as UTF-8");
         // Add a &user= to fix "no PostgreSQL user name specified in startup packet"
         let user = env_var("USER").unwrap();
-        let database_uri = format!("{}&user={}", database_uri, user);
+        let database_uri = format!("{database_uri}&user={user}");
         database_uri
     }
 
@@ -89,7 +89,7 @@ mod tests {
             // so spawn it off to run on its own.
             tokio::spawn(async move {
                 if let Err(e) = connection.await {
-                    eprintln!("connection error: {}", e);
+                    eprintln!("connection error: {e}");
                 }
             });
     
@@ -105,7 +105,7 @@ mod tests {
     /// `deadlock detected`. That happens on the non-TRUNCATE transaction frequently
     /// because we have a mutual FK set up between dirs and dirents.
     pub(crate) async fn assert_cannot_truncate(transaction: &mut Transaction<'_>, table: &str) {
-        let statement = format!("TRUNCATE {} CASCADE", table);
+        let statement = format!("TRUNCATE {table} CASCADE");
         let result = transaction.execute(statement.as_str(), &[]).await;
         let msg = result.err().expect("expected an error").to_string();
         assert_eq!(msg, "db error: ERROR: truncate is forbidden");

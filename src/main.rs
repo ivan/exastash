@@ -1,3 +1,5 @@
+#![feature(format_args_capture)]
+
 use tracing::info;
 use async_recursion::async_recursion;
 use clap::arg_enum;
@@ -324,7 +326,7 @@ async fn walk_dir(transaction: &mut Transaction<'_>, root: i64, segments: &[&str
             "file_id":    if let InodeId::File(id)    = dirent.child { Some(id) } else { None },
             "symlink_id": if let InodeId::Symlink(id) = dirent.child { Some(id) } else { None },
         });
-        println!("{}", j);
+        println!("{j}");
         if let InodeId::Dir(dir_id) = dirent.child {
             let segments = [segments, &[&dirent.basename]].concat();
             walk_dir(transaction, root, &segments, dir_id).await?;
@@ -467,7 +469,7 @@ async fn main() -> Result<()> {
                             "child_file":    if let InodeId::File(id)    = dirent.child { Some(id) } else { None },
                             "child_symlink": if let InodeId::Symlink(id) = dirent.child { Some(id) } else { None },
                         });
-                        println!("{}", j);
+                        println!("{j}");
                     }
                 }
                 DirentCommand::Walk { id } => {
@@ -538,7 +540,7 @@ async fn main() -> Result<()> {
                     };
                     let gdrive_file = storage_write::create_gdrive_file_on_domain(file_stream_fn, size, *domain_id, *owner_id, parent, filename).await?;
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
-                    println!("{}", j);
+                    println!("{j}");
                 }
                 InternalCommand::ReadGdriveFiles { domain_id, file_ids } => {
                     let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, file_ids).await?;

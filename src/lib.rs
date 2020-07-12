@@ -4,7 +4,8 @@
     async_closure,
     generators,
     proc_macro_hygiene,
-    stmt_expr_attributes
+    stmt_expr_attributes,
+    format_args_capture,
 )]
 
 #![warn(

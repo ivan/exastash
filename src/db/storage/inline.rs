@@ -105,7 +105,7 @@ mod tests {
 
             for (column, value) in &[("file_id", "100")] {
                 let transaction = start_transaction(&mut client).await?;
-                let query = format!("UPDATE storage_inline SET {} = {} WHERE file_id = $1::bigint", column, value);
+                let query = format!("UPDATE storage_inline SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = transaction.execute(query.as_str(), &[&dummy.id]).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id");
             }

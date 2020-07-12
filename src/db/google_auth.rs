@@ -174,13 +174,13 @@ impl GsuiteServiceAccount {
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_>, owner_ids: &[i32], limit: Option<i32>) -> Result<Vec<GsuiteServiceAccount>> {
         let limit_sql = match limit {
             None => "".into(),
-            Some(num) => format!("ORDER BY random() LIMIT {}", num)
+            Some(num) => format!("ORDER BY random() LIMIT {num}")
         };
         let sql = format!("SELECT owner_id, client_email, client_id, project_id, private_key_id, private_key,
                                   auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url
                            FROM gsuite_service_accounts
                            WHERE owner_id = ANY($1::int[])
-                           {}", limit_sql);
+                           {limit_sql}");
         let rows = transaction.query(sql.as_str(), &[&owner_ids]).await?;
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {

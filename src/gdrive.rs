@@ -19,9 +19,9 @@ pub fn get_header_value<'a>(response: &'a reqwest::Response, header: &str) -> Re
     let headers = response.headers();
     let value = headers
         .get(header)
-        .ok_or_else(|| anyhow!("response was missing {}; headers were {:#?}", header, headers))?
+        .ok_or_else(|| anyhow!("response was missing {header}; headers were {:#?}", headers))?
         .to_str()
-        .map_err(|_| anyhow!("{} value contained characters that are not visible ASCII; headers were {:#?}", header, headers))?;
+        .map_err(|_| anyhow!("{header} value contained characters that are not visible ASCII; headers were {:#?}", headers))?;
     Ok(value)
 }
 
@@ -51,11 +51,11 @@ pub(crate) async fn request_gdrive_file(file_id: &str, access_token: &str) -> Re
     if FILE_ID_RE.captures(file_id).is_none() {
         bail!("invalid gdrive file_id: {:?}", file_id);
     }
-    let url = format!("https://www.googleapis.com/drive/v3/files/{}?alt=media", file_id);
+    let url = format!("https://www.googleapis.com/drive/v3/files/{file_id}?alt=media");
     let client = reqwest::Client::new();
     let response = client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Authorization", format!("Bearer {access_token}"))
         .send()
         .await?;
     Ok(response)

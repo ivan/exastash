@@ -141,7 +141,7 @@ fn new_chunk_filename() -> String {
     let secs = now.timestamp();
     let nanos = now.timestamp_subsec_nanos();
     let random = rand::thread_rng().gen::<[u8; 16]>();
-    format!("{}-{}-{}", secs, nanos, hex::encode(random))
+    format!("{secs}-{nanos}-{}", hex::encode(random))
 }
 
 #[inline]
