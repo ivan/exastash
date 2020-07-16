@@ -2,11 +2,11 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction};
 use serde::Serialize;
 
 /// A storage_internetarchive entity
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct Storage {
     /// The id of the exastash file for which this storage exists
     pub file_id: i64,
@@ -23,37 +23,34 @@ pub struct Storage {
 impl Storage {
     /// Create an internetarchive storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
-        transaction.execute(
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Self> {
+        sqlx::query(
             "INSERT INTO storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
              VALUES ($1::bigint, $2::text, $3::text, $4::boolean, $5::timestamptz)",
-            &[&self.file_id, &self.ia_item, &self.pathname, &self.darked, &self.last_probed]
-        ).await?;
+        )
+            .bind(&self.file_id)
+            .bind(&self.ia_item)
+            .bind(&self.pathname)
+            .bind(&self.darked)
+            .bind(&self.last_probed)
+            .execute(transaction)
+            .await?;
         Ok(self)
     }
 
     /// Get internetarchive storage entities by exastash file ids.
     /// Entities which are not found will not be included in the resulting `Vec`.
-    pub async fn find_by_file_ids(transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+    pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         // Note that we can get more than one row per unique file_id
-        let rows = transaction.query(
-            "SELECT file_id, ia_item, pathname, darked, last_probed
-             FROM storage_internetarchive
-             WHERE file_id = ANY($1::bigint[])",
-            &[&file_ids]
-        ).await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            let storage = Storage {
-                file_id: row.get(0),
-                ia_item: row.get(1),
-                pathname: row.get(2),
-                darked: row.get(3),
-                last_probed: row.get(4),
-            };
-            out.push(storage);
-        }
-        Ok(out)    
+        Ok(
+            sqlx::query_as::<_, Storage>(
+                "SELECT file_id, ia_item, pathname, darked, last_probed
+                 FROM storage_internetarchive
+                 WHERE file_id = ANY($1::bigint[])"
+            )
+            .bind(file_ids)
+            .fetch_all(transaction).await?
+        )
     }
 }
 
@@ -62,7 +59,7 @@ mod tests {
     use super::*;
     use crate::util;
     use crate::db::start_transaction;
-    use crate::db::tests::{MAIN_TEST_INSTANCE, TRUNCATE_TEST_INSTANCE};
+    use crate::db::tests::{main_test_instance, truncate_test_instance};
     use crate::db::inode::tests::create_dummy_file;
     use serial_test::serial;
 
@@ -72,7 +69,7 @@ mod tests {
         /// If there is no internetarchive storage for a file, find_by_file_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -87,7 +84,7 @@ mod tests {
         /// If we add one internetarchive storage for a file, find_by_file_ids returns just that storage
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -103,7 +100,7 @@ mod tests {
         /// If we add multiple internetarchive storage for a file, find_by_file_ids returns those storages
         #[tokio::test]
         async fn test_multiple_create_storage_and_get_storage() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -126,7 +123,7 @@ mod tests {
         /// Cannot UPDATE file_id, ia_item, or pathname on storage_internetarchive table
         #[tokio::test]
         async fn test_cannot_change_immutables() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -134,10 +131,10 @@ mod tests {
             transaction.commit().await?;
 
             for (column, value) in &[("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
-                let transaction = start_transaction(&mut client).await?;
+                let mut transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_internetarchive SET {column} = {value} WHERE file_id = $1::bigint");
-                let result = transaction.execute(query.as_str(), &[&dummy.id]).await;
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id, ia_item, or pathname");
+                let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
+                assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id, ia_item, or pathname");
             }
 
             Ok(())
@@ -147,7 +144,7 @@ mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = TRUNCATE_TEST_INSTANCE.get_client().await;
+            let mut client = truncate_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             assert_cannot_truncate(&mut transaction, "storage_internetarchive").await;

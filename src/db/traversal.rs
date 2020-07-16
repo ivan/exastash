@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Result};
 use std::convert::TryInto;
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction, Row};
 use crate::db::dirent::InodeTuple;
 use crate::db::inode::InodeId;
 
@@ -10,12 +10,16 @@ use crate::db::inode::InodeId;
 /// Does not resolve symlinks.
 /// 
 /// TODO: speed this up by farming it out to a PL/pgSQL function
-pub async fn walk_path(transaction: &mut Transaction<'_>, base_dir: i64, path_components: &[&str]) -> Result<InodeId> {
+pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[&str]) -> Result<InodeId> {
     let mut current_inode = InodeId::Dir(base_dir);
+    let query = "SELECT child_dir, child_file, child_symlink FROM dirents
+                 WHERE parent = $1::bigint AND basename = $2::text";
     for component in path_components {
-        let rows = transaction.query("
-            SELECT child_dir, child_file, child_symlink FROM dirents
-            WHERE parent = $1::bigint AND basename = $2::text", &[&current_inode.dir_id()?, &component]).await?;
+        let rows = sqlx::query(query)
+            .bind(current_inode.dir_id()?)
+            .bind(component)
+            .fetch_all(&mut *transaction)
+            .await?;
         assert!(rows.len() <= 1, "expected <= 1 rows");
         let dir_id = current_inode.dir_id()?;
         let row = rows.get(0).ok_or_else(|| anyhow!("no such dirent {:?} under dir {:?}", component, dir_id))?;
@@ -28,7 +32,7 @@ pub async fn walk_path(transaction: &mut Transaction<'_>, base_dir: i64, path_co
 mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::MAIN_TEST_INSTANCE;
+    use crate::db::tests::main_test_instance;
     use crate::db::dirent::Dirent;
     use chrono::Utc;
     use crate::db::inode;
@@ -39,7 +43,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_walk_path() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();

@@ -3,7 +3,7 @@
 use crate::db::inode::InodeId;
 use std::convert::{TryFrom, TryInto};
 use anyhow::{bail, Error, Result};
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
 
 /// A (dir, file, symlink) tuple that is useful when interacting with
 /// the dirents table.
@@ -45,6 +45,16 @@ pub struct Dirent {
     pub child: InodeId
 }
 
+impl<'c> sqlx::FromRow<'c, PgRow> for Dirent {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let parent = row.get("parent");
+        let basename: String = row.get("basename");
+        let tuple = InodeTuple(row.get("child_dir"), row.get("child_file"), row.get("child_symlink"));
+        let inode_id: InodeId = tuple.try_into().unwrap();
+        Ok(Dirent::new(parent, basename, inode_id))
+    }
+}
+
 impl Dirent {
     /// Return a `Dirent` with the given `basename` and `child` inode
     pub fn new<S: Into<String>>(parent: i64, basename: S, child: InodeId) -> Dirent {
@@ -53,43 +63,38 @@ impl Dirent {
 
     /// Create a directory entry.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Self> {
         let InodeTuple(child_dir, child_file, child_symlink) = self.child.into();
-        transaction.execute(
-            "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
-             VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)",
-            &[&self.parent, &self.basename, &child_dir, &child_file, &child_symlink]
-        ).await?;
+        let stmt = "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
+                    VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)";
+        sqlx::query(stmt)
+            .bind(self.parent)
+            .bind(&self.basename)
+            .bind(child_dir)
+            .bind(child_file)
+            .bind(child_symlink)
+            .execute(transaction).await?;
         Ok(self)
     }
 
     /// Remove a directory entry.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn remove(transaction: &mut Transaction<'_>, parent: i64, basename: &str) -> Result<()> {
-        transaction.execute(
-            "DELETE FROM dirents WHERE parent = $1::bigint AND basename = $2::text",
-            &[&parent, &basename]
-        ).await?;
+    pub async fn remove(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<()> {
+        let stmt = "DELETE FROM dirents WHERE parent = $1::bigint AND basename = $2::text";
+        sqlx::query(stmt)
+            .bind(parent)
+            .bind(basename)
+            .execute(transaction).await?;
         Ok(())
     }
 
     /// Return a `Vec<Dirent>` for all `Dirent`s with the given parents.
     /// There is no error on missing parents.
-    pub async fn find_by_parents(transaction: &mut Transaction<'_>, parents: &[i64]) -> Result<Vec<Dirent>> {
+    pub async fn find_by_parents(transaction: &mut Transaction<'_, Postgres>, parents: &[i64]) -> Result<Vec<Dirent>> {
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
-        let rows = transaction.query(
-            "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
-             WHERE parent = ANY($1::bigint[]) AND child_dir IS DISTINCT FROM 1", &[&parents]).await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            let parent = row.get(0);
-            let basename: String = row.get(1);
-            let tuple = InodeTuple(row.get(2), row.get(3), row.get(4));
-            let inode_id = tuple.try_into()?;
-            let dirent = Dirent::new(parent, basename, inode_id);
-            out.push(dirent);
-        }
-        Ok(out)
+        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
+                     WHERE parent = ANY($1::bigint[]) AND child_dir IS DISTINCT FROM 1";
+        Ok(sqlx::query_as::<_, Dirent>(query).bind(parents).fetch_all(transaction).await?)
     }
 }
 
@@ -98,7 +103,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::db::inode;
     use crate::db::start_transaction;
-    use crate::db::tests::{MAIN_TEST_INSTANCE, TRUNCATE_TEST_INSTANCE};
+    use crate::db::tests::{main_test_instance, truncate_test_instance};
     use chrono::Utc;
     use atomic_counter::{AtomicCounter, RelaxedCounter};
     use once_cell::sync::Lazy;
@@ -118,7 +123,7 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn test_create_dirent_and_list_dir() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
@@ -155,14 +160,14 @@ pub(crate) mod tests {
         /// Cannot have child_dir equal to parent
         #[tokio::test]
         async fn test_cannot_have_child_dir_equal_to_parent() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let parent = inode::NewDir { mtime: Utc::now(), birth: inode::Birth::here_and_now() }.create(&mut transaction).await?;
             let result = Dirent::new(parent.id, "self", InodeId::Dir(parent.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                "db error: ERROR: new row for relation \"dirents\" violates check constraint \"dirents_check\""
+                "error returned from database: new row for relation \"dirents\" violates check constraint \"dirents_check\""
             );
 
             Ok(())
@@ -171,7 +176,7 @@ pub(crate) mod tests {
         /// Cannot insert more than one dirent per transaction (otherwise cycles could be created)
         #[tokio::test]
         async fn test_cannot_create_more_than_one_dirent() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth  = inode::Birth::here_and_now();
@@ -181,7 +186,7 @@ pub(crate) mod tests {
             let result = Dirent::new(two.id, make_basename("one"), InodeId::Dir(one.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                "db error: ERROR: cannot insert or delete more than one dirent with a child_dir per transaction"
+                "error returned from database: cannot insert or delete more than one dirent with a child_dir per transaction"
             );
 
             Ok(())
@@ -190,7 +195,7 @@ pub(crate) mod tests {
         /// Cannot create a dirents cycle by removing a dirent and creating a replacement
         #[tokio::test]
         async fn test_cannot_create_dirents_cycle() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let birth  = inode::Birth::here_and_now();
             
@@ -220,7 +225,7 @@ pub(crate) mod tests {
             let result = Dirent::new(c.id, "b", InodeId::Dir(b.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                "db error: ERROR: cannot insert or delete more than one dirent with a child_dir per transaction"
+                "error returned from database: cannot insert or delete more than one dirent with a child_dir per transaction"
             );
 
             Ok(())
@@ -229,7 +234,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in dirents table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
@@ -238,12 +243,12 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             for (column, value) in &[("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
-                let transaction = start_transaction(&mut client).await?;
+                let mut transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirents SET {column} = {value} WHERE parent = $1::bigint AND child_dir = $2::bigint");
-                let result = transaction.execute(query.as_str(), &[&1i64, &child_dir.id]).await;
+                let result = sqlx::query(&query).bind(1i64).bind(child_dir.id).execute(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
-                    "db error: ERROR: cannot change parent, basename, or child_*"
+                    "error returned from database: cannot change parent, basename, or child_*"
                 );
             }
 
@@ -254,7 +259,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = TRUNCATE_TEST_INSTANCE.get_client().await;
+            let mut client = truncate_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
@@ -271,7 +276,7 @@ pub(crate) mod tests {
         /// Directory cannot be a child twice in some directory
         #[tokio::test]
         async fn test_directory_cannot_have_more_than_one_basename() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
@@ -283,7 +288,7 @@ pub(crate) mod tests {
             let result = Dirent::new(1, make_basename("child_dir_again"), InodeId::Dir(child_dir.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
+                "error returned from database: duplicate key value violates unique constraint \"dirents_child_dir_index\""
             );
 
             Ok(())
@@ -292,7 +297,7 @@ pub(crate) mod tests {
         /// Directory cannot be a child of more than one parent
         #[tokio::test]
         async fn test_directory_cannot_be_multiparented() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
@@ -309,7 +314,7 @@ pub(crate) mod tests {
             let result = Dirent::new(1, make_basename("child"), InodeId::Dir(child.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                "db error: ERROR: duplicate key value violates unique constraint \"dirents_child_dir_index\""
+                "error returned from database: duplicate key value violates unique constraint \"dirents_child_dir_index\""
             );
 
             Ok(())
@@ -319,7 +324,7 @@ pub(crate) mod tests {
         /// Basename cannot be > 255 bytes
         #[tokio::test]
         async fn test_basename_cannot_be_specials_or_too_long() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let birth = inode::Birth::here_and_now();
@@ -335,7 +340,7 @@ pub(crate) mod tests {
                 let result = Dirent::new(parent.id, basename.to_string(), InodeId::Dir(child.id)).create(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
-                    "db error: ERROR: value for domain linux_basename violates check constraint \"linux_basename_check\""
+                    "error returned from database: value for domain linux_basename violates check constraint \"linux_basename_check\""
                 );
             }
 

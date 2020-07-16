@@ -2,7 +2,7 @@
 
 use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
 use serde::Serialize;
 use crate::EXASTASH_VERSION;
 use crate::util;
@@ -76,31 +76,28 @@ pub struct Dir {
     pub birth: Birth,
 }
 
+impl<'c> sqlx::FromRow<'c, PgRow> for Dir {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        Ok(
+            Dir {
+                id: row.get("id"),
+                mtime: row.get("mtime"),
+                birth: Birth {
+                    time: row.get("birth_time"),
+                    version: row.get("birth_version"),
+                    hostname: row.get("birth_hostname"),
+                }
+            }
+        )
+    }
+}
+
 impl Dir {
     /// Return a `Vec<Dir>` for the corresponding list of dir `ids`.
     /// There is no error on missing dirs.
-    pub async fn find_by_ids(transaction: &mut Transaction<'_>, ids: &[i64]) -> Result<Vec<Dir>> {
-        let rows = transaction.query(
-            "SELECT id, mtime, birth_time, birth_version, birth_hostname
-             FROM dirs
-             WHERE id = ANY($1::bigint[])",
-            &[&ids]
-        ).await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            out.push(
-                Dir {
-                    id: row.get(0),
-                    mtime: row.get(1),
-                    birth: Birth {
-                        time: row.get(2),
-                        version: row.get(3),
-                        hostname: row.get(4),
-                    }
-                }
-            );
-        }
-        Ok(out)
+    pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<Dir>> {
+        let query = "SELECT id, mtime, birth_time, birth_version, birth_hostname FROM dirs WHERE id = ANY($1::bigint[])";
+        Ok(sqlx::query_as::<_, Dir>(query).bind(ids).fetch_all(transaction).await?)
     }
 }
 
@@ -117,13 +114,17 @@ pub struct NewDir {
 impl NewDir {
     /// Create an entry for a directory in the database and return a `Dir`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Dir> {
-        let rows = transaction.query(
-            "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
-             VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
-             RETURNING id", &[&self.mtime, &self.birth.time, &self.birth.version, &self.birth.hostname]
-        ).await?;
-        let id: i64 = rows[0].get(0);
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Dir> {
+        let query = "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
+                     VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
+                     RETURNING id";
+        let row = sqlx::query(query)
+            .bind(self.mtime)
+            .bind(self.birth.time)
+            .bind(self.birth.version)
+            .bind(&self.birth.hostname)
+            .fetch_one(transaction).await?;
+        let id: i64 = row.get(0);
         assert!(id >= 1);
         Ok(Dir {
             id,
@@ -149,33 +150,30 @@ pub struct File {
     pub executable: bool,
 }
 
+impl<'c> sqlx::FromRow<'c, PgRow> for File {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        Ok(
+            File {
+                id: row.get("id"),
+                mtime: row.get("mtime"),
+                birth: Birth {
+                    time: row.get("birth_time"),
+                    version: row.get("birth_version"),
+                    hostname: row.get("birth_hostname"),
+                },
+                size: row.get("size"),
+                executable: row.get("executable"),
+            }
+        )
+    }
+}
+
 impl File {
     /// Return a `Vec<File>` for the corresponding list of file `ids`.
     /// There is no error on missing files.
-    pub async fn find_by_ids(transaction: &mut Transaction<'_>, ids: &[i64]) -> Result<Vec<File>> {
-        let rows = transaction.query(
-            "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname
-             FROM files
-             WHERE id = ANY($1::bigint[])",
-            &[&ids]
-        ).await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            out.push(
-                File {
-                    id: row.get(0),
-                    mtime: row.get(1),
-                    size: row.get(2),
-                    executable: row.get(3),
-                    birth: Birth {
-                        time: row.get(4),
-                        version: row.get(5),
-                        hostname: row.get(6),
-                    }
-                }
-            );
-        }
-        Ok(out)
+    pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<File>> {
+        let query = "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname FROM dirs WHERE id = ANY($1::bigint[])";
+        Ok(sqlx::query_as::<_, File>(query).bind(ids).fetch_all(transaction).await?)
     }
 }
 
@@ -196,14 +194,20 @@ pub struct NewFile {
 impl NewFile {
     /// Create an entry for a file in the database and return a `File`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<File> {
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
         assert!(self.size >= 0, "size must be >= 0");
-        let rows = transaction.query(
-            "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
-             VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
-             RETURNING id", &[&self.mtime, &self.size, &self.executable, &self.birth.time, &self.birth.version, &self.birth.hostname]
-        ).await?;
-        let id: i64 = rows[0].get(0);
+        let query = "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
+                     VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
+                     RETURNING id";
+        let row = sqlx::query(query)
+            .bind(self.mtime)
+            .bind(self.size)
+            .bind(self.executable)
+            .bind(self.birth.time)
+            .bind(self.birth.version)
+            .bind(&self.birth.hostname)
+            .fetch_one(transaction).await?;
+        let id: i64 = row.get(0);
         assert!(id >= 1);
         Ok(File {
             id,
@@ -229,32 +233,29 @@ pub struct Symlink {
     pub target: String,
 }
 
+impl<'c> sqlx::FromRow<'c, PgRow> for Symlink {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        Ok(
+            Symlink {
+                id: row.get("id"),
+                mtime: row.get("mtime"),
+                birth: Birth {
+                    time: row.get("birth_time"),
+                    version: row.get("birth_version"),
+                    hostname: row.get("birth_hostname"),
+                },
+                target: row.get("target"),
+            }
+        )
+    }
+}
+
 impl Symlink {
     /// Return a `Vec<Symlink>` for the corresponding list of symlink `ids`.
     /// There is no error on missing symlinks.
-    pub async fn find_by_ids(transaction: &mut Transaction<'_>, ids: &[i64]) -> Result<Vec<Symlink>> {
-        let rows = transaction.query(
-            "SELECT id, mtime, target, birth_time, birth_version, birth_hostname
-             FROM symlinks
-             WHERE id = ANY($1::bigint[])",
-            &[&ids]
-        ).await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            out.push(
-                Symlink {
-                    id: row.get(0),
-                    mtime: row.get(1),
-                    target: row.get(2),
-                    birth: Birth {
-                        time: row.get(3),
-                        version: row.get(4),
-                        hostname: row.get(5),
-                    }
-                }
-            );
-        }
-        Ok(out)
+    pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<Symlink>> {
+        let query = "SELECT id, mtime, target, birth_time, birth_version, birth_hostname FROM dirs WHERE id = ANY($1::bigint[])";
+        Ok(sqlx::query_as::<_, Symlink>(query).bind(ids).fetch_all(transaction).await?)
     }
 }
 
@@ -273,13 +274,18 @@ pub struct NewSymlink {
 impl NewSymlink {
     /// Create an entry for a symlink in the database and return a `Symlink`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Symlink> {
-        let rows = transaction.query(
-            "INSERT INTO symlinks (mtime, target, birth_time, birth_version, birth_hostname)
-             VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
-             RETURNING id", &[&self.mtime, &self.target, &self.birth.time, &self.birth.version, &self.birth.hostname]
-        ).await?;
-        let id: i64 = rows[0].get(0);
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Symlink> {
+        let query = "INSERT INTO symlinks (mtime, target, birth_time, birth_version, birth_hostname)
+                     VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
+                     RETURNING id";
+        let row = sqlx::query(query)
+            .bind(self.mtime)
+            .bind(&self.target)
+            .bind(self.birth.time)
+            .bind(self.birth.version)
+            .bind(&self.birth.hostname)
+            .fetch_one(transaction).await?;
+        let id: i64 = row.get(0);
         assert!(id >= 1);
         Ok(Symlink {
             id,
@@ -304,7 +310,7 @@ pub enum Inode {
 impl Inode {
     /// Return a `Vec<Inode>` for the corresponding list of `InodeId`.
     /// There is no error on missing inodes.
-    pub async fn find_by_inode_ids(transaction: &mut Transaction<'_>, inode_ids: &[InodeId]) -> Result<Vec<Inode>> {
+    pub async fn find_by_inode_ids(transaction: &mut Transaction<'_, Postgres>, inode_ids: &[InodeId]) -> Result<Vec<Inode>> {
         let mut out = Vec::with_capacity(inode_ids.len());
 
         let dir_ids:     Vec<i64> = inode_ids.iter().filter_map(|inode_id| if let InodeId::Dir(id)     = inode_id { Some(*id) } else { None } ).collect();
@@ -324,10 +330,10 @@ impl Inode {
 pub(crate) mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::{MAIN_TEST_INSTANCE, TRUNCATE_TEST_INSTANCE};
+    use crate::db::tests::{main_test_instance, truncate_test_instance};
     use serial_test::serial;
 
-    pub(crate) async fn create_dummy_file(transaction: &mut Transaction<'_>) -> Result<File> {
+    pub(crate) async fn create_dummy_file(transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
         NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now() }.create(transaction).await
     }
 
@@ -338,7 +344,7 @@ pub(crate) mod tests {
         /// Dir::find_by_ids returns empty Vec when given no ids
         #[tokio::test]
         async fn test_dir_find_by_ids_empty() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let files = Dir::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
@@ -348,7 +354,7 @@ pub(crate) mod tests {
         /// Dir::find_by_ids returns Vec with `Dir`s for corresponding ids
         #[tokio::test]
         async fn test_dir_find_by_ids_nonempty() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let dir = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let nonexistent_id = 0;
@@ -360,19 +366,19 @@ pub(crate) mod tests {
         /// Cannot create dir without it being a child_dir of something in dirents
         #[tokio::test]
         async fn test_cannot_create_dir_without_dirent() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let _ = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let result = transaction.commit().await;
             let msg = result.err().expect("expected an error").to_string();
-            assert_eq!(msg, "db error: ERROR: insert or update on table \"dirs\" violates foreign key constraint \"dirs_id_fkey\"");
+            assert_eq!(msg, "error returned from database: insert or update on table \"dirs\" violates foreign key constraint \"dirs_id_fkey\"");
             Ok(())
         }
 
         /// File::find_by_ids returns empty Vec when given no ids
         #[tokio::test]
         async fn test_file_find_by_ids_empty() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let files = File::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
@@ -382,7 +388,7 @@ pub(crate) mod tests {
         /// File::find_by_ids returns Vec with `File`s for corresponding ids
         #[tokio::test]
         async fn test_file_find_by_ids_nonempty() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() }
                 .create(&mut transaction).await?;
@@ -395,7 +401,7 @@ pub(crate) mod tests {
         /// Symlink::find_by_ids returns empty Vec when given no ids
         #[tokio::test]
         async fn test_symlink_find_by_ids_empty() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let files = Symlink::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
@@ -405,7 +411,7 @@ pub(crate) mod tests {
         /// Symlink::find_by_ids returns Vec with `Dir`s for corresponding ids
         #[tokio::test]
         async fn test_symlink_find_by_ids_nonempty() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let symlink = NewSymlink { target: "test".into(), mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let nonexistent_id = 0;
@@ -424,7 +430,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = TRUNCATE_TEST_INSTANCE.get_client().await;
+            let mut client = truncate_test_instance().await;
             for table in &["dirs", "files", "symlinks"] {
                 let mut transaction = start_transaction(&mut client).await?;
                 assert_cannot_truncate(&mut transaction, table).await;
@@ -435,9 +441,9 @@ pub(crate) mod tests {
         /// Can change mtime on a dir
         #[tokio::test]
         async fn test_can_change_dir_mutables() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
-            let transaction = start_transaction(&mut client).await?;
-            transaction.execute("UPDATE dirs SET mtime = now() WHERE id = $1::bigint", &[&1i64]).await?;
+            let mut client = main_test_instance().await;
+            let mut transaction = start_transaction(&mut client).await?;
+            sqlx::query("UPDATE dirs SET mtime = now() WHERE id = $1::bigint").bind(&1i64).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
         }
@@ -445,18 +451,18 @@ pub(crate) mod tests {
         /// Cannot change id, birth_time, birth_version, or birth_hostname on a dir
         #[tokio::test]
         async fn test_cannot_change_dir_immutables() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let transaction = start_transaction(&mut client).await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
-                let transaction = start_transaction(&mut client).await?;
+                let mut transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE dirs SET {column} = {value} WHERE id = $1::bigint");
-                let result = transaction.execute(query.as_str(), &[&1i64]).await;
+                let result = sqlx::query(&query).bind(&1i64).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {
-                    assert_eq!(msg, "db error: ERROR: column \"id\" can only be updated to DEFAULT");
+                    assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {
-                    assert_eq!(msg, "db error: ERROR: cannot change id or birth_*");
+                    assert_eq!(msg, "error returned from database: cannot change id or birth_*");
                 }
             }
             Ok(())
@@ -465,18 +471,18 @@ pub(crate) mod tests {
         /// Can change size, mtime, and executable on a file
         #[tokio::test]
         async fn test_can_change_file_mutables() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            let transaction = start_transaction(&mut client).await?;
-            transaction.execute("UPDATE files SET mtime = now() WHERE id = $1::bigint", &[&file.id]).await?;
+            let mut transaction = start_transaction(&mut client).await?;
+            sqlx::query("UPDATE files SET mtime = now() WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
-            let transaction = start_transaction(&mut client).await?;
-            transaction.execute("UPDATE files SET size = 100000 WHERE id = $1::bigint", &[&file.id]).await?;
+            let mut transaction = start_transaction(&mut client).await?;
+            sqlx::query("UPDATE files SET size = 100000 WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
-            let transaction = start_transaction(&mut client).await?;
-            transaction.execute("UPDATE files SET executable = true WHERE id = $1::bigint", &[&file.id]).await?;
+            let mut transaction = start_transaction(&mut client).await?;
+            sqlx::query("UPDATE files SET executable = true WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
         }
@@ -484,19 +490,19 @@ pub(crate) mod tests {
         /// Cannot change id, birth_time, birth_version, or birth_hostname on a file
         #[tokio::test]
         async fn test_cannot_change_file_immutables() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
-                let transaction = start_transaction(&mut client).await?;
+                let mut transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE files SET {column} = {value} WHERE id = $1::bigint");
-                let result = transaction.execute(query.as_str(), &[&file.id]).await;
+                let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {
-                    assert_eq!(msg, "db error: ERROR: column \"id\" can only be updated to DEFAULT");
+                    assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {
-                    assert_eq!(msg, "db error: ERROR: cannot change id or birth_*");
+                    assert_eq!(msg, "error returned from database: cannot change id or birth_*");
                 }
             }
             Ok(())
@@ -505,12 +511,12 @@ pub(crate) mod tests {
         /// Can change mtime on a symlink
         #[tokio::test]
         async fn test_can_change_symlink_mutables() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            let transaction = start_transaction(&mut client).await?;
-            transaction.execute("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint", &[&symlink.id]).await?;
+            let mut transaction = start_transaction(&mut client).await?;
+            sqlx::query("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint").bind(&symlink.id).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
         }
@@ -518,19 +524,19 @@ pub(crate) mod tests {
         /// Cannot change id, symlink_target, birth_time, birth_version, or birth_hostname on a symlink
         #[tokio::test]
         async fn test_cannot_change_symlink_immutables() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
             let mut transaction = start_transaction(&mut client).await?;
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
-                let transaction = start_transaction(&mut client).await?;
+                let mut transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE symlinks SET {column} = {value} WHERE id = $1::bigint");
-                let result = transaction.execute(query.as_str(), &[&symlink.id]).await;
+                let result = sqlx::query(&query).bind(&symlink.id).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {
-                    assert_eq!(msg, "db error: ERROR: column \"id\" can only be updated to DEFAULT");
+                    assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {
-                    assert_eq!(msg, "db error: ERROR: cannot change id, target, or birth_*");
+                    assert_eq!(msg, "error returned from database: cannot change id, target, or birth_*");
                 }
             }
             Ok(())

@@ -2,18 +2,19 @@
 
 use std::hash::Hash;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
-use postgres::Row;
-use postgres_types::ToSql;
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction, Row};
+use sqlx::postgres::PgRow;
 use serde::Serialize;
 use serde_hex::{SerHex, Strict};
-use crate::postgres::{SixteenBytes, UnsignedInt4};
+use futures_async_stream::for_await;
+use uuid::Uuid;
 
 /// An owner of Google Drive files
 #[must_use]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct GdriveOwner {
     /// ID for this owner
     pub id: i32,
@@ -23,37 +24,33 @@ pub struct GdriveOwner {
     pub owner: String,
 }
 
-fn from_gdrive_owners(rows: Vec<Row>) -> Result<Vec<GdriveOwner>> {
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        out.push(GdriveOwner {
-            id: row.get(0),
-            domain: row.get(1),
-            owner: row.get(2),
-        })
-    }
-    Ok(out)
-}
-
 impl GdriveOwner {
     /// Return a `Vec<GdriveOwner>` for all gdrive_owners.
-    pub async fn find_all(transaction: &mut Transaction<'_>) -> Result<Vec<GdriveOwner>> {
-        let rows = transaction.query("SELECT id, domain, owner FROM gdrive_owners", &[]).await?;
-        from_gdrive_owners(rows)
+    pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GdriveOwner>> {
+        Ok(
+            sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners")
+            .fetch_all(transaction).await?
+        )
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
-    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
-        let rows = transaction.query("SELECT id, domain, owner FROM gdrive_owners WHERE id = ANY($1)", &[&owner_ids]).await?;
-        from_gdrive_owners(rows)
+    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
+        Ok(
+            sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners WHERE id = ANY($1)")
+            .bind(owner_ids)
+            .fetch_all(transaction).await?
+        )
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
-    pub async fn find_by_domain_ids(transaction: &mut Transaction<'_>, domain_ids: &[i16]) -> Result<Vec<GdriveOwner>> {
-        let rows = transaction.query("SELECT id, domain, owner FROM gdrive_owners WHERE domain = ANY($1)", &[&domain_ids]).await?;
-        from_gdrive_owners(rows)
+    pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GdriveOwner>> {
+        Ok(
+            sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners WHERE domain = ANY($1)")
+            .bind(domain_ids)
+            .fetch_all(transaction).await?
+        )
     }
 }
 
@@ -70,12 +67,13 @@ pub struct NewGdriveOwner {
 impl NewGdriveOwner {
     /// Create a gdrive_owner in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<GdriveOwner> {
-        let rows = transaction.query(
-            "INSERT INTO gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id",
-            &[&self.domain, &self.owner]
-        ).await?;
-        let id = rows.get(0).unwrap().get(0);
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GdriveOwner> {
+        let row = sqlx::query("INSERT INTO gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id")
+            .bind(&self.domain)
+            .bind(&self.owner)
+            .fetch_one(transaction)
+            .await?;
+        let id: i32 = row.get(0);
         Ok(GdriveOwner {
             id,
             domain: self.domain,
@@ -103,43 +101,59 @@ pub struct GdriveFile {
     pub last_probed: Option<DateTime<Utc>>,
 }
 
+impl<'c> sqlx::FromRow<'c, PgRow> for GdriveFile {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        Ok(
+            GdriveFile {
+                id: row.get("id"),
+                owner_id: row.get("owner"),
+                md5: *row.get::<Uuid, _>("md5").as_bytes(),
+                crc32c: row.get::<i32, _>("crc32c") as u32,
+                size: row.get("size"),
+                last_probed: row.get("last_probed"),
+            }
+        )
+    }
+}
+
 impl GdriveFile {
     /// Create a gdrive_file in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<GdriveFile> {
-        transaction.execute(
-            "INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
-            VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)",
-            &[&self.id, &self.owner_id, &SixteenBytes { bytes: self.md5 }, &UnsignedInt4 { value: self.crc32c }, &self.size, &self.last_probed]
-        ).await?;
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GdriveFile> {
+        sqlx::query("INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
+                     VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)")
+            .bind(&self.id)
+            .bind(&self.owner_id)
+            .bind(Uuid::from_bytes(self.md5))
+            .bind(self.crc32c as i32)
+            .bind(&self.size)
+            .bind(&self.last_probed)
+            .execute(transaction).await?;
         Ok(self)
     }
 
     /// Remove gdrive files in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn remove_by_ids(transaction: &mut Transaction<'_>, ids: &[&str]) -> Result<()> {
-        transaction.execute("DELETE FROM gdrive_files WHERE id = ANY($1::text[])", &[&ids]).await?;
+    pub async fn remove_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<()> {
+        sqlx::query("DELETE FROM gdrive_files WHERE id = ANY($1::text[])")
+            .bind(ids)
+            .execute(transaction).await?;
         Ok(())
     }
 
     /// Return gdrive files with matching ids, in the same order as the ids.
-    pub async fn find_by_ids_in_order<T>(transaction: &mut Transaction<'_>, ids: &[T]) -> Result<Vec<GdriveFile>>
+    pub async fn find_by_ids_in_order<T>(transaction: &mut Transaction<'_, Postgres>, ids: &[T]) -> Result<Vec<GdriveFile>>
     where
-        T: AsRef<str> + Sync + ToSql + Hash + Eq + ToString
+        T: AsRef<str> + Debug + Sync + Hash + Eq + ToString
     {
-        let rows = transaction.query("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)", &[&ids]).await?;
+        let cursor = sqlx::query_as::<_, GdriveFile>("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)")
+            .fetch(transaction);
+        let mut out = Vec::with_capacity(cursor.size_hint().1.unwrap_or(ids.len()));
         let mut map: HashMap<String, GdriveFile> = HashMap::new();
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            let file = GdriveFile {
-                id: row.get(0),
-                owner_id: row.get(1),
-                md5: row.get::<_, SixteenBytes>(2).bytes,
-                crc32c: row.get::<_, UnsignedInt4>(3).value,
-                size: row.get(4),
-                last_probed: row.get(5),
-            };
-            map.insert(file.id.clone(), file);
+        #[for_await]
+        for file in cursor {
+            let file = file?;
+            map.insert(file.id.to_string(), file);
         }
         for id in ids {
             let file = map.remove(&id.to_string()).ok_or_else(|| anyhow!("duplicate or nonexistent id given: {:?}", id))?;
@@ -153,7 +167,7 @@ impl GdriveFile {
 pub(crate) mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::{MAIN_TEST_INSTANCE, TRUNCATE_TEST_INSTANCE};
+    use crate::db::tests::{main_test_instance, truncate_test_instance};
     use crate::db::inode::tests::create_dummy_file;
     use crate::db::storage::gdrive::tests::create_dummy_domain;
     use crate::db::storage::gdrive::{Storage, Cipher};
@@ -167,7 +181,7 @@ pub(crate) mod tests {
     });
 
 
-    pub(crate) async fn create_dummy_owner(transaction: &mut Transaction<'_>, domain: i16) -> Result<GdriveOwner> {
+    pub(crate) async fn create_dummy_owner(transaction: &mut Transaction<'_, Postgres>, domain: i16) -> Result<GdriveOwner> {
         let owner = format!("me-{}@example.com", OWNER_COUNTER.inc());
         Ok(NewGdriveOwner { domain, owner }.create(transaction).await?)
     }
@@ -178,7 +192,7 @@ pub(crate) mod tests {
         // Can create gdrive files
         #[tokio::test]
         async fn test_create_gdrive_file() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -209,7 +223,7 @@ pub(crate) mod tests {
         // Can remove gdrive files not referenced by storage_gdrive
         #[tokio::test]
         async fn test_remove_gdrive_files() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -227,7 +241,7 @@ pub(crate) mod tests {
         // Cannot remove gdrive files that are referenced by storage_gdrive
         #[tokio::test]
         async fn test_cannot_remove_gdrive_files_still_referenced() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -238,14 +252,14 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
-            Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![file.clone()] }.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id.clone()] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = start_transaction(&mut client).await?;
             let result = GdriveFile::remove_by_ids(&mut transaction, &[&file.id]).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
-                format!("db error: ERROR: gdrive_files={} is still referenced by storage_gdrive={}", file.id, dummy.id)
+                format!("error returned from database: gdrive_files={} is still referenced by storage_gdrive={}", file.id, dummy.id)
             );
 
             Ok(())
@@ -260,7 +274,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in gdrive_files table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -275,10 +289,10 @@ pub(crate) mod tests {
                 ("crc32c", "1"),
                 ("size", "2")
             ] {
-                let transaction = start_transaction(&mut client).await?;
+                let mut transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE gdrive_files SET {column} = {value} WHERE id = $1");
-                let result = transaction.execute(query.as_str(), &[&file.id]).await;
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change id, md5, crc32c, or size");
+                let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
+                assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change id, md5, crc32c, or size");
             }
 
             Ok(())
@@ -288,7 +302,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = TRUNCATE_TEST_INSTANCE.get_client().await;
+            let mut client = truncate_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let domain = create_dummy_domain(&mut transaction).await?;

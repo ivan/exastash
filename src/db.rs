@@ -7,35 +7,52 @@ pub mod traversal;
 pub mod google_auth;
 
 use anyhow::Result;
-use tokio_postgres::{Client, Transaction, NoTls};
+use sqlx::{Transaction, Postgres, Executor};
+use sqlx::postgres::{PgPool, PgPoolOptions};
+use futures::future::{FutureExt, Shared};
+use once_cell::sync::Lazy;
+use std::pin::Pin;
+use std::future::Future;
+use std::time::Duration;
+use std::env;
 use crate::util::env_var;
 
 /// Return a `postgres::Client` connected to the `postgres://` URI in
 /// env var `EXASTASH_POSTGRES_URI`.
-pub async fn postgres_client_production() -> Result<Client> {
-    let database_uri = env_var("EXASTASH_POSTGRES_URI")?;
-    let (client, connection) = tokio_postgres::connect(&database_uri, NoTls).await?;
+pub async fn new_pgpool(uri: &str, max_connections: u32) -> Result<PgPool> {
+    Ok(
+        PgPoolOptions::new()
+        .after_connect(|conn| Box::pin(async move {
+            conn.execute("SET search_path TO stash;").await?;
+            // We generally want point-in-time consistency, e.g. when we do separate
+            // reads on files and a storage table
+            conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;").await?;
 
-    // The connection object performs the actual communication with the database,
-    // so spawn it off to run on its own.
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {e}");
-        }
-    });
+            Ok(())
+        }))
+        .connect_timeout(Duration::from_secs(10))
+        .max_connections(max_connections)
+        .connect(&uri).await?
+    )
+}
 
-    Ok(client)
+/// PgPool Future initialized once by the first caller
+static PGPOOL: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::new(|| async {
+    let database_uri = env_var("EXASTASH_POSTGRES_URI").unwrap();
+    let max_connections = env::var("EXASTASH_POSTGRES_MAX_CONNECTIONS")
+        .map(|s| s.parse::<u32>().expect("could not parse EXASTASH_POSTGRES_MAX_CONNECTIONS as a u32"))
+        .unwrap_or(16); // default
+    new_pgpool(&database_uri, max_connections).await.unwrap()
+}.boxed().shared());
+
+/// Return the global PgPool
+pub async fn pgpool() -> PgPool {
+    PGPOOL.clone().await
 }
 
 /// Return a transaction with search_path set to 'stash' and isolation level REPEATABLE READ.
-#[allow(clippy::needless_lifetimes)] // https://github.com/rust-lang/rust-clippy/issues/4746
-pub async fn start_transaction<'a>(client: &'a mut Client) -> Result<Transaction<'a>> {
-    let transaction = client.build_transaction().start().await?;
-    transaction.execute("SET search_path TO stash", &[]).await?;
-    // We generally want point-in-time consistency, e.g. when we do separate
-    // reads on files and a storage table
-    transaction.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ", &[]).await?;
-    Ok(transaction)
+pub async fn start_transaction(client: &PgPool) -> Result<Transaction<'static, Postgres>> {
+    Ok(client.begin().await?)
 }
 
 #[cfg(test)]
@@ -43,7 +60,7 @@ mod tests {
     use super::*;
     use std::process::Command;
     use once_cell::sync::Lazy;
-    use postgres::NoTls;
+    use sqlx::Postgres;
 
     fn postgres_temp_instance_uri() -> String {
         let mut command = Command::new("pg_tmp");
@@ -72,49 +89,44 @@ mod tests {
         }
     }
 
-    pub(crate) struct PostgresTestInstance {
-        uri: String,
+    /// PgPool Future initialized once by the first caller
+    static MAIN_TEST_INSTANCE: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::new(|| async {
+        let uri = postgres_temp_instance_uri();
+        apply_ddl(&uri, "schema/schema.sql");
+        new_pgpool(&uri, 32).await.unwrap()
+    }.boxed().shared());
+
+    /// Return the PgPool for running most tests
+    pub(crate) async fn main_test_instance() -> PgPool {
+        MAIN_TEST_INSTANCE.clone().await
     }
 
-    impl PostgresTestInstance {
-        pub(crate) fn new() -> Self {
-            let uri = postgres_temp_instance_uri();
-            apply_ddl(&uri, "schema/schema.sql");
-            PostgresTestInstance { uri }
-        }
+    /// PgPool Future initialized once by the first caller
+    static TRUNCATE_TEST_INSTANCE: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::new(|| async {
+        let uri = postgres_temp_instance_uri();
+        apply_ddl(&uri, "schema/schema.sql");
+        new_pgpool(&uri, 32).await.unwrap()
+    }.boxed().shared());
 
-        pub(crate) async fn get_client(&self) -> Client {
-            let (client, connection) = tokio_postgres::connect(&self.uri, NoTls).await.unwrap();
-    
-            // The connection object performs the actual communication with the database,
-            // so spawn it off to run on its own.
-            tokio::spawn(async move {
-                if let Err(e) = connection.await {
-                    eprintln!("connection error: {e}");
-                }
-            });
-    
-            client
-        }
+    /// Return the PgPool for running TRUNCATE tests
+    pub(crate) async fn truncate_test_instance() -> PgPool {
+        TRUNCATE_TEST_INSTANCE.clone().await
     }
-
-    pub(crate) static MAIN_TEST_INSTANCE: Lazy<PostgresTestInstance> = Lazy::new(PostgresTestInstance::new);
-    pub(crate) static TRUNCATE_TEST_INSTANCE: Lazy<PostgresTestInstance> = Lazy::new(PostgresTestInstance::new);
 
     /// Note that TRUNCATE tests should be run in the separate `TRUNCATE_TEST_INSTANCE`
     /// because it will otherwise frequently cause other running transactions to raise
     /// `deadlock detected`. That happens on the non-TRUNCATE transaction frequently
     /// because we have a mutual FK set up between dirs and dirents.
-    pub(crate) async fn assert_cannot_truncate(transaction: &mut Transaction<'_>, table: &str) {
+    pub(crate) async fn assert_cannot_truncate(transaction: &mut Transaction<'_, Postgres>, table: &str) {
         let statement = format!("TRUNCATE {table} CASCADE");
-        let result = transaction.execute(statement.as_str(), &[]).await;
+        let result = sqlx::query(&statement).execute(transaction).await;
         let msg = result.err().expect("expected an error").to_string();
-        assert_eq!(msg, "db error: ERROR: truncate is forbidden");
+        assert_eq!(msg, "error returned from database: truncate is forbidden");
     }
 
     #[tokio::test]
     async fn test_start_transaction() -> Result<()> {
-        let mut client = MAIN_TEST_INSTANCE.get_client().await;
+        let mut client = main_test_instance().await;
         let _ = start_transaction(&mut client).await?;
         Ok(())
     }

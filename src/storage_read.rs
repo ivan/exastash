@@ -15,7 +15,7 @@ use ctr::stream_cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek
 use crate::db;
 use crate::db::inode;
 use crate::db::storage::{Storage, inline, gdrive, internetarchive};
-use crate::db::storage::gdrive::file::GdriveOwner;
+use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
@@ -27,8 +27,7 @@ use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
 /// If `owner_id` is `None`, this can return more than one token, and all tokens may
 /// need to be tried.
 pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<Vec<String>> {
-    // TODO: use connection pool
-    let mut client = db::postgres_client_production().await?;
+    let mut client = db::pgpool().await;
     let mut transaction = db::start_transaction(&mut client).await?;
 
     let all_owners = GdriveOwner::find_by_domain_ids(&mut transaction, &[domain_id]).await?;
@@ -137,7 +136,11 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
         #[try_stream]
         async move {
             let mut ctr_stream_bytes = 0;
-            for gdrive_file in storage.gdrive_files {
+            let pool = db::pgpool().await;
+            let mut transaction = db::start_transaction(&pool).await?;
+            let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &storage.gdrive_ids).await?;
+            drop(transaction);
+            for gdrive_file in gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
                 let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await?;
                 let key = GenericArray::from_slice(&storage.cipher_key);
@@ -177,13 +180,18 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
     Box::pin(
         #[try_stream]
         async move {
+            let pool = db::pgpool().await;
+            let mut transaction = db::start_transaction(&pool).await?;
+            let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &storage.gdrive_ids).await?;
+            drop(transaction);
+
             let whole_block_size = 65536;
             // Block size for all of our AES-128-GCM files
             let block_size = whole_block_size - 16;
             let aes_gcm_length = get_aes_gcm_length(file.size as u64, block_size);
 
             let mut gcm_stream_bytes = 0;
-            for gdrive_file in storage.gdrive_files {
+            for gdrive_file in gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
                 let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await?;
                 let encrypted_read = encrypted_stream

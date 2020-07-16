@@ -4,12 +4,12 @@ use anyhow::Result;
 use serde::Serialize;
 use chrono::DateTime;
 use chrono::Utc;
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction};
 use crate::db::inode::{Inode, Dir, Symlink, Birth};
 use crate::db::storage::{Storage, get_storage};
 
 /// Return information about a file, dir, or symlink in JSON format
-pub async fn json_info(transaction: &mut Transaction<'_>, inode: Inode) -> Result<String> {
+pub async fn json_info(transaction: &mut Transaction<'_, Postgres>, inode: Inode) -> Result<String> {
     #[derive(Serialize)]
     struct FileWithStorages {
         id: i64,

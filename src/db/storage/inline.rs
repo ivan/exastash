@@ -1,11 +1,11 @@
 //! CRUD operations for storage_inline entities in PostgreSQL
 
 use anyhow::Result;
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction};
 use serde::Serialize;
 
 /// A storage_inline entity
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct Storage {
     /// The id of the exastash file for which this storage exists
     pub file_id: i64,
@@ -17,31 +17,26 @@ pub struct Storage {
 impl Storage {
     /// Create an inline storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_>) -> Result<Self> {
-        transaction.execute(
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Self> {
+        sqlx::query(
             "INSERT INTO storage_inline (file_id, content)
              VALUES ($1::bigint, $2::bytea)",
-            &[&self.file_id, &self.content]
-        ).await?;
+        )
+            .bind(&self.file_id)
+            .bind(&self.content)
+            .execute(transaction)
+            .await?;
         Ok(self)
     }
 
     /// Return a list of inline storage entities containing the data for a file.
-    pub async fn find_by_file_ids(transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
-        let rows = transaction.query(
+    pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+        Ok(sqlx::query_as::<_, Storage>(
             "SELECT file_id, content FROM storage_inline
-             WHERE file_id = ANY($1::bigint[])", &[&file_ids]
-        ).await?;
-        assert!(rows.len() <= file_ids.len(), "received more rows than expected");
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            let storage = Storage {
-                file_id: row.get(0),
-                content: row.get(1),
-            };
-            out.push(storage);
-        }
-        Ok(out)
+             WHERE file_id = ANY($1::bigint[])"
+        )
+            .bind(file_ids)
+            .fetch_all(transaction).await?)
     }
 }
 
@@ -49,7 +44,7 @@ impl Storage {
 mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::{MAIN_TEST_INSTANCE, TRUNCATE_TEST_INSTANCE};
+    use crate::db::tests::{main_test_instance, truncate_test_instance};
     use crate::db::inode::tests::create_dummy_file;
     use serial_test::serial;
 
@@ -59,7 +54,7 @@ mod tests {
         /// If there is no inline storage for a file, find_by_file_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -74,7 +69,7 @@ mod tests {
         /// If we add an inline storage for a file, find_by_file_ids returns that storage
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -96,7 +91,7 @@ mod tests {
         /// Cannot UPDATE file_id on storage_inline table
         #[tokio::test]
         async fn test_cannot_change_immutables() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -104,10 +99,10 @@ mod tests {
             transaction.commit().await?;
 
             for (column, value) in &[("file_id", "100")] {
-                let transaction = start_transaction(&mut client).await?;
+                let mut transaction = start_transaction(&mut client).await?;
                 let query = format!("UPDATE storage_inline SET {column} = {value} WHERE file_id = $1::bigint");
-                let result = transaction.execute(query.as_str(), &[&dummy.id]).await;
-                assert_eq!(result.err().expect("expected an error").to_string(), "db error: ERROR: cannot change file_id");
+                let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
+                assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id");
             }
 
             Ok(())
@@ -117,7 +112,7 @@ mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = TRUNCATE_TEST_INSTANCE.get_client().await;
+            let mut client = truncate_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             assert_cannot_truncate(&mut transaction, "storage_inline").await;

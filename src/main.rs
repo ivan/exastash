@@ -12,7 +12,7 @@ use std::convert::TryInto;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::collections::HashMap;
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing_subscriber::EnvFilter;
 use serde_json::json;
@@ -319,7 +319,7 @@ enum FuseCommand {
     }
 }
 
-async fn resolve_path(transaction: &mut Transaction<'_>, root: i64, path: &str) -> Result<InodeId> {
+async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, path: &str) -> Result<InodeId> {
     let path_components: Vec<&str> = if path == "" {
         vec![]
     } else {
@@ -329,7 +329,7 @@ async fn resolve_path(transaction: &mut Transaction<'_>, root: i64, path: &str) 
 }
 
 #[async_recursion]
-async fn walk_dir(transaction: &mut Transaction<'_>, root: i64, segments: &[&str], dir_id: i64) -> Result<()> {
+async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segments: &[&str], dir_id: i64) -> Result<()> {
     let path_string = match segments {
         [] => "".into(),
         parts => format!("{}/", parts.join("/")),
@@ -361,7 +361,7 @@ async fn main() -> Result<()> {
 
     // Do this first for --help to work without a database connection
     let cmd = ExastashCommand::from_args();
-    let mut client = db::postgres_client_production().await?;
+    let mut client = db::pgpool().await;
     let mut transaction = db::start_transaction(&mut client).await?;
     match cmd {
         ExastashCommand::Dir(dir) => {

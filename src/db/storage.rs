@@ -5,7 +5,7 @@ pub mod gdrive;
 pub mod internetarchive;
 
 use anyhow::Result;
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction};
 use serde::Serialize;
 
 /// A storage entity
@@ -24,7 +24,7 @@ pub enum Storage {
 }
 
 /// Return a list of places where the data for a file can be retrieved
-pub async fn get_storage(transaction: &mut Transaction<'_>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+pub async fn get_storage(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
     let inline = inline::Storage::find_by_file_ids(transaction, file_ids).await?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
     let gdrive = gdrive::Storage::find_by_file_ids(transaction, file_ids).await?
@@ -43,7 +43,7 @@ pub async fn get_storage(transaction: &mut Transaction<'_>, file_ids: &[i64]) ->
 mod tests {
     use super::*;
     use crate::db::start_transaction;
-    use crate::db::tests::MAIN_TEST_INSTANCE;
+    use crate::db::tests::main_test_instance;
     use crate::db::inode::tests::create_dummy_file;
 
     mod api {
@@ -52,7 +52,7 @@ mod tests {
         /// If there is no storage for a file, get_storage returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -68,7 +68,7 @@ mod tests {
         /// inline, gdrive, internetarchive
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let mut client = MAIN_TEST_INSTANCE.get_client().await;
+            let mut client = main_test_instance().await;
 
             let mut transaction = start_transaction(&mut client).await?;
 
@@ -80,7 +80,7 @@ mod tests {
             // gdrive
             let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let domain = gdrive::tests::create_dummy_domain(&mut transaction).await?;
-            let storage3 = gdrive::Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_files: vec![gdrive_file] }.create(&mut transaction).await?;
+            let storage3 = gdrive::Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![gdrive_file.id.clone()] }.create(&mut transaction).await?;
 
             // inline
             let storage4 = inline::Storage { file_id: dummy.id, content: "hello".into() }.create(&mut transaction).await?;

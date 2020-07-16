@@ -1,8 +1,5 @@
 //! FUSE server
 
-#![allow(clippy::unnecessary_mut_passed)]
-#![deny(clippy::unimplemented)]
-
 use polyfuse::{
     io::{Reader, Writer},
     op,

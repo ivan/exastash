@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use anyhow::{anyhow, bail, Result};
 use tracing::{info, debug};
 use yup_oauth2::{ApplicationSecret, RefreshFlow, InstalledFlowAuthenticator, InstalledFlowReturnMethod};
-use tokio_postgres::{Client, Transaction};
+use sqlx::{Transaction, Postgres};
+use sqlx::postgres::PgPool;
 use chrono::{Utc, Duration};
 use hyper_rustls::HttpsConnector;
 use crate::db;
@@ -19,7 +20,7 @@ use crate::db::storage::gdrive::file::GdriveOwner;
 ///    Google account corresponding to the owner
 /// 2) human must take the code from Google and paste it into the terminal
 /// 3) new gsuite_access_token is inserted into the database
-pub async fn create_access_token(mut transaction: Transaction<'_>, owner_id: i32) -> Result<()> {
+pub async fn create_access_token(mut transaction: Transaction<'_, Postgres>, owner_id: i32) -> Result<()> {
     let owners = GdriveOwner::find_by_owner_ids(&mut transaction, &[owner_id]).await?;
     if owners.is_empty() {
         bail!("owner id {} not in database", owner_id);
@@ -50,7 +51,7 @@ pub async fn create_access_token(mut transaction: Transaction<'_>, owner_id: i32
 }
 
 /// Refresh and update in database all gsuite_access_tokens that expire within 55 minutes
-pub async fn refresh_access_tokens(client: &mut Client) -> Result<()> {
+pub async fn refresh_access_tokens(client: &mut PgPool) -> Result<()> {
     // We assume that we get access tokens that are valid for 60 minutes
     let expiry_within_minutes = 55;
     info!("refreshing access tokens that expire within {} minutes", expiry_within_minutes);

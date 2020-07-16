@@ -16,7 +16,7 @@ use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::create_gdrive_file;
 use crate::crypto::{GcmEncoder, gcm_create_key};
 use crate::conceal_size::conceal_size;
-use tokio_postgres::Transaction;
+use sqlx::{Postgres, Transaction};
 use pin_project::pin_project;
 use parking_lot::Mutex;
 use md5::{Md5, Digest};
@@ -177,7 +177,7 @@ impl Iterator for RandomPadding {
 /// Write the content of a file to a G Suite domain.
 /// Caller must commit the transaction themselves.
 pub async fn write_to_gdrive<S>(
-    transaction: &mut Transaction<'_>,
+    transaction: &mut Transaction<'_, Postgres>,
     file_stream_fn: impl Fn(u64) -> S,
     file: &inode::File,
     domain_id: i16
@@ -223,14 +223,14 @@ where
         create_gdrive_file_on_domain(encrypted_stream_fn, gdrive_file_size, domain_id, placement.owner, &parent.parent, &filename).await?
         .create(transaction).await?;
     // terastash uploaded large files as multi-chunk files; exastash currently uploads all files as one chunk
-    let gdrive_files = vec![gdrive_file];
+    let gdrive_ids = vec![gdrive_file.id.clone()];
 
     gdrive::Storage {
         file_id: file.id,
         gsuite_domain: domain_id,
         cipher: gdrive::Cipher::Aes128Gcm,
         cipher_key,
-        gdrive_files,
+        gdrive_ids,
     }.create(transaction).await?;
 
     Ok(())
