@@ -343,7 +343,7 @@ pub(crate) mod tests {
         /// Dir::find_by_ids returns empty Vec when given no ids
         #[tokio::test]
         async fn test_dir_find_by_ids_empty() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let files = Dir::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
@@ -353,7 +353,7 @@ pub(crate) mod tests {
         /// Dir::find_by_ids returns Vec with `Dir`s for corresponding ids
         #[tokio::test]
         async fn test_dir_find_by_ids_nonempty() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let dir = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let nonexistent_id = 0;
@@ -365,7 +365,7 @@ pub(crate) mod tests {
         /// Cannot create dir without it being a child_dir of something in dirents
         #[tokio::test]
         async fn test_cannot_create_dir_without_dirent() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let _ = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let result = transaction.commit().await;
@@ -377,7 +377,7 @@ pub(crate) mod tests {
         /// File::find_by_ids returns empty Vec when given no ids
         #[tokio::test]
         async fn test_file_find_by_ids_empty() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let files = File::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
@@ -387,7 +387,7 @@ pub(crate) mod tests {
         /// File::find_by_ids returns Vec with `File`s for corresponding ids
         #[tokio::test]
         async fn test_file_find_by_ids_nonempty() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() }
                 .create(&mut transaction).await?;
@@ -400,7 +400,7 @@ pub(crate) mod tests {
         /// Symlink::find_by_ids returns empty Vec when given no ids
         #[tokio::test]
         async fn test_symlink_find_by_ids_empty() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let files = Symlink::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
@@ -410,7 +410,7 @@ pub(crate) mod tests {
         /// Symlink::find_by_ids returns Vec with `Dir`s for corresponding ids
         #[tokio::test]
         async fn test_symlink_find_by_ids_nonempty() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let symlink = NewSymlink { target: "test".into(), mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let nonexistent_id = 0;
@@ -429,7 +429,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = truncate_test_instance().await;
+            let client = truncate_test_instance().await;
             for table in &["dirs", "files", "symlinks"] {
                 let mut transaction = client.begin().await?;
                 assert_cannot_truncate(&mut transaction, table).await;
@@ -440,7 +440,7 @@ pub(crate) mod tests {
         /// Can change mtime on a dir
         #[tokio::test]
         async fn test_can_change_dir_mutables() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             sqlx::query("UPDATE dirs SET mtime = now() WHERE id = $1::bigint").bind(&1i64).execute(&mut transaction).await?;
             transaction.commit().await?;
@@ -450,7 +450,7 @@ pub(crate) mod tests {
         /// Cannot change id, birth_time, birth_version, or birth_hostname on a dir
         #[tokio::test]
         async fn test_cannot_change_dir_immutables() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let transaction = client.begin().await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
@@ -470,7 +470,7 @@ pub(crate) mod tests {
         /// Can change size, mtime, and executable on a file
         #[tokio::test]
         async fn test_can_change_file_mutables() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
@@ -489,7 +489,7 @@ pub(crate) mod tests {
         /// Cannot change id, birth_time, birth_version, or birth_hostname on a file
         #[tokio::test]
         async fn test_cannot_change_file_immutables() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
@@ -510,7 +510,7 @@ pub(crate) mod tests {
         /// Can change mtime on a symlink
         #[tokio::test]
         async fn test_can_change_symlink_mutables() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
@@ -523,7 +523,7 @@ pub(crate) mod tests {
         /// Cannot change id, symlink_target, birth_time, birth_version, or birth_hostname on a symlink
         #[tokio::test]
         async fn test_cannot_change_symlink_immutables() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
             let mut transaction = client.begin().await?;
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;

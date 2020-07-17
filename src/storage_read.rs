@@ -27,7 +27,7 @@ use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
 /// If `owner_id` is `None`, this can return more than one token, and all tokens may
 /// need to be tried.
 pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<Vec<String>> {
-    let mut client = db::pgpool().await;
+    let client = db::pgpool().await;
     let mut transaction = client.begin().await?;
 
     let all_owners = GdriveOwner::find_by_domain_ids(&mut transaction, &[domain_id]).await?;

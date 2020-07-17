@@ -42,7 +42,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_walk_path() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let birth = inode::Birth::here_and_now();

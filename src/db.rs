@@ -7,7 +7,7 @@ pub mod traversal;
 pub mod google_auth;
 
 use anyhow::Result;
-use sqlx::{Transaction, Postgres, Executor};
+use sqlx::Executor;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use futures::future::{FutureExt, Shared};
 use once_cell::sync::Lazy;
@@ -55,7 +55,7 @@ mod tests {
     use super::*;
     use std::process::Command;
     use once_cell::sync::Lazy;
-    use sqlx::Postgres;
+    use sqlx::{Postgres, Transaction};
 
     fn postgres_temp_instance_uri() -> String {
         let mut command = Command::new("pg_tmp");

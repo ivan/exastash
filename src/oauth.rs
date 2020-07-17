@@ -8,7 +8,6 @@ use sqlx::{Transaction, Postgres};
 use sqlx::postgres::PgPool;
 use chrono::{Utc, Duration};
 use hyper_rustls::HttpsConnector;
-use crate::db;
 use crate::db::google_auth::{GsuiteApplicationSecret, GsuiteAccessToken};
 use crate::db::storage::gdrive::file::GdriveOwner;
 

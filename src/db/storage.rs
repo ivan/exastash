@@ -51,7 +51,7 @@ mod tests {
         /// If there is no storage for a file, get_storage returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -67,7 +67,7 @@ mod tests {
         /// inline, gdrive, internetarchive
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
 

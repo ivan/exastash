@@ -122,7 +122,7 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn test_create_dirent_and_list_dir() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -159,7 +159,7 @@ pub(crate) mod tests {
         /// Cannot have child_dir equal to parent
         #[tokio::test]
         async fn test_cannot_have_child_dir_equal_to_parent() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let parent = inode::NewDir { mtime: Utc::now(), birth: inode::Birth::here_and_now() }.create(&mut transaction).await?;
@@ -175,7 +175,7 @@ pub(crate) mod tests {
         /// Cannot insert more than one dirent per transaction (otherwise cycles could be created)
         #[tokio::test]
         async fn test_cannot_create_more_than_one_dirent() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let birth  = inode::Birth::here_and_now();
@@ -194,7 +194,7 @@ pub(crate) mod tests {
         /// Cannot create a dirents cycle by removing a dirent and creating a replacement
         #[tokio::test]
         async fn test_cannot_create_dirents_cycle() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let birth  = inode::Birth::here_and_now();
             
@@ -233,7 +233,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in dirents table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -258,7 +258,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = truncate_test_instance().await;
+            let client = truncate_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -275,7 +275,7 @@ pub(crate) mod tests {
         /// Directory cannot be a child twice in some directory
         #[tokio::test]
         async fn test_directory_cannot_have_more_than_one_basename() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -296,7 +296,7 @@ pub(crate) mod tests {
         /// Directory cannot be a child of more than one parent
         #[tokio::test]
         async fn test_directory_cannot_be_multiparented() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -323,7 +323,7 @@ pub(crate) mod tests {
         /// Basename cannot be > 255 bytes
         #[tokio::test]
         async fn test_basename_cannot_be_specials_or_too_long() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let birth = inode::Birth::here_and_now();

@@ -227,7 +227,7 @@ pub(crate) mod tests {
         /// If we add a gdrive storage for a file, get_storage returns that storage
         #[tokio::test]
         async fn test_create_storage_get_storage() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -246,7 +246,7 @@ pub(crate) mod tests {
         /// Cannot reference a nonexistent gdrive file
         #[tokio::test]
         async fn test_cannot_reference_nonexistent_gdrive_file() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -265,7 +265,7 @@ pub(crate) mod tests {
         /// Cannot reference a nonexistent gdrive file even when other gdrive files do exist
         #[tokio::test]
         async fn test_cannot_reference_nonexistent_gdrive_file_even_if_some_exist() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -285,7 +285,7 @@ pub(crate) mod tests {
         /// Cannot have empty gdrive_files
         #[tokio::test]
         async fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -309,7 +309,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in storage_gdrive table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -346,7 +346,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = truncate_test_instance().await;
+            let client = truncate_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;

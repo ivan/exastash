@@ -189,7 +189,7 @@ pub(crate) mod tests {
         // Can create gdrive files
         #[tokio::test]
         async fn test_create_gdrive_file() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -220,7 +220,7 @@ pub(crate) mod tests {
         // Can remove gdrive files not referenced by storage_gdrive
         #[tokio::test]
         async fn test_remove_gdrive_files() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -238,7 +238,7 @@ pub(crate) mod tests {
         // Cannot remove gdrive files that are referenced by storage_gdrive
         #[tokio::test]
         async fn test_cannot_remove_gdrive_files_still_referenced() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -271,7 +271,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in gdrive_files table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -299,7 +299,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = truncate_test_instance().await;
+            let client = truncate_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;

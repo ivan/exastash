@@ -68,7 +68,7 @@ mod tests {
         /// If there is no internetarchive storage for a file, find_by_file_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -83,7 +83,7 @@ mod tests {
         /// If we add one internetarchive storage for a file, find_by_file_ids returns just that storage
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -99,7 +99,7 @@ mod tests {
         /// If we add multiple internetarchive storage for a file, find_by_file_ids returns those storages
         #[tokio::test]
         async fn test_multiple_create_storage_and_get_storage() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -122,7 +122,7 @@ mod tests {
         /// Cannot UPDATE file_id, ia_item, or pathname on storage_internetarchive table
         #[tokio::test]
         async fn test_cannot_change_immutables() -> Result<()> {
-            let mut client = main_test_instance().await;
+            let client = main_test_instance().await;
 
             let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -143,7 +143,7 @@ mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let mut client = truncate_test_instance().await;
+            let client = truncate_test_instance().await;
 
             let mut transaction = client.begin().await?;
             assert_cannot_truncate(&mut transaction, "storage_internetarchive").await;
