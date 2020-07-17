@@ -172,7 +172,7 @@ impl File {
     /// Return a `Vec<File>` for the corresponding list of file `ids`.
     /// There is no error on missing files.
     pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<File>> {
-        let query = "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname FROM dirs WHERE id = ANY($1::bigint[])";
+        let query = "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname FROM files WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, File>(query).bind(ids).fetch_all(transaction).await?)
     }
 }
@@ -254,7 +254,7 @@ impl Symlink {
     /// Return a `Vec<Symlink>` for the corresponding list of symlink `ids`.
     /// There is no error on missing symlinks.
     pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<Symlink>> {
-        let query = "SELECT id, mtime, target, birth_time, birth_version, birth_hostname FROM dirs WHERE id = ANY($1::bigint[])";
+        let query = "SELECT id, mtime, target, birth_time, birth_version, birth_hostname FROM symlinks WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, Symlink>(query).bind(ids).fetch_all(transaction).await?)
     }
 }
