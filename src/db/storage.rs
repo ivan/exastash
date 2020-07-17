@@ -42,7 +42,6 @@ pub async fn get_storage(transaction: &mut Transaction<'_, Postgres>, file_ids: 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::start_transaction;
     use crate::db::tests::main_test_instance;
     use crate::db::inode::tests::create_dummy_file;
 
@@ -54,11 +53,11 @@ mod tests {
         async fn test_no_storage() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_eq!(get_storage(&mut transaction, &[dummy.id]).await?, vec![]);
 
             Ok(())
@@ -70,7 +69,7 @@ mod tests {
         async fn test_create_storage_and_get_storage() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
 
             // internetarchive
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -87,7 +86,7 @@ mod tests {
 
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_eq!(get_storage(&mut transaction, &[dummy.id]).await?, vec![
                 Storage::Inline(storage4),
                 Storage::Gdrive(storage3),

@@ -195,7 +195,6 @@ impl GsuiteServiceAccount {
 mod tests {
     use super::*;
     use chrono::Duration;
-    use crate::db::start_transaction;
     use crate::db::tests::main_test_instance;
     use crate::db::storage::gdrive::tests::create_dummy_domain;
     use crate::db::storage::gdrive::file::tests::create_dummy_owner;
@@ -215,11 +214,11 @@ mod tests {
         async fn test_no_gsuite_application_secret() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert!(GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?.is_empty());
 
             Ok(())
@@ -230,12 +229,12 @@ mod tests {
         async fn test_create() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             GsuiteApplicationSecret { domain_id: domain.id, secret: serde_json::json!({}) }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let secrets = GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?;
             assert_eq!(secrets.len(), 1);
             assert_eq!(secrets[0].domain_id, domain.id);
@@ -259,12 +258,12 @@ mod tests {
         async fn test_no_gsuite_access_tokens() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?.is_empty());
             let out = GsuiteAccessToken::find_by_expires_at(&mut transaction, Utc::now()).await?;
             let tokens: Vec<_> = out
@@ -282,14 +281,14 @@ mod tests {
         async fn test_create_delete() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let now = now_no_nanos();
             let token = GsuiteAccessToken { owner_id: owner.id, access_token: "A".into(), refresh_token: "R".into(), expires_at: now }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_eq!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![token.clone()]);
             assert_eq!(GsuiteAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![token.clone()]);
 
@@ -324,12 +323,12 @@ mod tests {
         async fn test_no_gsuite_access_tokens() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert!(GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], None).await?.is_empty());
             assert!(GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], Some(1)).await?.is_empty());
 
@@ -341,13 +340,13 @@ mod tests {
         async fn test_create() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let account = GsuiteServiceAccount { owner_id: owner.id, key: dummy_service_account_key() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             for limit in &[None, Some(1_i32)] {
                 let accounts = GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], *limit).await?;
                 assert_eq!(accounts, vec![account.clone()]);

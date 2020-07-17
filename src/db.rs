@@ -50,11 +50,6 @@ pub async fn pgpool() -> PgPool {
     PGPOOL.clone().await
 }
 
-/// Return a transaction with search_path set to 'stash' and isolation level REPEATABLE READ.
-pub async fn start_transaction(client: &PgPool) -> Result<Transaction<'static, Postgres>> {
-    Ok(client.begin().await?)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,12 +118,5 @@ mod tests {
         let result = sqlx::query(&statement).execute(transaction).await;
         let msg = result.err().expect("expected an error").to_string();
         assert_eq!(msg, "error returned from database: truncate is forbidden");
-    }
-
-    #[tokio::test]
-    async fn test_start_transaction() -> Result<()> {
-        let mut client = main_test_instance().await;
-        let _ = start_transaction(&mut client).await?;
-        Ok(())
     }
 }

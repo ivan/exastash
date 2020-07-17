@@ -58,7 +58,6 @@ impl Storage {
 mod tests {
     use super::*;
     use crate::util;
-    use crate::db::start_transaction;
     use crate::db::tests::{main_test_instance, truncate_test_instance};
     use crate::db::inode::tests::create_dummy_file;
     use serial_test::serial;
@@ -71,11 +70,11 @@ mod tests {
         async fn test_no_storage() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![]);
 
             Ok(())
@@ -86,12 +85,12 @@ mod tests {
         async fn test_create_storage_and_get_storage() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let storage = Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage]);
 
             Ok(())
@@ -102,13 +101,13 @@ mod tests {
         async fn test_multiple_create_storage_and_get_storage() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let storage1 = Storage { file_id: dummy.id, ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
             let storage2 = Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage1, storage2]);
 
             Ok(())
@@ -125,13 +124,13 @@ mod tests {
         async fn test_cannot_change_immutables() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             for (column, value) in &[("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
-                let mut transaction = start_transaction(&mut client).await?;
+                let mut transaction = client.begin().await?;
                 let query = format!("UPDATE storage_internetarchive SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id, ia_item, or pathname");
@@ -146,7 +145,7 @@ mod tests {
         async fn test_cannot_truncate() -> Result<()> {
             let mut client = truncate_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_cannot_truncate(&mut transaction, "storage_internetarchive").await;
 
             Ok(())

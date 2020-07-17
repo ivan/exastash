@@ -204,7 +204,6 @@ impl Storage {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::db::start_transaction;
     use crate::db::tests::{main_test_instance, truncate_test_instance};
     use crate::db::inode::tests::create_dummy_file;
     use file::GdriveFile;
@@ -230,7 +229,7 @@ pub(crate) mod tests {
         async fn test_create_storage_get_storage() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let file1 = GdriveFile { id: "X".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None }.create(&mut transaction).await?;
             let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None }.create(&mut transaction).await?;
@@ -238,7 +237,7 @@ pub(crate) mod tests {
             let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id, file2.id] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage]);
 
             Ok(())
@@ -249,7 +248,7 @@ pub(crate) mod tests {
         async fn test_cannot_reference_nonexistent_gdrive_file() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -268,7 +267,7 @@ pub(crate) mod tests {
         async fn test_cannot_reference_nonexistent_gdrive_file_even_if_some_exist() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let file1 = GdriveFile { id: "F".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
@@ -288,7 +287,7 @@ pub(crate) mod tests {
         async fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![] };
@@ -312,7 +311,7 @@ pub(crate) mod tests {
         async fn test_cannot_update() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let id1 = "Y".repeat(28);
             let id2 = "Z".repeat(28);
@@ -331,7 +330,7 @@ pub(crate) mod tests {
             ];
 
             for (column, value) in &pairs {
-                let mut transaction = start_transaction(&mut client).await?;
+                let mut transaction = client.begin().await?;
                 let query = format!("UPDATE storage_gdrive SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(
@@ -349,14 +348,14 @@ pub(crate) mod tests {
         async fn test_cannot_truncate() -> Result<()> {
             let mut client = truncate_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             assert_cannot_truncate(&mut transaction, "storage_gdrive").await;
 
             Ok(())

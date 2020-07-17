@@ -28,7 +28,7 @@ use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
 /// need to be tried.
 pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<Vec<String>> {
     let mut client = db::pgpool().await;
-    let mut transaction = db::start_transaction(&mut client).await?;
+    let mut transaction = client.begin().await?;
 
     let all_owners = GdriveOwner::find_by_domain_ids(&mut transaction, &[domain_id]).await?;
     let all_owner_ids: Vec<_> = all_owners.iter().map(|owner| owner.id).collect();
@@ -137,7 +137,7 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
         async move {
             let mut ctr_stream_bytes = 0;
             let pool = db::pgpool().await;
-            let mut transaction = db::start_transaction(&pool).await?;
+            let mut transaction = pool.begin().await?;
             let gdrive_ids: Vec<&str> = storage.gdrive_ids.iter().map(String::as_str).collect();
             let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
             drop(transaction);
@@ -182,7 +182,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
         #[try_stream]
         async move {
             let pool = db::pgpool().await;
-            let mut transaction = db::start_transaction(&pool).await?;
+            let mut transaction = pool.begin().await?;
             let gdrive_ids: Vec<&str> = storage.gdrive_ids.iter().map(String::as_str).collect();
             let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
             drop(transaction);

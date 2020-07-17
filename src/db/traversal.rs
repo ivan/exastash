@@ -31,7 +31,6 @@ pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i6
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::start_transaction;
     use crate::db::tests::main_test_instance;
     use crate::db::dirent::Dirent;
     use chrono::Utc;
@@ -45,13 +44,13 @@ mod tests {
         async fn test_walk_path() -> Result<()> {
             let mut client = main_test_instance().await;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let birth = inode::Birth::here_and_now();
             let root_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("root_dir"), InodeId::Dir(root_dir.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
@@ -64,7 +63,7 @@ mod tests {
             Dirent::new(child_dir.id, "child_symlink", InodeId::Symlink(child_symlink.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
 
             // walk_path returns the base_dir if there are no components to walk
             assert_eq!(walk_path(&mut transaction, root_dir.id, &[]).await?, InodeId::Dir(root_dir.id));

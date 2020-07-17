@@ -56,7 +56,7 @@ pub async fn refresh_access_tokens(client: &mut PgPool) -> Result<()> {
     let expiry_within_minutes = 55;
     info!("refreshing access tokens that expire within {} minutes", expiry_within_minutes);
 
-    let mut transaction = db::start_transaction(client).await?;
+    let mut transaction = client.begin().await?;
 
     // Map of domain_id -> ApplicationSecret
     let mut secrets_map = HashMap::new();

@@ -329,7 +329,6 @@ impl Inode {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::db::start_transaction;
     use crate::db::tests::{main_test_instance, truncate_test_instance};
     use serial_test::serial;
 
@@ -345,7 +344,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_dir_find_by_ids_empty() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let files = Dir::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
             Ok(())
@@ -355,7 +354,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_dir_find_by_ids_nonempty() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let dir = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let nonexistent_id = 0;
             let files = Dir::find_by_ids(&mut transaction, &[dir.id, nonexistent_id]).await?;
@@ -367,7 +366,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_cannot_create_dir_without_dirent() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let _ = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let result = transaction.commit().await;
             let msg = result.err().expect("expected an error").to_string();
@@ -379,7 +378,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_file_find_by_ids_empty() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let files = File::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
             Ok(())
@@ -389,7 +388,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_file_find_by_ids_nonempty() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() }
                 .create(&mut transaction).await?;
             let nonexistent_id = 0;
@@ -402,7 +401,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_symlink_find_by_ids_empty() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let files = Symlink::find_by_ids(&mut transaction, &[]).await?;
             assert_eq!(files, vec![]);
             Ok(())
@@ -412,7 +411,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_symlink_find_by_ids_nonempty() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let symlink = NewSymlink { target: "test".into(), mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let nonexistent_id = 0;
             let files = Symlink::find_by_ids(&mut transaction, &[symlink.id, nonexistent_id]).await?;
@@ -432,7 +431,7 @@ pub(crate) mod tests {
         async fn test_cannot_truncate() -> Result<()> {
             let mut client = truncate_test_instance().await;
             for table in &["dirs", "files", "symlinks"] {
-                let mut transaction = start_transaction(&mut client).await?;
+                let mut transaction = client.begin().await?;
                 assert_cannot_truncate(&mut transaction, table).await;
             }
             Ok(())
@@ -442,7 +441,7 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_can_change_dir_mutables() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             sqlx::query("UPDATE dirs SET mtime = now() WHERE id = $1::bigint").bind(&1i64).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
@@ -452,10 +451,10 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_cannot_change_dir_immutables() -> Result<()> {
             let mut client = main_test_instance().await;
-            let transaction = start_transaction(&mut client).await?;
+            let transaction = client.begin().await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
-                let mut transaction = start_transaction(&mut client).await?;
+                let mut transaction = client.begin().await?;
                 let query = format!("UPDATE dirs SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&1i64).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
@@ -472,16 +471,16 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_can_change_file_mutables() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             sqlx::query("UPDATE files SET mtime = now() WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             sqlx::query("UPDATE files SET size = 100000 WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             sqlx::query("UPDATE files SET executable = true WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
@@ -491,11 +490,11 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_cannot_change_file_immutables() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
-                let mut transaction = start_transaction(&mut client).await?;
+                let mut transaction = client.begin().await?;
                 let query = format!("UPDATE files SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
@@ -512,10 +511,10 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_can_change_symlink_mutables() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             sqlx::query("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint").bind(&symlink.id).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
@@ -525,11 +524,11 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_cannot_change_symlink_immutables() -> Result<()> {
             let mut client = main_test_instance().await;
-            let mut transaction = start_transaction(&mut client).await?;
+            let mut transaction = client.begin().await?;
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
-                let mut transaction = start_transaction(&mut client).await?;
+                let mut transaction = client.begin().await?;
                 let query = format!("UPDATE symlinks SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&symlink.id).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();

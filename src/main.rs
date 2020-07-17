@@ -362,7 +362,7 @@ async fn main() -> Result<()> {
     // Do this first for --help to work without a database connection
     let cmd = ExastashCommand::from_args();
     let mut client = db::pgpool().await;
-    let mut transaction = db::start_transaction(&mut client).await?;
+    let mut transaction = client.begin().await?;
     match cmd {
         ExastashCommand::Dir(dir) => {
             match dir {
