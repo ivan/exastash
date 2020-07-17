@@ -1,6 +1,5 @@
 //! CRUD operations for Google Drive files
 
-use std::hash::Hash;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use anyhow::{Result, anyhow};
@@ -142,11 +141,10 @@ impl GdriveFile {
     }
 
     /// Return gdrive files with matching ids, in the same order as the ids.
-    pub async fn find_by_ids_in_order<T>(transaction: &mut Transaction<'_, Postgres>, ids: &[T]) -> Result<Vec<GdriveFile>>
-    where
-        T: AsRef<str> + Debug + Sync + Hash + Eq + ToString
-    {
-        let cursor = sqlx::query_as::<_, GdriveFile>("SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)")
+    pub async fn find_by_ids_in_order(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
+        let query = "SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)";
+        let cursor = sqlx::query_as::<_, GdriveFile>(query)
+            .bind(ids)
             .fetch(transaction);
         let mut out = Vec::with_capacity(cursor.size_hint().1.unwrap_or(ids.len()));
         let mut map: HashMap<String, GdriveFile> = HashMap::new();
@@ -214,7 +212,7 @@ pub(crate) mod tests {
             assert_eq!(result.err().expect("expected an error").to_string(), format!("duplicate or nonexistent id given: {:?}", file1.id));
 
             // Nonexistent id is not OK
-            let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file1.id, &file2.id, &"nonexistent".into()]).await;
+            let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file1.id, &file2.id, "nonexistent"]).await;
             assert_eq!(result.err().expect("expected an error").to_string(), "duplicate or nonexistent id given: \"nonexistent\"");
 
             Ok(())

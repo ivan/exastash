@@ -560,7 +560,8 @@ async fn main() -> Result<()> {
                     println!("{j}");
                 }
                 InternalCommand::ReadGdriveFiles { domain_id, file_ids } => {
-                    let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, file_ids).await?;
+                    let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
+                    let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
                     for gdrive_file in &gdrive_files {
                         let stream = storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?;
                         let mut read = stream

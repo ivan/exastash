@@ -138,7 +138,8 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
             let mut ctr_stream_bytes = 0;
             let pool = db::pgpool().await;
             let mut transaction = db::start_transaction(&pool).await?;
-            let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &storage.gdrive_ids).await?;
+            let gdrive_ids: Vec<&str> = storage.gdrive_ids.iter().map(String::as_str).collect();
+            let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
             drop(transaction);
             for gdrive_file in gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
@@ -182,7 +183,8 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
         async move {
             let pool = db::pgpool().await;
             let mut transaction = db::start_transaction(&pool).await?;
-            let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &storage.gdrive_ids).await?;
+            let gdrive_ids: Vec<&str> = storage.gdrive_ids.iter().map(String::as_str).collect();
+            let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
             drop(transaction);
 
             let whole_block_size = 65536;
