@@ -93,7 +93,8 @@ mod tests {
     static MAIN_TEST_INSTANCE: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::new(|| async {
         let uri = postgres_temp_instance_uri();
         apply_ddl(&uri, "schema/schema.sql");
-        new_pgpool(&uri, 32).await.unwrap()
+        // TODO: lower this to 32 after https://github.com/launchbadge/sqlx/issues/527 is fixed
+        new_pgpool(&uri, 100).await.unwrap()
     }.boxed().shared());
 
     /// Return the PgPool for running most tests
