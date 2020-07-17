@@ -29,7 +29,10 @@ use exastash::oauth;
 use exastash::{storage_read, storage_write};
 use futures::stream::TryStreamExt;
 use yup_oauth2::ServiceAccountKey;
+use mimalloc::MiMalloc;
 
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "es")]

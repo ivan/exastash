@@ -9,6 +9,8 @@ name = "es"
 path = "src/main.rs"
 
 [dependencies]
+# Turn off the default secure mode
+mimalloc = { version = "0.1", default-features = false }
 anyhow = "1.0"
 async-recursion = "0.3"
 aes = "0.4"
