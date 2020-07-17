@@ -84,29 +84,27 @@ mod tests {
         }
     }
 
-    /// PgPool Future initialized once by the first caller
-    static MAIN_TEST_INSTANCE: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::new(|| async {
+    static MAIN_TEST_INSTANCE: Lazy<String> = Lazy::new(|| {
         let uri = postgres_temp_instance_uri();
         apply_ddl(&uri, "schema/schema.sql");
-        // TODO: lower this to 32 after https://github.com/launchbadge/sqlx/issues/527 is fixed
-        new_pgpool(&uri, 100).await.unwrap()
-    }.boxed().shared());
+        uri
+    });
 
     /// Return the PgPool for running most tests
     pub(crate) async fn main_test_instance() -> PgPool {
-        MAIN_TEST_INSTANCE.clone().await
+        new_pgpool(&*MAIN_TEST_INSTANCE, 4).await.unwrap()
     }
 
     /// PgPool Future initialized once by the first caller
-    static TRUNCATE_TEST_INSTANCE: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::new(|| async {
+    static TRUNCATE_TEST_INSTANCE: Lazy<String> = Lazy::new(|| {
         let uri = postgres_temp_instance_uri();
         apply_ddl(&uri, "schema/schema.sql");
-        new_pgpool(&uri, 32).await.unwrap()
-    }.boxed().shared());
+        uri
+    });
 
     /// Return the PgPool for running TRUNCATE tests
     pub(crate) async fn truncate_test_instance() -> PgPool {
-        TRUNCATE_TEST_INSTANCE.clone().await
+        new_pgpool(&*TRUNCATE_TEST_INSTANCE, 4).await.unwrap()
     }
 
     /// Note that TRUNCATE tests should be run in the separate `TRUNCATE_TEST_INSTANCE`
