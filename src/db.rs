@@ -17,8 +17,9 @@ use std::time::Duration;
 use std::env;
 use crate::util::env_var;
 
-/// Return a `postgres::Client` connected to the `postgres://` URI in
-/// env var `EXASTASH_POSTGRES_URI`.
+/// Return a `PgPool` that connects to the given `postgres://` URI,
+/// and starts all transactions in `search_path` = `stash` and with
+/// isolation level `REPEATABLE READ`.
 pub async fn new_pgpool(uri: &str, max_connections: u32) -> Result<PgPool> {
     Ok(
         PgPoolOptions::new()
@@ -45,7 +46,7 @@ static PGPOOL: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::
     new_pgpool(&database_uri, max_connections).await.unwrap()
 }.boxed().shared());
 
-/// Return the global PgPool
+/// Return the global `PgPool`.  It must not be used in more than one tokio runtime.
 pub async fn pgpool() -> PgPool {
     PGPOOL.clone().await
 }
