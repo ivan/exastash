@@ -122,15 +122,15 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn test_create_dirent_and_list_dir() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
             let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("parent"), InodeId::Dir(parent.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
@@ -139,7 +139,7 @@ pub(crate) mod tests {
             Dirent::new(parent.id, "child_symlink", InodeId::Symlink(child_symlink.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(Dirent::find_by_parents(&mut transaction, &[child_dir.id]).await?, vec![]);
             assert_eq!(Dirent::find_by_parents(&mut transaction, &[parent.id]).await?, vec![
                 Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)),
@@ -159,9 +159,9 @@ pub(crate) mod tests {
         /// Cannot have child_dir equal to parent
         #[tokio::test]
         async fn test_cannot_have_child_dir_equal_to_parent() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let parent = inode::NewDir { mtime: Utc::now(), birth: inode::Birth::here_and_now() }.create(&mut transaction).await?;
             let result = Dirent::new(parent.id, "self", InodeId::Dir(parent.id)).create(&mut transaction).await;
             assert_eq!(
@@ -175,9 +175,9 @@ pub(crate) mod tests {
         /// Cannot insert more than one dirent per transaction (otherwise cycles could be created)
         #[tokio::test]
         async fn test_cannot_create_more_than_one_dirent() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let birth  = inode::Birth::here_and_now();
             let one    = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             let two    = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
@@ -194,32 +194,32 @@ pub(crate) mod tests {
         /// Cannot create a dirents cycle by removing a dirent and creating a replacement
         #[tokio::test]
         async fn test_cannot_create_dirents_cycle() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
             let birth  = inode::Birth::here_and_now();
             
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let test = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("test_cannot_create_dirents_cycle"), InodeId::Dir(test.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let a = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(test.id, "a", InodeId::Dir(a.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let b = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(a.id, "b", InodeId::Dir(b.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let c = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(b.id, "c", InodeId::Dir(c.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
             // Try to remove a -> b, add c -> b (which would create a cycle b -> c -> b)
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             Dirent::remove(&mut transaction, a.id, "b").await?;
             let result = Dirent::new(c.id, "b", InodeId::Dir(b.id)).create(&mut transaction).await;
             assert_eq!(
@@ -233,16 +233,16 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in dirents table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("child_dir"), InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
             for (column, value) in &[("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
-                let mut transaction = client.begin().await?;
+                let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE dirents SET {column} = {value} WHERE parent = $1::bigint AND child_dir = $2::bigint");
                 let result = sqlx::query(&query).bind(1i64).bind(child_dir.id).execute(&mut transaction).await;
                 assert_eq!(
@@ -258,15 +258,15 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let client = truncate_test_instance().await;
+            let pool = truncate_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("child_dir"), InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_cannot_truncate(&mut transaction, "dirents").await;
 
             Ok(())
@@ -275,15 +275,15 @@ pub(crate) mod tests {
         /// Directory cannot be a child twice in some directory
         #[tokio::test]
         async fn test_directory_cannot_have_more_than_one_basename() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("child_dir"), InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let result = Dirent::new(1, make_basename("child_dir_again"), InodeId::Dir(child_dir.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -296,20 +296,20 @@ pub(crate) mod tests {
         /// Directory cannot be a child of more than one parent
         #[tokio::test]
         async fn test_directory_cannot_be_multiparented() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
             let middle = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("middle"), InodeId::Dir(middle.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let child = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(middle.id, make_basename("child"), InodeId::Dir(child.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let result = Dirent::new(1, make_basename("child"), InodeId::Dir(child.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -323,16 +323,16 @@ pub(crate) mod tests {
         /// Basename cannot be > 255 bytes
         #[tokio::test]
         async fn test_basename_cannot_be_specials_or_too_long() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
             let parent = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("parent"), InodeId::Dir(parent.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
             for basename in &["", "/", ".", "..", &"x".repeat(256)] {
-                let mut transaction = client.begin().await?;
+                let mut transaction = pool.begin().await?;
                 // Avoid using a child dir because the mutual FK results in "deadlock detected"
                 // some of the time instead of the error we want to see
                 let child = inode::NewFile { mtime: Utc::now(), birth: birth.clone(), size: 0, executable: false }.create(&mut transaction).await?;
