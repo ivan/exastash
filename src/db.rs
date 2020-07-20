@@ -31,7 +31,7 @@ pub async fn new_pgpool(uri: &str, max_connections: u32) -> Result<PgPool> {
 
             Ok(())
         }))
-        .connect_timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(30))
         .max_connections(max_connections)
         .connect(&uri).await?
     )
