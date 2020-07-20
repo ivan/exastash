@@ -346,16 +346,16 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let client = truncate_test_instance().await;
+            let pool = truncate_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_cannot_truncate(&mut transaction, "storage_gdrive").await;
 
             Ok(())

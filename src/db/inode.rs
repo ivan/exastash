@@ -429,9 +429,9 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let client = truncate_test_instance().await;
+            let pool = truncate_test_instance().await;
             for table in &["dirs", "files", "symlinks"] {
-                let mut transaction = client.begin().await?;
+                let mut transaction = pool.begin().await?;
                 assert_cannot_truncate(&mut transaction, table).await;
             }
             Ok(())
