@@ -68,13 +68,13 @@ mod tests {
         /// If there is no internetarchive storage for a file, find_by_file_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![]);
 
             Ok(())
@@ -83,14 +83,14 @@ mod tests {
         /// If we add one internetarchive storage for a file, find_by_file_ids returns just that storage
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let storage = Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage]);
 
             Ok(())
@@ -99,15 +99,15 @@ mod tests {
         /// If we add multiple internetarchive storage for a file, find_by_file_ids returns those storages
         #[tokio::test]
         async fn test_multiple_create_storage_and_get_storage() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let storage1 = Storage { file_id: dummy.id, ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
             let storage2 = Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage1, storage2]);
 
             Ok(())
@@ -122,15 +122,15 @@ mod tests {
         /// Cannot UPDATE file_id, ia_item, or pathname on storage_internetarchive table
         #[tokio::test]
         async fn test_cannot_change_immutables() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             for (column, value) in &[("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
-                let mut transaction = client.begin().await?;
+                let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE storage_internetarchive SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id, ia_item, or pathname");

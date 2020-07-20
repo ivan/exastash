@@ -51,13 +51,13 @@ mod tests {
         /// If there is no storage for a file, get_storage returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(get_storage(&mut transaction, &[dummy.id]).await?, vec![]);
 
             Ok(())
@@ -67,9 +67,9 @@ mod tests {
         /// inline, gdrive, internetarchive
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
 
             // internetarchive
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -86,7 +86,7 @@ mod tests {
 
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(get_storage(&mut transaction, &[dummy.id]).await?, vec![
                 Storage::Inline(storage4),
                 Storage::Gdrive(storage3),

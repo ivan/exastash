@@ -53,13 +53,13 @@ mod tests {
         /// If there is no inline storage for a file, find_by_file_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![]);
 
             Ok(())
@@ -68,14 +68,14 @@ mod tests {
         /// If we add an inline storage for a file, find_by_file_ids returns that storage
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let storage = Storage { file_id: dummy.id, content: "some content".into() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage]);
 
             Ok(())
@@ -90,15 +90,15 @@ mod tests {
         /// Cannot UPDATE file_id on storage_inline table
         #[tokio::test]
         async fn test_cannot_change_immutables() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             Storage { file_id: dummy.id, content: "hello".into() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             for (column, value) in &[("file_id", "100")] {
-                let mut transaction = client.begin().await?;
+                let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE storage_inline SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id");

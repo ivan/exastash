@@ -364,8 +364,8 @@ async fn main() -> Result<()> {
 
     // Do this first for --help to work without a database connection
     let cmd = ExastashCommand::from_args();
-    let mut client = db::pgpool().await;
-    let mut transaction = client.begin().await?;
+    let mut pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
     match cmd {
         ExastashCommand::Dir(dir) => {
             match dir {
@@ -542,7 +542,7 @@ async fn main() -> Result<()> {
                     let interval_sec = 305;
                     info!("will check access tokens every {} seconds", interval_sec);
                     loop {
-                        oauth::refresh_access_tokens(&mut client).await?;
+                        oauth::refresh_access_tokens(&mut pool).await?;
                         tokio::time::delay_for(std::time::Duration::new(interval_sec, 0)).await;
                     }
                 }

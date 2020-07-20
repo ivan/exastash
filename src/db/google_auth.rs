@@ -212,13 +212,13 @@ mod tests {
         /// If there is no gsuite_application_secret for a domain, find_by_domain_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_gsuite_application_secret() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert!(GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?.is_empty());
 
             Ok(())
@@ -227,14 +227,14 @@ mod tests {
         /// If we create a gsuite_application_secret, find_by_domain_ids finds it
         #[tokio::test]
         async fn test_create() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             GsuiteApplicationSecret { domain_id: domain.id, secret: serde_json::json!({}) }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let secrets = GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?;
             assert_eq!(secrets.len(), 1);
             assert_eq!(secrets[0].domain_id, domain.id);
@@ -256,14 +256,14 @@ mod tests {
         /// If there is no gsuite_access_token for an owner, `find_by_owner_ids` and `find_by_expires_at` return an empty Vec
         #[tokio::test]
         async fn test_no_gsuite_access_tokens() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?.is_empty());
             let out = GsuiteAccessToken::find_by_expires_at(&mut transaction, Utc::now()).await?;
             let tokens: Vec<_> = out
@@ -279,16 +279,16 @@ mod tests {
         /// If we delete it, it is no longer found.
         #[tokio::test]
         async fn test_create_delete() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let now = now_no_nanos();
             let token = GsuiteAccessToken { owner_id: owner.id, access_token: "A".into(), refresh_token: "R".into(), expires_at: now }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![token.clone()]);
             assert_eq!(GsuiteAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![token.clone()]);
 
@@ -321,14 +321,14 @@ mod tests {
         /// If there is no gsuite_service_account for an owner, find_by_owner_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_gsuite_access_tokens() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert!(GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], None).await?.is_empty());
             assert!(GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], Some(1)).await?.is_empty());
 
@@ -338,15 +338,15 @@ mod tests {
         /// If we create a gsuite_service_account, find_by_owner_ids finds it
         #[tokio::test]
         async fn test_create() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let account = GsuiteServiceAccount { owner_id: owner.id, key: dummy_service_account_key() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             for limit in &[None, Some(1_i32)] {
                 let accounts = GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], *limit).await?;
                 assert_eq!(accounts, vec![account.clone()]);

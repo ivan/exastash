@@ -227,9 +227,9 @@ pub(crate) mod tests {
         /// If we add a gdrive storage for a file, get_storage returns that storage
         #[tokio::test]
         async fn test_create_storage_get_storage() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let file1 = GdriveFile { id: "X".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None }.create(&mut transaction).await?;
             let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None }.create(&mut transaction).await?;
@@ -237,7 +237,7 @@ pub(crate) mod tests {
             let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id, file2.id] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             assert_eq!(Storage::find_by_file_ids(&mut transaction, &[dummy.id]).await?, vec![storage]);
 
             Ok(())
@@ -246,9 +246,9 @@ pub(crate) mod tests {
         /// Cannot reference a nonexistent gdrive file
         #[tokio::test]
         async fn test_cannot_reference_nonexistent_gdrive_file() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -265,9 +265,9 @@ pub(crate) mod tests {
         /// Cannot reference a nonexistent gdrive file even when other gdrive files do exist
         #[tokio::test]
         async fn test_cannot_reference_nonexistent_gdrive_file_even_if_some_exist() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let file1 = GdriveFile { id: "F".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
@@ -285,9 +285,9 @@ pub(crate) mod tests {
         /// Cannot have empty gdrive_files
         #[tokio::test]
         async fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![] };
@@ -309,9 +309,9 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in storage_gdrive table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let id1 = "Y".repeat(28);
             let id2 = "Z".repeat(28);
@@ -330,7 +330,7 @@ pub(crate) mod tests {
             ];
 
             for (column, value) in &pairs {
-                let mut transaction = client.begin().await?;
+                let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE storage_gdrive SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(

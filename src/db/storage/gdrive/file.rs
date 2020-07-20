@@ -189,16 +189,16 @@ pub(crate) mod tests {
         // Can create gdrive files
         #[tokio::test]
         async fn test_create_gdrive_file() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner.id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None }.create(&mut transaction).await?;
             let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let files = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file1.id, &file2.id]).await?;
             assert_eq!(files, vec![file1.clone(), file2.clone()]);
 
@@ -220,15 +220,15 @@ pub(crate) mod tests {
         // Can remove gdrive files not referenced by storage_gdrive
         #[tokio::test]
         async fn test_remove_gdrive_files() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let file = GdriveFile { id: "Q".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             GdriveFile::remove_by_ids(&mut transaction, &[&file.id]).await?;
             transaction.commit().await?;
 
@@ -238,9 +238,9 @@ pub(crate) mod tests {
         // Cannot remove gdrive files that are referenced by storage_gdrive
         #[tokio::test]
         async fn test_cannot_remove_gdrive_files_still_referenced() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
@@ -248,11 +248,11 @@ pub(crate) mod tests {
             // create_storage expects the domain to already be committed
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id.clone()] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let result = GdriveFile::remove_by_ids(&mut transaction, &[&file.id]).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -271,9 +271,9 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in gdrive_files table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let client = main_test_instance().await;
+            let pool = main_test_instance().await;
 
-            let mut transaction = client.begin().await?;
+            let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
@@ -286,7 +286,7 @@ pub(crate) mod tests {
                 ("crc32c", "1"),
                 ("size", "2")
             ] {
-                let mut transaction = client.begin().await?;
+                let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE gdrive_files SET {column} = {value} WHERE id = $1");
                 let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change id, md5, crc32c, or size");
