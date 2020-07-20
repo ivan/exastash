@@ -85,29 +85,29 @@ mod tests {
         }
     }
 
-    static MAIN_TEST_URI: Lazy<String> = Lazy::new(|| {
+    static PRIMARY_POOL_URI: Lazy<String> = Lazy::new(|| {
         let uri = postgres_temp_instance_uri();
         apply_ddl(&uri, "schema/schema.sql");
         uri
     });
 
-    /// Return a new `PgPool` connected to the pg_tmp for most tests.
+    /// Return a new `PgPool` connected to the `pg_tmp` for most tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
-    pub(crate) async fn main_test_instance() -> PgPool {
-        new_pgpool(&*MAIN_TEST_URI, 4).await.unwrap()
+    pub(crate) async fn new_primary_pool() -> PgPool {
+        new_pgpool(&*PRIMARY_POOL_URI, 4).await.unwrap()
     }
 
     /// PgPool Future initialized once by the first caller
-    static TRUNCATE_TEST_URI: Lazy<String> = Lazy::new(|| {
+    static SECONDARY_POOL_URI: Lazy<String> = Lazy::new(|| {
         let uri = postgres_temp_instance_uri();
         apply_ddl(&uri, "schema/schema.sql");
         uri
     });
 
-    /// Return a new `PgPool` connected to the pg_tmp for TRUNCATE tests.
+    /// Return a new `PgPool` connected to the pg_tmp for `TRUNCATE` tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
-    pub(crate) async fn truncate_test_instance() -> PgPool {
-        new_pgpool(&*TRUNCATE_TEST_URI, 4).await.unwrap()
+    pub(crate) async fn new_secondary_pool() -> PgPool {
+        new_pgpool(&*SECONDARY_POOL_URI, 4).await.unwrap()
     }
 
     /// Note that TRUNCATE tests should be run in the separate `TRUNCATE_TEST_INSTANCE`

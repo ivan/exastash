@@ -102,7 +102,7 @@ impl Dirent {
 pub(crate) mod tests {
     use super::*;
     use crate::db::inode;
-    use crate::db::tests::{main_test_instance, truncate_test_instance};
+    use crate::db::tests::{new_primary_pool, new_secondary_pool};
     use chrono::Utc;
     use atomic_counter::{AtomicCounter, RelaxedCounter};
     use once_cell::sync::Lazy;
@@ -122,7 +122,7 @@ pub(crate) mod tests {
 
         #[tokio::test]
         async fn test_create_dirent_and_list_dir() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -159,7 +159,7 @@ pub(crate) mod tests {
         /// Cannot have child_dir equal to parent
         #[tokio::test]
         async fn test_cannot_have_child_dir_equal_to_parent() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let parent = inode::NewDir { mtime: Utc::now(), birth: inode::Birth::here_and_now() }.create(&mut transaction).await?;
@@ -175,7 +175,7 @@ pub(crate) mod tests {
         /// Cannot insert more than one dirent per transaction (otherwise cycles could be created)
         #[tokio::test]
         async fn test_cannot_create_more_than_one_dirent() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let birth  = inode::Birth::here_and_now();
@@ -194,7 +194,7 @@ pub(crate) mod tests {
         /// Cannot create a dirents cycle by removing a dirent and creating a replacement
         #[tokio::test]
         async fn test_cannot_create_dirents_cycle() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let birth  = inode::Birth::here_and_now();
             
@@ -233,7 +233,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in dirents table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -258,7 +258,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let pool = truncate_test_instance().await;
+            let pool = new_secondary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -275,7 +275,7 @@ pub(crate) mod tests {
         /// Directory cannot be a child twice in some directory
         #[tokio::test]
         async fn test_directory_cannot_have_more_than_one_basename() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -296,7 +296,7 @@ pub(crate) mod tests {
         /// Directory cannot be a child of more than one parent
         #[tokio::test]
         async fn test_directory_cannot_be_multiparented() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
@@ -323,7 +323,7 @@ pub(crate) mod tests {
         /// Basename cannot be > 255 bytes
         #[tokio::test]
         async fn test_basename_cannot_be_specials_or_too_long() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();

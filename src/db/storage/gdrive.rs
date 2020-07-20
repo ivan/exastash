@@ -204,7 +204,7 @@ impl Storage {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::db::tests::{main_test_instance, truncate_test_instance};
+    use crate::db::tests::{new_primary_pool, new_secondary_pool};
     use crate::db::inode::tests::create_dummy_file;
     use file::GdriveFile;
     use atomic_counter::{AtomicCounter, RelaxedCounter};
@@ -227,7 +227,7 @@ pub(crate) mod tests {
         /// If we add a gdrive storage for a file, get_storage returns that storage
         #[tokio::test]
         async fn test_create_storage_get_storage() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -246,7 +246,7 @@ pub(crate) mod tests {
         /// Cannot reference a nonexistent gdrive file
         #[tokio::test]
         async fn test_cannot_reference_nonexistent_gdrive_file() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -265,7 +265,7 @@ pub(crate) mod tests {
         /// Cannot reference a nonexistent gdrive file even when other gdrive files do exist
         #[tokio::test]
         async fn test_cannot_reference_nonexistent_gdrive_file_even_if_some_exist() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -285,7 +285,7 @@ pub(crate) mod tests {
         /// Cannot have empty gdrive_files
         #[tokio::test]
         async fn test_cannot_have_empty_gdrive_file_list() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -309,7 +309,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in storage_gdrive table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -346,7 +346,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let pool = truncate_test_instance().await;
+            let pool = new_secondary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;

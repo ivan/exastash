@@ -164,7 +164,7 @@ impl GdriveFile {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::db::tests::{main_test_instance, truncate_test_instance};
+    use crate::db::tests::{new_primary_pool, new_secondary_pool};
     use crate::db::inode::tests::create_dummy_file;
     use crate::db::storage::gdrive::tests::create_dummy_domain;
     use crate::db::storage::gdrive::{Storage, Cipher};
@@ -189,7 +189,7 @@ pub(crate) mod tests {
         // Can create gdrive files
         #[tokio::test]
         async fn test_create_gdrive_file() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -220,7 +220,7 @@ pub(crate) mod tests {
         // Can remove gdrive files not referenced by storage_gdrive
         #[tokio::test]
         async fn test_remove_gdrive_files() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -238,7 +238,7 @@ pub(crate) mod tests {
         // Cannot remove gdrive files that are referenced by storage_gdrive
         #[tokio::test]
         async fn test_cannot_remove_gdrive_files_still_referenced() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -271,7 +271,7 @@ pub(crate) mod tests {
         /// Cannot UPDATE any row in gdrive_files table
         #[tokio::test]
         async fn test_cannot_update() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -299,7 +299,7 @@ pub(crate) mod tests {
         #[tokio::test]
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
-            let pool = truncate_test_instance().await;
+            let pool = new_secondary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;

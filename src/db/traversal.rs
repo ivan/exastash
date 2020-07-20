@@ -31,7 +31,7 @@ pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i6
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::tests::main_test_instance;
+    use crate::db::tests::new_primary_pool;
     use crate::db::dirent::Dirent;
     use chrono::Utc;
     use crate::db::inode;
@@ -42,7 +42,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_walk_path() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();

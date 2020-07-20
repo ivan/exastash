@@ -195,7 +195,7 @@ impl GsuiteServiceAccount {
 mod tests {
     use super::*;
     use chrono::Duration;
-    use crate::db::tests::main_test_instance;
+    use crate::db::tests::new_primary_pool;
     use crate::db::storage::gdrive::tests::create_dummy_domain;
     use crate::db::storage::gdrive::file::tests::create_dummy_owner;
     use crate::util::now_no_nanos;
@@ -212,7 +212,7 @@ mod tests {
         /// If there is no gsuite_application_secret for a domain, find_by_domain_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_gsuite_application_secret() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -227,7 +227,7 @@ mod tests {
         /// If we create a gsuite_application_secret, find_by_domain_ids finds it
         #[tokio::test]
         async fn test_create() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -256,7 +256,7 @@ mod tests {
         /// If there is no gsuite_access_token for an owner, `find_by_owner_ids` and `find_by_expires_at` return an empty Vec
         #[tokio::test]
         async fn test_no_gsuite_access_tokens() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -279,7 +279,7 @@ mod tests {
         /// If we delete it, it is no longer found.
         #[tokio::test]
         async fn test_create_delete() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -321,7 +321,7 @@ mod tests {
         /// If there is no gsuite_service_account for an owner, find_by_owner_ids returns an empty Vec
         #[tokio::test]
         async fn test_no_gsuite_access_tokens() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
@@ -338,7 +338,7 @@ mod tests {
         /// If we create a gsuite_service_account, find_by_owner_ids finds it
         #[tokio::test]
         async fn test_create() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;

@@ -42,7 +42,7 @@ pub async fn get_storage(transaction: &mut Transaction<'_, Postgres>, file_ids: 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::tests::main_test_instance;
+    use crate::db::tests::new_primary_pool;
     use crate::db::inode::tests::create_dummy_file;
 
     mod api {
@@ -51,7 +51,7 @@ mod tests {
         /// If there is no storage for a file, get_storage returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
@@ -67,7 +67,7 @@ mod tests {
         /// inline, gdrive, internetarchive
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
-            let pool = main_test_instance().await;
+            let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
 
