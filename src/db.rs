@@ -110,10 +110,10 @@ mod tests {
         new_pgpool(&*SECONDARY_POOL_URI, 4).await.unwrap()
     }
 
-    /// Note that TRUNCATE tests should be run in the separate `TRUNCATE_TEST_INSTANCE`
-    /// because it will otherwise frequently cause other running transactions to raise
-    /// `deadlock detected`. That happens on the non-TRUNCATE transaction frequently
-    /// because we have a mutual FK set up between dirs and dirents.
+    /// Note that TRUNCATE tests should be run on the secondary pool because they
+    /// will otherwise frequently cause other running transactions to raise
+    /// `deadlock detected`. That happens on the non-`TRUNCATE` transaction
+    /// frequently because we have a mutual FK set up between dirs and dirents.
     pub(crate) async fn assert_cannot_truncate(transaction: &mut Transaction<'_, Postgres>, table: &str) {
         let statement = format!("TRUNCATE {table} CASCADE");
         let result = sqlx::query(&statement).execute(transaction).await;
