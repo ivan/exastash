@@ -156,6 +156,7 @@ impl Server {
 
         let mut attr = FileAttr::default();
         attr.set_ino(ino);
+        attr.set_nlink(1);
         attr.set_uid(unsafe { libc::getuid() });
         attr.set_gid(unsafe { libc::getgid() });
 
