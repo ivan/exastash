@@ -6,9 +6,31 @@ use polyfuse::{
     reply::{ReplyAttr, ReplyEntry},
     Context, DirEntry, FileAttr, Filesystem, Operation,
 };
-use std::{io, os::unix::prelude::*, path::PathBuf, time::Duration};
+use std::{io, path::PathBuf, time::Duration};
+use crate::db;
+use crate::db::dirent::Dirent;
+use crate::db::inode::InodeId;
 
-const TTL: Duration = Duration::from_secs(60 * 60 * 24 * 365);
+fn ino_to_inodeid(ino: u64) -> Option<InodeId> {
+    // Slice up the 2^63 space into 9223 quadrillion-sized regions for different types
+    match ino {
+        n if n < 1 => None,
+        n if n < 1_000_000_000_000_000 => Some(InodeId::Dir(n as i64)),
+        n if n < 2_000_000_000_000_000 => Some(InodeId::File(n as i64 - 1_000_000_000_000_000)),
+        n if n < 3_000_000_000_000_000 => Some(InodeId::Symlink(n as i64 - 2_000_000_000_000_000)),
+        _ => None,
+    }
+}
+
+fn inodeid_to_ino(inode: InodeId) -> u64 {
+    match inode {
+        InodeId::Dir(id)     => id as u64,
+        InodeId::File(id)    => id as u64 + 1_000_000_000_000_000,
+        InodeId::Symlink(id) => id as u64 + 2_000_000_000_000_000,
+    }
+}
+
+const TTL: Duration = Duration::from_secs(0);
 const ROOT_INO: u64 = 1;
 const HELLO_INO: u64 = 2;
 const HELLO_FILENAME: &str = "hello.txt";
@@ -24,7 +46,6 @@ pub async fn run(mountpoint: PathBuf) -> anyhow::Result<()> {
 struct Server {
     root_attr: FileAttr,
     hello_attr: FileAttr,
-    dir_entries: Vec<DirEntry>,
 }
 
 impl Server {
@@ -33,18 +54,9 @@ impl Server {
         let mut hello_attr = hello_attr();
         hello_attr.set_size(HELLO_CONTENT.len() as u64);
 
-        let dir_entries = {
-            let mut entries = Vec::with_capacity(3);
-            entries.push(DirEntry::dir(".", 1, 1));
-            entries.push(DirEntry::dir("..", 1, 2));
-            entries.push(DirEntry::file(HELLO_FILENAME, 2, 3));
-            entries
-        };
-
         Self {
             root_attr,
             hello_attr,
-            dir_entries,
         }
     }
 
@@ -56,18 +68,60 @@ impl Server {
     where
         T: Writer + Unpin,
     {
-        match op.parent() {
-            ROOT_INO if op.name().as_bytes() == HELLO_FILENAME.as_bytes() => {
+        let parent = op.parent();
+        let basename = op.name().to_str();
+        if basename.is_none() {
+            // All files in database have UTF-8 filenames
+            cx.reply_err(libc::ENOENT).await?
+        }
+
+        let pool = db::pgpool().await;
+        let mut transaction = pool.begin().await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        let child = Dirent::find_by_parent_and_basename(&mut transaction, parent as i64, basename.unwrap()).await
+            .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e.to_string()))?
+            .map(|dirent| dirent.child);
+        drop(transaction);
+        drop(pool);
+
+        match child {
+            None => cx.reply_err(libc::ENOENT).await?,
+            Some(child) => {
+                let ino = inodeid_to_ino(child);
+
+                let mut attr = FileAttr::default();
+                attr.set_ino(ino);
+                attr.set_uid(unsafe { libc::getuid() });
+                attr.set_gid(unsafe { libc::getgid() });
+                match child {
+                    InodeId::Dir(_) => {
+                        attr.set_mode(libc::S_IFDIR | 0o555);
+                        // It's OK to report nlinks=1 for all dirs instead of doing legacy
+                        // `2 + number of directory children`. btrfs always reports 1:
+                        // https://www.spinics.net/lists/linux-btrfs/msg98932.html
+                        attr.set_nlink(1);
+                    }
+                    InodeId::File(_) => {
+                        attr.set_mode(libc::S_IFREG | 0o555);
+                        // TODO: add support for a mode that returns an accurate number of
+                        // 'number of other rows that reference the file'.
+                        attr.set_nlink(1);
+                    }
+                    InodeId::Symlink(_) => {
+                        attr.set_mode(libc::S_IFLNK | 0o555);
+                        attr.set_nlink(1);
+                    }
+                }
+
                 cx.reply(
                     ReplyEntry::default()
-                        .ino(HELLO_INO)
-                        .attr(self.hello_attr) //
+                        .ino(ino)
+                        .attr(attr)
                         .ttl_attr(TTL)
                         .ttl_entry(TTL),
                 )
                 .await?;
             }
-            _ => cx.reply_err(libc::ENOENT).await?,
         }
 
         Ok(())
@@ -81,12 +135,9 @@ impl Server {
     where
         T: Writer + Unpin,
     {
-        let attr = match op.ino() {
-            ROOT_INO => self.root_attr,
-            HELLO_INO => self.hello_attr,
-            _ => return cx.reply_err(libc::ENOENT).await,
-        };
-
+        // TODO if not found
+        // return cx.reply_err(libc::ENOENT).await,
+        let attr = self.root_attr;
         cx.reply(ReplyAttr::new(attr).ttl_attr(TTL)).await?;
 
         Ok(())
@@ -123,16 +174,35 @@ impl Server {
     where
         T: Writer + Unpin,
     {
-        if op.ino() != ROOT_INO {
-            return cx.reply_err(libc::ENOTDIR).await;
-        }
-
         let offset = op.offset() as usize;
         let size = op.size() as usize;
 
-        let mut entries = Vec::with_capacity(3);
+        let pool = crate::db::pgpool().await;
+        let mut transaction = pool.begin().await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        // TODO cache these results somewhere (key on some cx id?) so that we get consistent results on second non-0 offset request
+        // TODO test if we even need to return results more than once (assert offset 0?)
+        let dirents = Dirent::find_by_parents(&mut transaction, &[op.ino() as i64]).await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        // TODO return error if inode doesn't exist
+        // if op.ino() != ROOT_INO {
+        //     return cx.reply_err(libc::ENOTDIR).await;
+        // }
+
+        //entries.push(DirEntry::dir(".", 1, 1));
+        //entries.push(DirEntry::dir("..", 1, 2));
+        //entries.push(DirEntry::file(HELLO_FILENAME, 2, 3));
+
+        let mut dir_entries = Vec::with_capacity(dirents.len());
+        for (n, dirent) in dirents.iter().enumerate() {
+            if let Ok(id) = dirent.child.dir_id() {
+                dir_entries.push(DirEntry::dir(&dirent.basename, id as u64, n as u64 + 1));
+            }
+        }
+
+        let mut entries = Vec::with_capacity(dir_entries.len() - offset);
         let mut total_len = 0usize;
-        for entry in self.dir_entries.iter().skip(offset) {
+        for entry in dir_entries.iter().skip(offset) {
             let entry = entry.as_ref();
             if total_len + entry.len() > size {
                 break;

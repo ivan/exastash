@@ -1,9 +1,8 @@
 //! Functions for walking a path from a base_dir
 
-use anyhow::{anyhow, Result};
-use std::convert::TryInto;
-use sqlx::{Postgres, Transaction, Row};
-use crate::db::dirent::InodeTuple;
+use anyhow::{bail, Result};
+use sqlx::{Postgres, Transaction};
+use crate::db::dirent::Dirent;
 use crate::db::inode::InodeId;
 
 /// Return the inode referenced by some path segments, starting from some base directory.
@@ -12,18 +11,13 @@ use crate::db::inode::InodeId;
 /// TODO: speed this up by farming it out to a PL/pgSQL function
 pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[&str]) -> Result<InodeId> {
     let mut current_inode = InodeId::Dir(base_dir);
-    let query = "SELECT child_dir, child_file, child_symlink FROM dirents
-                 WHERE parent = $1::bigint AND basename = $2::text";
     for component in path_components {
-        let rows = sqlx::query(query)
-            .bind(current_inode.dir_id()?)
-            .bind(component)
-            .fetch_all(&mut *transaction)
-            .await?;
-        assert!(rows.len() <= 1, "expected <= 1 rows");
         let dir_id = current_inode.dir_id()?;
-        let row = rows.get(0).ok_or_else(|| anyhow!("no such dirent {:?} under dir {:?}", component, dir_id))?;
-        current_inode = InodeTuple(row.get(0), row.get(1), row.get(2)).try_into()?;
+        let dirent = Dirent::find_by_parent_and_basename(transaction, dir_id, component).await?;
+        if dirent.is_none() {
+            bail!("no such dirent {:?} under dir {:?}", component, dir_id);
+        }
+        current_inode = dirent.unwrap().child;
     }
     Ok(current_inode)
 }
