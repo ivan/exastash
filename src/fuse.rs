@@ -7,9 +7,10 @@ use polyfuse::{
     Context, DirEntry, FileAttr, Filesystem, Operation,
 };
 use std::{io, path::PathBuf, time::Duration};
+use std::ffi::OsStr;
 use crate::db;
 use crate::db::dirent::Dirent;
-use crate::db::inode::InodeId;
+use crate::db::inode::{InodeId, Dir, File, Symlink};
 
 fn ino_to_inodeid(ino: u64) -> Option<InodeId> {
     // Slice up the 2^63 space into 9223 quadrillion-sized regions for different types
@@ -28,6 +29,13 @@ fn inodeid_to_ino(inode: InodeId) -> u64 {
         InodeId::File(id)    => id as u64 + 1_000_000_000_000_000,
         InodeId::Symlink(id) => id as u64 + 2_000_000_000_000_000,
     }
+}
+
+/// Create a `DirEntry` for a symbolic link.
+fn symlink(name: impl AsRef<OsStr>, ino: u64, off: u64) -> DirEntry {
+    let mut ent = DirEntry::new(name, ino, off);
+    ent.set_typ(libc::DT_LNK as u32);
+    ent
 }
 
 const TTL: Duration = Duration::from_secs(0);
@@ -135,9 +143,61 @@ impl Server {
     where
         T: Writer + Unpin,
     {
-        // TODO if not found
-        // return cx.reply_err(libc::ENOENT).await,
-        let attr = self.root_attr;
+        let ino = op.ino();
+        dbg!("do_getattr", &op);
+
+        let pool = db::pgpool().await;
+        let mut transaction = pool.begin().await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        let inode = ino_to_inodeid(ino);
+        if inode.is_none() {
+            return cx.reply_err(libc::ENOENT).await;
+        }
+
+        let mut attr = FileAttr::default();
+        attr.set_ino(ino);
+        attr.set_uid(unsafe { libc::getuid() });
+        attr.set_gid(unsafe { libc::getgid() });
+
+        match inode.unwrap() {
+            InodeId::Dir(id) => {
+                let dir = Dir::find_by_ids(&mut transaction, &[id]).await
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+                    .pop();
+                if dir.is_none() {
+                    return cx.reply_err(libc::ENOENT).await;
+                }
+                let dir = dir.unwrap();
+                attr.set_mode(libc::S_IFDIR | 0o550);
+                attr.set_mtime(dir.mtime.into());
+            },
+            InodeId::File(id) => {
+                let file = File::find_by_ids(&mut transaction, &[id]).await
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+                    .pop();
+                if file.is_none() {
+                    return cx.reply_err(libc::ENOENT).await;
+                }
+                let file = file.unwrap();
+                attr.set_mode(libc::S_IFREG | 0o440);
+                attr.set_size(file.size as u64);
+                attr.set_mtime(file.mtime.into());
+            },
+            InodeId::Symlink(id) => {
+                let symlink = Symlink::find_by_ids(&mut transaction, &[id]).await
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+                    .pop();
+                if symlink.is_none() {
+                    return cx.reply_err(libc::ENOENT).await;
+                }
+                let symlink = symlink.unwrap();
+                attr.set_mode(libc::S_IFLNK | 0o440);
+                attr.set_mtime(symlink.mtime.into());
+            },
+        }
+        drop(transaction);
+        drop(pool);
+
         cx.reply(ReplyAttr::new(attr).ttl_attr(TTL)).await?;
 
         Ok(())
@@ -184,6 +244,8 @@ impl Server {
         // TODO test if we even need to return results more than once (assert offset 0?)
         let dirents = Dirent::find_by_parents(&mut transaction, &[op.ino() as i64]).await
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        drop(transaction);
+        drop(pool);
         // TODO return error if inode doesn't exist
         // if op.ino() != ROOT_INO {
         //     return cx.reply_err(libc::ENOTDIR).await;
@@ -191,12 +253,14 @@ impl Server {
 
         //entries.push(DirEntry::dir(".", 1, 1));
         //entries.push(DirEntry::dir("..", 1, 2));
-        //entries.push(DirEntry::file(HELLO_FILENAME, 2, 3));
 
         let mut dir_entries = Vec::with_capacity(dirents.len());
         for (n, dirent) in dirents.iter().enumerate() {
-            if let Ok(id) = dirent.child.dir_id() {
-                dir_entries.push(DirEntry::dir(&dirent.basename, id as u64, n as u64 + 1));
+            let ino = inodeid_to_ino(dirent.child);
+            match dirent.child {
+                InodeId::Dir(_)     => dir_entries.push(DirEntry::dir(&dirent.basename, ino, n as u64 + 1)),
+                InodeId::File(_)    => dir_entries.push(DirEntry::file(&dirent.basename, ino, n as u64 + 1)),
+                InodeId::Symlink(_) => dir_entries.push(symlink(&dirent.basename, ino, n as u64 + 1)),
             }
         }
 
