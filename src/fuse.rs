@@ -144,7 +144,6 @@ impl Server {
         T: Writer + Unpin,
     {
         let ino = op.ino();
-        dbg!("do_getattr", &op);
 
         let pool = db::pgpool().await;
         let mut transaction = pool.begin().await
@@ -245,24 +244,32 @@ impl Server {
         // TODO test if we even need to return results more than once (assert offset 0?)
         let dirents = Dirent::find_by_parents(&mut transaction, &[op.ino() as i64]).await
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-        drop(transaction);
-        drop(pool);
+
         // TODO return error if inode doesn't exist
         // if op.ino() != ROOT_INO {
         //     return cx.reply_err(libc::ENOTDIR).await;
         // }
 
-        //entries.push(DirEntry::dir(".", 1, 1));
-        //entries.push(DirEntry::dir("..", 1, 2));
+        let parent_dirent = Dirent::find_by_child_dir(&mut transaction, op.ino() as i64).await
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "dir did not have a parent?"))?;
 
-        let mut dir_entries = Vec::with_capacity(dirents.len());
-        for (n, dirent) in dirents.iter().enumerate() {
+        drop(transaction);
+        drop(pool);
+
+        let parent_ino = inodeid_to_ino(InodeId::Dir(parent_dirent.parent));
+        let mut dir_entries = Vec::with_capacity(dirents.len() + 2);
+        dir_entries.push(DirEntry::dir(".", op.ino(), 1));
+        dir_entries.push(DirEntry::dir("..", parent_ino, 2));
+        let mut next_idx = 3_u64;
+        for dirent in dirents.iter() {
             let ino = inodeid_to_ino(dirent.child);
             match dirent.child {
-                InodeId::Dir(_)     => dir_entries.push(DirEntry::dir(&dirent.basename, ino, n as u64 + 1)),
-                InodeId::File(_)    => dir_entries.push(DirEntry::file(&dirent.basename, ino, n as u64 + 1)),
-                InodeId::Symlink(_) => dir_entries.push(symlink(&dirent.basename, ino, n as u64 + 1)),
+                InodeId::Dir(_)     => dir_entries.push(DirEntry::dir(&dirent.basename, ino, next_idx)),
+                InodeId::File(_)    => dir_entries.push(DirEntry::file(&dirent.basename, ino, next_idx)),
+                InodeId::Symlink(_) => dir_entries.push(symlink(&dirent.basename, ino, next_idx)),
             }
+            next_idx += 1;
         }
 
         let mut entries = Vec::with_capacity(dir_entries.len() - offset);

@@ -98,12 +98,19 @@ impl Dirent {
     }
 
     /// Return an `Option<Dirent>` if a `Dirent` exists with the given `parent` and `basename`.
-    /// There is no error on missing parents.
     pub async fn find_by_parent_and_basename(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<Option<Dirent>> {
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
         let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
                      WHERE parent = $1::bigint AND child_dir IS DISTINCT FROM 1 AND basename = $2::text";
         let mut out = sqlx::query_as::<_, Dirent>(query).bind(parent).bind(basename).fetch_all(transaction).await?;
+        Ok(out.pop())
+    }
+
+    /// Return an `Option<Dirent>` if a `Dirent` exists with the given `child_dir`.
+    pub async fn find_by_child_dir(transaction: &mut Transaction<'_, Postgres>, child_dir: i64) -> Result<Option<Dirent>> {
+        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
+                     WHERE child_dir = $1::bigint";
+        let mut out = sqlx::query_as::<_, Dirent>(query).bind(child_dir).fetch_all(transaction).await?;
         Ok(out.pop())
     }
 }
