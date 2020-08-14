@@ -239,7 +239,8 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box
 pub async fn read(file: &inode::File, storage: &Storage) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>> {
     info!(id = file.id, "reading file");
     Ok(match storage {
-        Storage::Inline(inline::Storage { content, .. }) => {
+        Storage::Inline(inline::Storage { content_zstd, .. }) => {
+            let content = zstd::stream::decode_all(content_zstd.as_slice())?;
             ensure!(
                 content.len() as i64 == file.size,
                 "length of inline storage for file id={} is {} but file size is {}", file.id, content.len(), file.size

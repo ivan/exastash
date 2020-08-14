@@ -82,7 +82,7 @@ mod tests {
             let storage3 = gdrive::Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![gdrive_file.id.clone()] }.create(&mut transaction).await?;
 
             // inline
-            let storage4 = inline::Storage { file_id: dummy.id, content: "hello".into() }.create(&mut transaction).await?;
+            let storage4 = inline::Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() }.create(&mut transaction).await?;
 
             transaction.commit().await?;
 

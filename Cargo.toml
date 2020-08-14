@@ -55,6 +55,7 @@ parking_lot = "0.11"
 polyfuse = { git = "https://github.com/ubnt-intrepid/polyfuse" }
 polyfuse-tokio = { git = "https://github.com/ubnt-intrepid/polyfuse" }
 libc = "0.2"
+zstd = "0.5"
 
 [dev-dependencies]
 atomic-counter = "1.0"

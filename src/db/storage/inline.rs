@@ -9,9 +9,9 @@ use serde::Serialize;
 pub struct Storage {
     /// The id of the exastash file for which this storage exists
     pub file_id: i64,
-    /// The content for this file
+    /// The zstd-compressed content for this file
     #[serde(skip_serializing)]
-    pub content: Vec<u8>,
+    pub content_zstd: Vec<u8>,
 }
 
 impl Storage {
@@ -19,11 +19,11 @@ impl Storage {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Self> {
         sqlx::query(
-            "INSERT INTO storage_inline (file_id, content)
+            "INSERT INTO storage_inline (file_id, content_zstd)
              VALUES ($1::bigint, $2::bytea)",
         )
             .bind(&self.file_id)
-            .bind(&self.content)
+            .bind(&self.content_zstd)
             .execute(transaction)
             .await?;
         Ok(self)
@@ -32,7 +32,7 @@ impl Storage {
     /// Return a list of inline storage entities containing the data for a file.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         Ok(sqlx::query_as::<_, Storage>(
-            "SELECT file_id, content FROM storage_inline
+            "SELECT file_id, content_zstd FROM storage_inline
              WHERE file_id = ANY($1::bigint[])"
         )
             .bind(file_ids)
@@ -72,7 +72,7 @@ mod tests {
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, content: "some content".into() }.create(&mut transaction).await?;
+            let storage = Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
@@ -94,7 +94,7 @@ mod tests {
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            Storage { file_id: dummy.id, content: "hello".into() }.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             for (column, value) in &[("file_id", "100")] {

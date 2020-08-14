@@ -403,7 +403,9 @@ async fn main() -> Result<()> {
                     }
                     if store_inline {
                         let content = fs::read(path.clone()).await?;
-                        db::storage::inline::Storage { file_id: file.id, content }.create(&mut transaction).await?;
+                        let compression_level = 22;
+                        let content_zstd = zstd::stream::encode_all(content.as_slice(), compression_level)?;
+                        db::storage::inline::Storage { file_id: file.id, content_zstd }.create(&mut transaction).await?;
                     }
                     if !store_gdrive.is_empty() {
                         let file_stream_fn = |offset| {
