@@ -10,8 +10,9 @@ use futures_async_stream::try_stream;
 use tokio::io::AsyncReadExt;
 use tokio_util::codec::FramedRead;
 use reqwest::StatusCode;
-use ctr::stream_cipher::generic_array::GenericArray;
-use ctr::stream_cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
+use aes_ctr::Aes128Ctr;
+use aes_ctr::stream_cipher::generic_array::GenericArray;
+use aes_ctr::stream_cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
 use crate::db;
 use crate::db::inode;
 use crate::db::storage::{Storage, inline, gdrive, internetarchive};
@@ -125,8 +126,6 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
     }
     out
 }
-
-type Aes128Ctr = ctr::Ctr128<aes::Aes128>;
 
 fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
     let _file = file.clone();
