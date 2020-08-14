@@ -2,8 +2,7 @@ CREATE TABLE storage_inline (
     file_id       bigint  PRIMARY KEY REFERENCES files (id),
     -- We store zstd-compressed content because we want better compression ratios than PGLZ
     -- provides, and because we want compression for < 2KB files.  We cannot rely on btrfs
-    -- compression because we may want to run PostgreSQL on XFS, which does not support
-    -- compression.  btrfs can interact poorly with PostgreSQL under heavy write load,
+    -- compression because CoW interacts poorly with PostgreSQL under heavy write load,
     -- causing btrfs to run out of free space due to insufficiently aggressive GC.
     content_zstd  bytea   NOT NULL
 );
