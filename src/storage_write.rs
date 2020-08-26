@@ -260,7 +260,6 @@ fn paranoid_zstd_encode_all(bytes: &[u8], level: i32) -> Result<Vec<u8>> {
 /// Write a file to storage and return the new file id
 pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Result<i64> {
     let pool = db::pgpool().await;
-    let mut transaction = pool.begin().await?;
 
     let attr = fs::metadata(&path).await?;
     let mtime = attr.modified()?.into();
@@ -268,10 +267,12 @@ pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Re
     let size = attr.len();
     let permissions = attr.permissions();
     let executable = permissions.mode() & 0o111 != 0;
-    // We need to .create() to get a File with a new and unique id, but we don't want to hold
-    // the transaction open while we upload, so we .create() and rollback.
-    let file = inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
-    transaction.rollback().await?;
+    // We don't want to hold a transaction open as we upload a file, so we get a new id for a
+    // file here but don't create it until later.
+    let mut transaction = pool.begin().await?;
+    let next_file_id = inode::File::next_id(&mut transaction).await?;
+    drop(transaction);
+    let file = inode::File { id: next_file_id, mtime, birth, size: size as i64, executable };
 
     if size > 0 && !store_inline && store_gdrive.is_empty() {
         bail!("a file with size > 0 needs storage, but no storage was specified");

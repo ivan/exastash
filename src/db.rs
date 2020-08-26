@@ -9,6 +9,7 @@ pub mod google_auth;
 use anyhow::Result;
 use sqlx::Executor;
 use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::{Postgres, Transaction, Row};
 use futures::future::{FutureExt, Shared};
 use once_cell::sync::Lazy;
 use std::pin::Pin;
@@ -49,6 +50,13 @@ static PGPOOL: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::
 /// Return the global `PgPool`.  It must not be used in more than one tokio runtime.
 pub async fn pgpool() -> PgPool {
     PGPOOL.clone().await
+}
+
+/// Return the output of `SELECT nextval(...)` on some PostgreSQL sequence.
+pub async fn nextval(transaction: &mut Transaction<'_, Postgres>, sequence: &str) -> Result<i64> {
+    let row = sqlx::query("SELECT nextval($1)").bind(sequence).fetch_one(transaction).await?;
+    let id: i64 = row.get(0);
+    Ok(id)
 }
 
 #[cfg(test)]

@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
 use serde::Serialize;
 use crate::EXASTASH_VERSION;
+use crate::db;
 use crate::util;
 
 /// A dir, file, or symlink
@@ -176,6 +177,11 @@ impl File {
         Ok(sqlx::query_as::<_, File>(query).bind(ids).fetch_all(transaction).await?)
     }
 
+    /// Return a new, unique id for a file.  Caller can take this id and `create()` a `File` with it later.
+    pub async fn next_id(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
+        db::nextval(transaction, "files_id_seq").await
+    }
+
     /// Create an entry for a file in the database and return self.
     /// This is very similar to `NewFile::create` but creates a file with a specific `id`.
     /// Does not commit the transaction, you must do so yourself.
@@ -215,27 +221,14 @@ impl NewFile {
     /// Create an entry for a file in the database and return a `File`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
-        assert!(self.size >= 0, "size must be >= 0");
-        let query = "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
-                     VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
-                     RETURNING id";
-        let row = sqlx::query(query)
-            .bind(self.mtime)
-            .bind(self.size)
-            .bind(self.executable)
-            .bind(self.birth.time)
-            .bind(self.birth.version)
-            .bind(&self.birth.hostname)
-            .fetch_one(transaction).await?;
-        let id: i64 = row.get(0);
-        assert!(id >= 1);
-        Ok(File {
+        let id = File::next_id(transaction).await?;
+        File {
             id,
             mtime: self.mtime,
             birth: self.birth,
             size: self.size,
             executable: self.executable,
-        })
+        }.create(transaction).await
     }
 }
 
