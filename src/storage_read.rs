@@ -15,7 +15,7 @@ use aes_ctr::stream_cipher::generic_array::GenericArray;
 use aes_ctr::stream_cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
 use crate::db;
 use crate::db::inode;
-use crate::db::storage::{Storage, inline, gdrive, internetarchive};
+use crate::db::storage::{get_storage, Storage, inline, gdrive, internetarchive};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
@@ -234,8 +234,8 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box
     }
 }
 
-/// Return the content of a file as a pinned boxed Stream on which caller can call .into_async_read()
-pub async fn read(file: &inode::File, storage: &Storage) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>> {
+/// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`
+pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>> {
     info!(id = file.id, "reading file");
     Ok(match storage {
         Storage::Inline(inline::Storage { content_zstd, .. }) => {
@@ -255,4 +255,21 @@ pub async fn read(file: &inode::File, storage: &Storage) -> Result<Pin<Box<dyn S
             unimplemented!()
         }
     })
+}
+
+/// Return the content of a file as a pinned boxed Stream on which caller can call `.into_async_read()`
+pub async fn read(file_id: i64) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>> {
+    let pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
+
+    let files = inode::File::find_by_ids(&mut transaction, &[file_id]).await?;
+    ensure!(files.len() == 1, "no such file with id={}", file_id);
+    let file = &files[0];
+
+    let storages = get_storage(&mut transaction, &[file_id]).await?;
+    drop(transaction);
+    match storages.get(0) {
+        Some(storage) => read_storage(&file, &storage).await,
+        None          => bail!("file with id={} has no storage", file_id)
+    }
 }

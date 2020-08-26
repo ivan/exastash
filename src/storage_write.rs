@@ -13,7 +13,7 @@ use futures::{
     task::{Context, Poll},
     future::FutureExt,
 };
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use bytes::{Bytes, BytesMut};
 use tokio::fs;
 use tokio_util::codec::Encoder;
@@ -283,6 +283,10 @@ pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Re
 
     if store_inline {
         let content = fs::read(path.clone()).await?;
+        ensure!(
+            content.len() as u64 == size,
+            "read {} bytes from file but file size was read as {}", content.len(), file.size
+        );
         let compression_level = 22;
         let content_zstd = paranoid_zstd_encode_all(content.as_slice(), compression_level)?;
 

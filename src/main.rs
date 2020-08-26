@@ -3,7 +3,7 @@
 use tracing::info;
 use async_recursion::async_recursion;
 use clap::arg_enum;
-use anyhow::{anyhow, bail, ensure, Error, Result};
+use anyhow::{anyhow, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use futures::future::FutureExt;
@@ -16,7 +16,6 @@ use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing_subscriber::EnvFilter;
 use serde_json::json;
 use exastash::db;
-use exastash::db::storage::get_storage;
 use exastash::db::storage::gdrive::file::GdriveFile;
 use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::dirent::{Dirent, InodeTuple};
@@ -406,23 +405,13 @@ async fn main() -> Result<()> {
                 FileCommand::Content(content) => {
                     match content {
                         ContentCommand::Read { id } => {
-                            let files = File::find_by_ids(&mut transaction, &[id]).await?;
-                            ensure!(files.len() == 1, "no such file with id={}", id);
-                            let file = &files[0];
-        
-                            let storages = get_storage(&mut transaction, &[id]).await?;
-                            match storages.get(0) {
-                                Some(storage) => {
-                                    let stream = storage_read::read(&file, &storage).await?;
-                                    let mut read = stream
-                                        .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                                        .into_async_read()
-                                        .compat();
-                                    let mut stdout = tokio::io::stdout();
-                                    tokio::io::copy(&mut read, &mut stdout).await?;
-                                }
-                                None => bail!("file with id={} has no storage", id)
-                            }
+                            let stream = storage_read::read(id).await?;
+                            let mut read = stream
+                                .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                                .into_async_read()
+                                .compat();
+                            let mut stdout = tokio::io::stdout();
+                            tokio::io::copy(&mut read, &mut stdout).await?;
                         }
                     }
                 }
