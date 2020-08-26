@@ -248,7 +248,7 @@ where
 
 /// Like `zstd::stream::encode_all`, but first check that the compressed data
 /// decodes to the input data.
-fn paranoid_zstd_encode_all(bytes: &[u8], level: i32) -> Result<Vec<u8>> {
+pub fn paranoid_zstd_encode_all(bytes: &[u8], level: i32) -> Result<Vec<u8>> {
     let content_zstd = zstd::stream::encode_all(bytes, level)?;
     let content = zstd::stream::decode_all(content_zstd.as_slice())?;
     if content != bytes {
