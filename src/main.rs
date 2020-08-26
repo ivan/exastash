@@ -390,7 +390,8 @@ async fn main() -> Result<()> {
         ExastashCommand::File(file) => {
             match file {
                 FileCommand::Create { path, store_inline, store_gdrive } => {
-                    let file_id = storage_write::write(transaction, path, store_inline, &store_gdrive).await?;
+                    drop(transaction);
+                    let file_id = storage_write::write(path, store_inline, &store_gdrive).await?;
                     println!("{}", file_id);
                 }
                 FileCommand::Info { ids } => {

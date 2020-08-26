@@ -17,8 +17,8 @@ use anyhow::Result;
 use bytes::{Bytes, BytesMut};
 use tokio::fs;
 use tokio_util::codec::Encoder;
-use crate::db::inode;
-use crate::db::storage;
+use crate::db;
+use crate::db::{inode, storage};
 use crate::db::storage::gdrive::{self, file::GdriveFile};
 use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::create_gdrive_file;
@@ -245,7 +245,10 @@ where
 }
 
 /// Write a file to storage and return the new file id
-pub async fn write(mut transaction: Transaction<'_, Postgres>, path: String, store_inline: bool, store_gdrive: &[i16]) -> Result<i64> {
+pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Result<i64> {
+    let pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
+
     let attr = fs::metadata(&path).await?;
     let mtime = attr.modified()?.into();
     let birth = inode::Birth::here_and_now();
