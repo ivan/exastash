@@ -79,6 +79,13 @@ enum DirCommand {
         basename: String,
     },
 
+    /// Remove an empty directory
+    #[structopt(name = "remove")]
+    Remove {
+        #[structopt(name = "DIR_ID")]
+        dir_id: i64,
+    },
+
     /// Print info in JSON format for zero or more dirs
     #[structopt(name = "info")]
     Info {
@@ -385,6 +392,11 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", dir.id);
                 }
+                DirCommand::Remove { dir_id } => {
+                    Dirent::remove_by_child_dir(&mut transaction, dir_id).await?;
+                    Dir::remove(&mut transaction, &[dir_id]).await?;
+                    transaction.commit().await?;
+                }
                 DirCommand::Info { ids } => {
                     let dirs = Dir::find_by_ids(&mut transaction, &ids).await?;
                     let mut map: HashMap<i64, Dir> = dirs.into_iter().map(|dir| (dir.id, dir)).collect();
@@ -455,7 +467,7 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                 }
                 DirentCommand::Remove { parent_dir_id, basename } => {
-                    Dirent::remove(&mut transaction, parent_dir_id, &basename).await?;
+                    Dirent::remove_by_parent_basename(&mut transaction, parent_dir_id, &basename).await?;
                     transaction.commit().await?;
                 }
                 DirentCommand::List { ids } => {

@@ -100,6 +100,20 @@ impl Dir {
         let query = "SELECT id, mtime, birth_time, birth_version, birth_hostname FROM dirs WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, Dir>(query).bind(ids).fetch_all(transaction).await?)
     }
+
+    /// Remove dirs with given `ids`.
+    ///
+    /// Note that that foreign key constraints in the database require removing
+    /// the associated dirents first (where `child_dir` is one of the `ids`).
+    ///
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+        let stmt = "DELETE FROM dirs WHERE id = ANY($1::bigint[])";
+        sqlx::query(stmt)
+            .bind(ids)
+            .execute(transaction).await?;
+        Ok(())
+    }
 }
 
 /// A new directory
@@ -201,6 +215,16 @@ impl File {
             .execute(transaction).await?;
         Ok(self)
     }
+
+    /// Remove files with given `ids`.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+        let stmt = "DELETE FROM files WHERE id = ANY($1::bigint[])";
+        sqlx::query(stmt)
+            .bind(ids)
+            .execute(transaction).await?;
+        Ok(())
+    }
 }
 
 /// A new file
@@ -269,6 +293,16 @@ impl Symlink {
     pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<Symlink>> {
         let query = "SELECT id, mtime, target, birth_time, birth_version, birth_hostname FROM symlinks WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, Symlink>(query).bind(ids).fetch_all(transaction).await?)
+    }
+
+    /// Remove symlinks with given `ids`.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+        let stmt = "DELETE FROM symlinks WHERE id = ANY($1::bigint[])";
+        sqlx::query(stmt)
+            .bind(ids)
+            .execute(transaction).await?;
+        Ok(())
     }
 }
 
@@ -358,8 +392,8 @@ pub(crate) mod tests {
         async fn test_dir_find_by_ids_empty() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
-            let files = Dir::find_by_ids(&mut transaction, &[]).await?;
-            assert_eq!(files, vec![]);
+            let dirs = Dir::find_by_ids(&mut transaction, &[]).await?;
+            assert_eq!(dirs, vec![]);
             Ok(())
         }
 
@@ -370,8 +404,25 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let dir = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let nonexistent_id = 0;
-            let files = Dir::find_by_ids(&mut transaction, &[dir.id, nonexistent_id]).await?;
-            assert_eq!(files, vec![dir]);
+            let dirs = Dir::find_by_ids(&mut transaction, &[dir.id, nonexistent_id]).await?;
+            assert_eq!(dirs, vec![dir]);
+            Ok(())
+        }
+
+        /// Dir::remove removes dirs with given `ids`.
+        #[tokio::test]
+        async fn test_dir_remove() -> Result<()> {
+            let pool = new_primary_pool().await;
+            let mut transaction = pool.begin().await?;
+
+            let dir = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
+            let dirs = Dir::find_by_ids(&mut transaction, &[dir.id]).await?;
+            assert_eq!(dirs, vec![dir.clone()]);
+
+            Dir::remove(&mut transaction, &[dir.id]).await?;
+            let dirs = Dir::find_by_ids(&mut transaction, &[dir.id]).await?;
+            assert_eq!(dirs, vec![]);
+
             Ok(())
         }
 
@@ -410,6 +461,24 @@ pub(crate) mod tests {
             Ok(())
         }
 
+        /// Dir::remove removes dirs with given `ids`.
+        #[tokio::test]
+        async fn test_file_remove() -> Result<()> {
+            let pool = new_primary_pool().await;
+            let mut transaction = pool.begin().await?;
+
+            let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() }
+                .create(&mut transaction).await?;
+            let files = File::find_by_ids(&mut transaction, &[file.id]).await?;
+            assert_eq!(files, vec![file.clone()]);
+
+            File::remove(&mut transaction, &[file.id]).await?;
+            let files = File::find_by_ids(&mut transaction, &[file.id]).await?;
+            assert_eq!(files, vec![]);
+
+            Ok(())
+        }
+
         /// Symlink::find_by_ids returns empty Vec when given no ids
         #[tokio::test]
         async fn test_symlink_find_by_ids_empty() -> Result<()> {
@@ -429,6 +498,23 @@ pub(crate) mod tests {
             let nonexistent_id = 0;
             let files = Symlink::find_by_ids(&mut transaction, &[symlink.id, nonexistent_id]).await?;
             assert_eq!(files, vec![symlink]);
+            Ok(())
+        }
+
+        /// Dir::remove removes dirs with given `ids`.
+        #[tokio::test]
+        async fn test_symlink_remove() -> Result<()> {
+            let pool = new_primary_pool().await;
+            let mut transaction = pool.begin().await?;
+
+            let symlink = NewSymlink { target: "test".into(), mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
+            let symlinks = Symlink::find_by_ids(&mut transaction, &[symlink.id]).await?;
+            assert_eq!(symlinks, vec![symlink.clone()]);
+
+            Symlink::remove(&mut transaction, &[symlink.id]).await?;
+            let symlinks = Symlink::find_by_ids(&mut transaction, &[symlink.id]).await?;
+            assert_eq!(symlinks, vec![]);
+
             Ok(())
         }
     }

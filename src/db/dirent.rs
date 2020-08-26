@@ -77,13 +77,23 @@ impl Dirent {
         Ok(self)
     }
 
-    /// Remove a directory entry.
+    /// Remove a directory entry by `parent` and `basename`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn remove(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<()> {
+    pub async fn remove_by_parent_basename(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<()> {
         let stmt = "DELETE FROM dirents WHERE parent = $1::bigint AND basename = $2::text";
         sqlx::query(stmt)
             .bind(parent)
             .bind(basename)
+            .execute(transaction).await?;
+        Ok(())
+    }
+
+    /// Remove a directory entry by `child_dir`.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove_by_child_dir(transaction: &mut Transaction<'_, Postgres>, child_dir: i64) -> Result<()> {
+        let stmt = "DELETE FROM dirents WHERE child_dir = $1::bigint";
+        sqlx::query(stmt)
+            .bind(child_dir)
             .execute(transaction).await?;
         Ok(())
     }
@@ -237,7 +247,7 @@ pub(crate) mod tests {
 
             // Try to remove a -> b, add c -> b (which would create a cycle b -> c -> b)
             let mut transaction = pool.begin().await?;
-            Dirent::remove(&mut transaction, a.id, "b").await?;
+            Dirent::remove_by_parent_basename(&mut transaction, a.id, "b").await?;
             let result = Dirent::new(c.id, "b", InodeId::Dir(b.id)).create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
