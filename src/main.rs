@@ -93,6 +93,9 @@ enum DirCommand {
         #[structopt(name = "ID")]
         ids: Vec<i64>,
     },
+
+    /// Print a count of the number of dirs
+    Count,
 }
 
 #[derive(StructOpt, Debug)]
@@ -131,6 +134,9 @@ enum FileCommand {
     /// Commands for working with file content
     #[structopt(name = "content")]
     Content(ContentCommand),
+
+    /// Print a count of the number of files
+    Count,
 }
 
 #[derive(StructOpt, Debug)]
@@ -167,6 +173,9 @@ enum SymlinkCommand {
         #[structopt(name = "ID")]
         ids: Vec<i64>,
     },
+
+    /// Print a count of the number of symlinks
+    Count,
 }
 
 arg_enum! {
@@ -242,6 +251,9 @@ enum DirentCommand {
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
+
+    /// Print a count of the number of dirents
+    Count,
 }
 
 
@@ -420,6 +432,10 @@ async fn main() -> Result<()> {
                         println!("{}", json_info(&mut transaction, Inode::Dir(dir)).await?);
                     }
                 }
+                DirCommand::Count => {
+                    let count = Dir::count(&mut transaction).await?;
+                    println!("{}", count);
+                }
             }
         }
         ExastashCommand::File(file) => {
@@ -456,6 +472,10 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
+                FileCommand::Count => {
+                    let count = File::count(&mut transaction).await?;
+                    println!("{}", count);
+                }
             }
         }
         ExastashCommand::Symlink(symlink) => {
@@ -479,6 +499,10 @@ async fn main() -> Result<()> {
                             .ok_or_else(|| anyhow!("symlink with id={} not in database, or duplicate id given", id))?;
                         println!("{}", json_info(&mut transaction, Inode::Symlink(symlink)).await?);
                     }
+                }
+                SymlinkCommand::Count => {
+                    let count = Symlink::count(&mut transaction).await?;
+                    println!("{}", count);
                 }
             }
         }
@@ -518,6 +542,10 @@ async fn main() -> Result<()> {
                             ResolveKind::symlink => if let InodeId::Symlink(id) = inode { println!("{}", id) },
                         }    
                     }
+                }
+                DirentCommand::Count => {
+                    let count = Dirent::count(&mut transaction).await?;
+                    println!("{}", count);
                 }
             }
         }

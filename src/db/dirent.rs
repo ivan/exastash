@@ -123,6 +123,15 @@ impl Dirent {
         let mut out = sqlx::query_as::<_, Dirent>(query).bind(child_dir).fetch_all(transaction).await?;
         Ok(out.pop())
     }
+
+    /// Return a count of the number of dirents in the database.
+    pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
+        let count: i64 = sqlx::query("SELECT COUNT(parent) FROM dirents")
+            .fetch_one(transaction)
+            .await?
+            .get(0);
+        Ok(count)
+    }
 }
 
 #[cfg(test)]

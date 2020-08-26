@@ -114,6 +114,15 @@ impl Dir {
             .execute(transaction).await?;
         Ok(())
     }
+
+    /// Return a count of the number of dirs in the database.
+    pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
+        let count: i64 = sqlx::query("SELECT COUNT(id) FROM dirs")
+            .fetch_one(transaction)
+            .await?
+            .get(0);
+        Ok(count)
+    }
 }
 
 /// A new directory
@@ -225,6 +234,15 @@ impl File {
             .execute(transaction).await?;
         Ok(())
     }
+
+    /// Return a count of the number of files in the database.
+    pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
+        let count: i64 = sqlx::query("SELECT COUNT(id) FROM files")
+            .fetch_one(transaction)
+            .await?
+            .get(0);
+        Ok(count)
+    }
 }
 
 /// A new file
@@ -303,6 +321,15 @@ impl Symlink {
             .bind(ids)
             .execute(transaction).await?;
         Ok(())
+    }
+
+    /// Return a count of the number of symlinks in the database.
+    pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
+        let count: i64 = sqlx::query("SELECT COUNT(id) FROM symlinks")
+            .fetch_one(transaction)
+            .await?
+            .get(0);
+        Ok(count)
     }
 }
 
