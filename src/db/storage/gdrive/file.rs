@@ -82,7 +82,6 @@ impl NewGdriveOwner {
 }
 
 /// A file in Google Drive, as Google understands it
-#[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GdriveFile {
     /// Google Drive's file_id
@@ -304,7 +303,7 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let _ = GdriveFile { id: "D".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
+            GdriveFile { id: "D".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;

@@ -175,6 +175,26 @@ impl File {
         let query = "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname FROM files WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, File>(query).bind(ids).fetch_all(transaction).await?)
     }
+
+    /// Create an entry for a file in the database and return self.
+    /// This is very similar to `NewFile::create` but creates a file with a specific `id`.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
+        assert!(self.size >= 0, "size must be >= 0");
+        let query = "INSERT INTO files (id, mtime, size, executable, birth_time, birth_version, birth_hostname)
+                     OVERRIDING SYSTEM VALUE
+                     VALUES ($1::bigint, $2::timestamptz, $3::bigint, $4::boolean, $5::timestamptz, $6::smallint, $7::text)";
+        sqlx::query(query)
+            .bind(self.id)
+            .bind(self.mtime)
+            .bind(self.size)
+            .bind(self.executable)
+            .bind(self.birth.time)
+            .bind(self.birth.version)
+            .bind(&self.birth.hostname)
+            .execute(transaction).await?;
+        Ok(self)
+    }
 }
 
 /// A new file

@@ -18,13 +18,13 @@ use bytes::{Bytes, BytesMut};
 use tokio::fs;
 use tokio_util::codec::Encoder;
 use crate::db;
-use crate::db::{inode, storage};
+use crate::db::inode;
+use crate::db::storage::inline;
 use crate::db::storage::gdrive::{self, file::GdriveFile};
 use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::create_gdrive_file;
 use crate::crypto::{GcmEncoder, gcm_create_key};
 use crate::conceal_size::conceal_size;
-use sqlx::{Postgres, Transaction};
 use pin_project::pin_project;
 use parking_lot::Mutex;
 use md5::{Md5, Digest};
@@ -183,23 +183,27 @@ impl Iterator for RandomPadding {
 }
 
 /// Write the content of a file to a G Suite domain.
-/// Caller must commit the transaction themselves.
+/// Returns a `(GdriveFile, gdrive::Storage)` that caller must `.create()` and commit the themselves.
 pub async fn write_to_gdrive<S>(
-    transaction: &mut Transaction<'_, Postgres>,
     file_stream_fn: impl Fn(u64) -> S,
     file: &inode::File,
     domain_id: i16
-) -> Result<()>
+) -> Result<(GdriveFile, gdrive::Storage)>
 where
     S: Stream<Item=Result<Vec<u8>, std::io::Error>> + Send + Sync + 'static
 {
-    let mut placements = gdrive::GdriveFilePlacement::find_by_domain(transaction, domain_id, Some(1)).await?;
+    let pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
+
+    let mut placements = gdrive::GdriveFilePlacement::find_by_domain(&mut transaction, domain_id, Some(1)).await?;
     if placements.is_empty() {
         bail!("database has no gdrive_file_placement for domain={}", domain_id);
     }
     let placement = placements.pop().unwrap();
     let parent_name = &placement.parent;
-    let parent = gdrive::GdriveParent::find_by_name(transaction, parent_name).await?.unwrap();
+    let parent = gdrive::GdriveParent::find_by_name(&mut transaction, parent_name).await?.unwrap();
+    // Don't hold the transaction during the upload.
+    drop(transaction);
 
     let whole_block_size = 65536;
     let block_size = whole_block_size - 16;
@@ -227,21 +231,19 @@ where
     };
 
     let filename = new_chunk_filename();
-    let gdrive_file =
-        create_gdrive_file_on_domain(encrypted_stream_fn, gdrive_file_size, domain_id, placement.owner, &parent.parent, &filename).await?
-        .create(transaction).await?;
     // terastash uploaded large files as multi-chunk files; exastash currently uploads all files as one chunk
-    let gdrive_ids = vec![gdrive_file.id.clone()];
+    let gdrive_file =
+        create_gdrive_file_on_domain(encrypted_stream_fn, gdrive_file_size, domain_id, placement.owner, &parent.parent, &filename).await?;
 
-    gdrive::Storage {
+    let storage = gdrive::Storage {
         file_id: file.id,
         gsuite_domain: domain_id,
         cipher: gdrive::Cipher::Aes128Gcm,
         cipher_key,
-        gdrive_ids,
-    }.create(transaction).await?;
+        gdrive_ids: vec![gdrive_file.id.clone()],
+    };
 
-    Ok(())
+    Ok((gdrive_file, storage))
 }
 
 /// Write a file to storage and return the new file id
@@ -255,16 +257,28 @@ pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Re
     let size = attr.len();
     let permissions = attr.permissions();
     let executable = permissions.mode() & 0o111 != 0;
+    // We need to .create() to get a File with an id, but we don't want to hold the transaction open
+    // while we upload, so we .create() and rollback.
     let file = inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
+    transaction.rollback().await?;
+
     if size > 0 && !store_inline && store_gdrive.is_empty() {
-        bail!("a file with size > 0 needs storage, please specify a --store- option");
+        bail!("a file with size > 0 needs storage, but no storage was specified");
     }
+
+    let mut inline_storages_to_commit: Vec<inline::Storage> = vec![];
+    let mut gdrive_files_to_commit: Vec<GdriveFile> = vec![];
+    let mut gdrive_storages_to_commit: Vec<gdrive::Storage> = vec![];
+
     if store_inline {
         let content = fs::read(path.clone()).await?;
         let compression_level = 22;
         let content_zstd = zstd::stream::encode_all(content.as_slice(), compression_level)?;
-        storage::inline::Storage { file_id: file.id, content_zstd }.create(&mut transaction).await?;
+
+        let storage = inline::Storage { file_id: file.id, content_zstd };
+        inline_storages_to_commit.push(storage);
     }
+
     if !store_gdrive.is_empty() {
         let file_stream_fn = |offset| {
             // TODO: support non-0 offset if we implement upload retries
@@ -272,8 +286,22 @@ pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Re
             fs::read(path.clone()).into_stream()
         };
         for domain in store_gdrive {
-            write_to_gdrive(&mut transaction, file_stream_fn, &file, *domain).await?;
+            let (gdrive_file, storage) = write_to_gdrive(file_stream_fn, &file, *domain).await?;
+            gdrive_files_to_commit.push(gdrive_file);
+            gdrive_storages_to_commit.push(storage);
         }
+    }
+
+    let mut transaction = pool.begin().await?;
+    let file = file.create(&mut transaction).await?;
+    for storage in inline_storages_to_commit {
+        storage.create(&mut transaction).await?;
+    }
+    for gdrive_file in gdrive_files_to_commit {
+        gdrive_file.create(&mut transaction).await?;
+    }
+    for storage in gdrive_storages_to_commit {
+        storage.create(&mut transaction).await?;
     }
     transaction.commit().await?;
     Ok(file.id)
