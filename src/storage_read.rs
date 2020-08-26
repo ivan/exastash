@@ -266,6 +266,11 @@ pub async fn read(file_id: i64) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes
     ensure!(files.len() == 1, "no such file with id={}", file_id);
     let file = &files[0];
 
+    if file.size == 0 {
+        let bytes = Bytes::new();
+        return Ok(Box::pin(stream::iter::<_>(vec![Ok(bytes)])));
+    }
+
     let storages = get_storage(&mut transaction, &[file_id]).await?;
     drop(transaction);
     match storages.get(0) {
