@@ -69,7 +69,7 @@ enum ExastashCommand {
 
 #[derive(StructOpt, Debug)]
 enum DirCommand {
-    /// Create an unparented directory (for e.g. use as a root inode) and print its id to stdout
+    /// Create a new directory as a child of some directory and print its id to stdout
     #[structopt(name = "create")]
     Create {
         #[structopt(name = "PARENT_DIR_ID")]
