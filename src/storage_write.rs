@@ -4,13 +4,21 @@ use rand::Rng;
 use std::sync::Arc;
 use std::pin::Pin;
 use std::cmp::min;
+use std::os::unix::fs::PermissionsExt;
 use chrono::Utc;
 use anyhow::bail;
-use futures::{ready, stream::{self, Stream, StreamExt, TryStreamExt}, task::{Context, Poll}};
+use futures::{
+    ready,
+    stream::{self, Stream, StreamExt, TryStreamExt},
+    task::{Context, Poll},
+    future::FutureExt,
+};
 use anyhow::Result;
 use bytes::{Bytes, BytesMut};
+use tokio::fs;
 use tokio_util::codec::Encoder;
 use crate::db::inode;
+use crate::db::storage;
 use crate::db::storage::gdrive::{self, file::GdriveFile};
 use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::create_gdrive_file;
@@ -234,6 +242,38 @@ where
     }.create(transaction).await?;
 
     Ok(())
+}
+
+/// Write a file to storage and return the new file id
+pub async fn write(mut transaction: Transaction<'_, Postgres>, path: String, store_inline: bool, store_gdrive: &[i16]) -> Result<i64> {
+    let attr = fs::metadata(&path).await?;
+    let mtime = attr.modified()?.into();
+    let birth = inode::Birth::here_and_now();
+    let size = attr.len();
+    let permissions = attr.permissions();
+    let executable = permissions.mode() & 0o111 != 0;
+    let file = inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
+    if size > 0 && !store_inline && store_gdrive.is_empty() {
+        bail!("a file with size > 0 needs storage, please specify a --store- option");
+    }
+    if store_inline {
+        let content = fs::read(path.clone()).await?;
+        let compression_level = 22;
+        let content_zstd = zstd::stream::encode_all(content.as_slice(), compression_level)?;
+        storage::inline::Storage { file_id: file.id, content_zstd }.create(&mut transaction).await?;
+    }
+    if !store_gdrive.is_empty() {
+        let file_stream_fn = |offset| {
+            // TODO: support non-0 offset if we implement upload retries
+            assert_eq!(offset, 0);
+            fs::read(path.clone()).into_stream()
+        };
+        for domain in store_gdrive {
+            write_to_gdrive(&mut transaction, file_stream_fn, &file, *domain).await?;
+        }
+    }
+    transaction.commit().await?;
+    Ok(file.id)
 }
 
 #[cfg(test)]

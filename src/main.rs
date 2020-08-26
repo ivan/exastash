@@ -9,7 +9,6 @@ use chrono::Utc;
 use futures::future::FutureExt;
 use tokio::fs;
 use std::convert::TryInto;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::collections::HashMap;
 use sqlx::{Postgres, Transaction};
@@ -19,7 +18,7 @@ use serde_json::json;
 use exastash::db;
 use exastash::db::storage::get_storage;
 use exastash::db::storage::gdrive::file::GdriveFile;
-use exastash::db::inode::{InodeId, Inode, File, NewFile, Dir, NewDir, Symlink, NewSymlink};
+use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
@@ -391,34 +390,8 @@ async fn main() -> Result<()> {
         ExastashCommand::File(file) => {
             match file {
                 FileCommand::Create { path, store_inline, store_gdrive } => {
-                    let attr = fs::metadata(&path).await?;
-                    let mtime = attr.modified()?.into();
-                    let birth = db::inode::Birth::here_and_now();
-                    let size = attr.len();
-                    let permissions = attr.permissions();
-                    let executable = permissions.mode() & 0o111 != 0;
-                    let file = NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
-                    if size > 0 && !store_inline && store_gdrive.is_empty() {
-                        bail!("a file with size > 0 needs storage, please specify a --store- option");
-                    }
-                    if store_inline {
-                        let content = fs::read(path.clone()).await?;
-                        let compression_level = 22;
-                        let content_zstd = zstd::stream::encode_all(content.as_slice(), compression_level)?;
-                        db::storage::inline::Storage { file_id: file.id, content_zstd }.create(&mut transaction).await?;
-                    }
-                    if !store_gdrive.is_empty() {
-                        let file_stream_fn = |offset| {
-                            // TODO: support non-0 offset if we implement upload retries
-                            assert_eq!(offset, 0);
-                            fs::read(path.clone()).into_stream()
-                        };
-                        for domain in store_gdrive {
-                            storage_write::write_to_gdrive(&mut transaction, file_stream_fn, &file, domain).await?;
-                        }
-                    }
-                    transaction.commit().await?;
-                    println!("{}", file.id);
+                    let file_id = storage_write::write(transaction, path, store_inline, &store_gdrive).await?;
+                    println!("{}", file_id);
                 }
                 FileCommand::Info { ids } => {
                     let files = File::find_by_ids(&mut transaction, &ids).await?;
