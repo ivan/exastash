@@ -246,6 +246,17 @@ where
     Ok((gdrive_file, storage))
 }
 
+/// Like `zstd::stream::encode_all`, but first check that the compressed data
+/// decodes to the input data.
+fn paranoid_zstd_encode_all(bytes: &[u8], level: i32) -> Result<Vec<u8>> {
+    let content_zstd = zstd::stream::encode_all(bytes, level)?;
+    let content = zstd::stream::decode_all(content_zstd.as_slice())?;
+    if content != bytes {
+        bail!("zstd-compressed data failed to round-trip back to input data");
+    }
+    Ok(content_zstd)
+}
+
 /// Write a file to storage and return the new file id
 pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Result<i64> {
     let pool = db::pgpool().await;
@@ -273,7 +284,7 @@ pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Re
     if store_inline {
         let content = fs::read(path.clone()).await?;
         let compression_level = 22;
-        let content_zstd = zstd::stream::encode_all(content.as_slice(), compression_level)?;
+        let content_zstd = paranoid_zstd_encode_all(content.as_slice(), compression_level)?;
 
         let storage = inline::Storage { file_id: file.id, content_zstd };
         inline_storages_to_commit.push(storage);
