@@ -79,7 +79,7 @@ enum DirCommand {
         basename: String,
     },
 
-    /// Remove an empty directory
+    /// Remove an empty directory and its associated dirent where it is a child_dir
     #[structopt(name = "remove")]
     Remove {
         #[structopt(name = "DIR_ID")]
@@ -113,6 +113,13 @@ enum FileCommand {
         store_gdrive: Vec<i16>,
     },
 
+    /// Remove a file and its associated storages
+    #[structopt(name = "remove")]
+    Remove {
+        #[structopt(name = "FILE_ID")]
+        file_id: i64,
+    },
+
     /// Print info in JSON format for zero or more dirs
     #[structopt(name = "info")]
     Info {
@@ -144,6 +151,13 @@ enum SymlinkCommand {
     Create {
         #[structopt(name = "TARGET")]
         target: String,
+    },
+
+    /// Remove a symlink
+    #[structopt(name = "remove")]
+    Remove {
+        #[structopt(name = "SYMLINK_ID")]
+        symlink_id: i64,
     },
 
     /// Print info in JSON format for zero or more dirs
@@ -186,7 +200,7 @@ enum DirentCommand {
         child_symlink: Option<i64>,
     },
 
-    /// Remove a dirent
+    /// Remove a dirent. If dirent has a child_dir, use `es dir remove` instead.
     #[structopt(name = "remove")]
     Remove {
         #[structopt(name = "PARENT_DIR_ID")]
@@ -415,6 +429,11 @@ async fn main() -> Result<()> {
                     let file_id = storage_write::write(path, store_inline, &store_gdrive).await?;
                     println!("{}", file_id);
                 }
+                FileCommand::Remove { file_id } => {
+                    db::storage::remove_storages(&mut transaction, &[file_id]).await?;
+                    File::remove(&mut transaction, &[file_id]).await?;
+                    transaction.commit().await?;
+                }
                 FileCommand::Info { ids } => {
                     let files = File::find_by_ids(&mut transaction, &ids).await?;
                     let mut map: HashMap<i64, File> = files.into_iter().map(|file| (file.id, file)).collect();
@@ -447,6 +466,10 @@ async fn main() -> Result<()> {
                     let symlink = NewSymlink { mtime, birth, target }.create(&mut transaction).await?;
                     transaction.commit().await?;
                     println!("{}", symlink.id);
+                }
+                SymlinkCommand::Remove { symlink_id } => {
+                    Symlink::remove(&mut transaction, &[symlink_id]).await?;
+                    transaction.commit().await?;
                 }
                 SymlinkCommand::Info { ids } => {
                     let symlinks = Symlink::find_by_ids(&mut transaction, &ids).await?;

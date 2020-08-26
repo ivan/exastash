@@ -29,6 +29,16 @@ impl Storage {
         Ok(self)
     }
 
+    /// Remove storages with given `ids`.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
+        let stmt = "DELETE FROM storage_inline WHERE file_id = ANY($1::bigint[])";
+        sqlx::query(stmt)
+            .bind(file_ids)
+            .execute(transaction).await?;
+        Ok(())
+    }
+
     /// Return a list of inline storage entities containing the data for a file.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         Ok(sqlx::query_as::<_, Storage>(

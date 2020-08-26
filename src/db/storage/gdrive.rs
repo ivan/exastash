@@ -186,6 +186,16 @@ impl Storage {
         Ok(self)
     }
 
+    /// Remove storages with given `ids`.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
+        let stmt = "DELETE FROM storage_gdrive WHERE file_id = ANY($1::bigint[])";
+        sqlx::query(stmt)
+            .bind(file_ids)
+            .execute(transaction).await?;
+        Ok(())
+    }
+
     /// Return a list of gdrive storage entities where the data for a file can be retrieved.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         // Note that we can get more than one row per unique file_id
@@ -224,9 +234,9 @@ pub(crate) mod tests {
     mod api {
         use super::*;
 
-        /// If we add a gdrive storage for a file, get_storage returns that storage
+        /// If we add a gdrive storage for a file, get_storages returns that storage
         #[tokio::test]
-        async fn test_create_storage_get_storage() -> Result<()> {
+        async fn test_create_storage_get_storages() -> Result<()> {
             let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;

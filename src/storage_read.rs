@@ -15,7 +15,7 @@ use aes_ctr::stream_cipher::generic_array::GenericArray;
 use aes_ctr::stream_cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
 use crate::db;
 use crate::db::inode;
-use crate::db::storage::{get_storage, Storage, inline, gdrive, internetarchive};
+use crate::db::storage::{get_storages, Storage, inline, gdrive, internetarchive};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
@@ -271,7 +271,7 @@ pub async fn read(file_id: i64) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes
         return Ok(Box::pin(stream::iter::<_>(vec![Ok(bytes)])));
     }
 
-    let storages = get_storage(&mut transaction, &[file_id]).await?;
+    let storages = get_storages(&mut transaction, &[file_id]).await?;
     drop(transaction);
     match storages.get(0) {
         Some(storage) => read_storage(&file, &storage).await,

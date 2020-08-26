@@ -24,7 +24,7 @@ pub enum Storage {
 }
 
 /// Return a list of places where the data for a file can be retrieved
-pub async fn get_storage(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+pub async fn get_storages(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
     let inline = inline::Storage::find_by_file_ids(transaction, file_ids).await?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
     let gdrive = gdrive::Storage::find_by_file_ids(transaction, file_ids).await?
@@ -39,6 +39,14 @@ pub async fn get_storage(transaction: &mut Transaction<'_, Postgres>, file_ids: 
     ].concat())
 }
 
+/// Remove all storages for the given file ids
+pub async fn remove_storages(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
+    gdrive::Storage::remove_by_file_ids(transaction, file_ids).await?;
+    inline::Storage::remove_by_file_ids(transaction, file_ids).await?;
+    internetarchive::Storage::remove_by_file_ids(transaction, file_ids).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -48,7 +56,7 @@ mod tests {
     mod api {
         use super::*;
 
-        /// If there is no storage for a file, get_storage returns an empty Vec
+        /// If there is no storage for a file, get_storages returns an empty Vec
         #[tokio::test]
         async fn test_no_storage() -> Result<()> {
             let pool = new_primary_pool().await;
@@ -58,12 +66,12 @@ mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert_eq!(get_storage(&mut transaction, &[dummy.id]).await?, vec![]);
+            assert_eq!(get_storages(&mut transaction, &[dummy.id]).await?, vec![]);
 
             Ok(())
         }
 
-        /// If we add four storages for a file, get_storage returns all of them, in order of:
+        /// If we add four storages for a file, get_storages returns all of them, in order of:
         /// inline, gdrive, internetarchive
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
@@ -87,7 +95,7 @@ mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert_eq!(get_storage(&mut transaction, &[dummy.id]).await?, vec![
+            assert_eq!(get_storages(&mut transaction, &[dummy.id]).await?, vec![
                 Storage::Inline(storage4),
                 Storage::Gdrive(storage3),
                 Storage::InternetArchive(storage1),

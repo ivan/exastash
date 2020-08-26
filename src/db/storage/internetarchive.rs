@@ -38,6 +38,16 @@ impl Storage {
         Ok(self)
     }
 
+    /// Remove storages with given `ids`.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
+        let stmt = "DELETE FROM storage_internetarchive WHERE file_id = ANY($1::bigint[])";
+        sqlx::query(stmt)
+            .bind(file_ids)
+            .execute(transaction).await?;
+        Ok(())
+    }
+
     /// Get internetarchive storage entities by exastash file ids.
     /// Entities which are not found will not be included in the resulting `Vec`.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
