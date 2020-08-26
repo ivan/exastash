@@ -179,6 +179,16 @@ enum DirentCommand {
         child_symlink: Option<i64>,
     },
 
+    /// Remove a dirent
+    #[structopt(name = "remove")]
+    Remove {
+        #[structopt(name = "PARENT_DIR_ID")]
+        parent_dir_id: i64,
+
+        #[structopt(name = "BASENAME")]
+        basename: String,
+    },
+
     /// List a dir's children in JSON format, for zero or more parent dirs
     #[structopt(name = "list")]
     List {
@@ -442,6 +452,10 @@ async fn main() -> Result<()> {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
                     let child = InodeTuple(child_dir, child_file, child_symlink).try_into()?;
                     Dirent::new(parent_dir_id, basename, child).create(&mut transaction).await?;
+                    transaction.commit().await?;
+                }
+                DirentCommand::Remove { parent_dir_id, basename } => {
+                    Dirent::remove(&mut transaction, parent_dir_id, &basename).await?;
                     transaction.commit().await?;
                 }
                 DirentCommand::List { ids } => {
