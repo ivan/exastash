@@ -257,8 +257,8 @@ pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Re
     let size = attr.len();
     let permissions = attr.permissions();
     let executable = permissions.mode() & 0o111 != 0;
-    // We need to .create() to get a File with an id, but we don't want to hold the transaction open
-    // while we upload, so we .create() and rollback.
+    // We need to .create() to get a File with a new and unique id, but we don't want to hold
+    // the transaction open while we upload, so we .create() and rollback.
     let file = inode::NewFile { mtime, birth, size: size as i64, executable }.create(&mut transaction).await?;
     transaction.rollback().await?;
 
