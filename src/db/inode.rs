@@ -263,14 +263,27 @@ impl NewFile {
     /// Create an entry for a file in the database and return a `File`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
-        let id = File::next_id(transaction).await?;
-        File {
+        assert!(self.size >= 0, "size must be >= 0");
+        let query = "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
+                     VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
+                     RETURNING id";
+        let row = sqlx::query(query)
+            .bind(self.mtime)
+            .bind(self.size)
+            .bind(self.executable)
+            .bind(self.birth.time)
+            .bind(self.birth.version)
+            .bind(&self.birth.hostname)
+            .fetch_one(transaction).await?;
+        let id: i64 = row.get(0);
+        assert!(id >= 1);
+        Ok(File {
             id,
             mtime: self.mtime,
             birth: self.birth,
             size: self.size,
             executable: self.executable,
-        }.create(transaction).await
+        })
     }
 }
 
