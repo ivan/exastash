@@ -25,10 +25,10 @@ pub async fn new_pgpool(uri: &str, max_connections: u32) -> Result<PgPool> {
     Ok(
         PgPoolOptions::new()
         .after_connect(|conn| Box::pin(async move {
-            conn.execute("SET search_path TO stash;").await?;
+            conn.execute("SET search_path TO stash").await?;
             // We generally want point-in-time consistency, e.g. when we do separate
             // reads on files and a storage table
-            conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;").await?;
+            conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ").await?;
 
             Ok(())
         }))
