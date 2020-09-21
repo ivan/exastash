@@ -13,11 +13,11 @@ pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i6
     let mut current_inode = InodeId::Dir(base_dir);
     for component in path_components {
         let dir_id = current_inode.dir_id()?;
-        let dirent = Dirent::find_by_parent_and_basename(transaction, dir_id, component).await?;
-        if dirent.is_none() {
+        if let Some(dirent) = Dirent::find_by_parent_and_basename(transaction, dir_id, component).await? {
+            current_inode = dirent.child;
+        } else {
             bail!("no such dirent {:?} under dir {:?}", component, dir_id);
         }
-        current_inode = dirent.unwrap().child;
     }
     Ok(current_inode)
 }
