@@ -21,11 +21,11 @@ CREATE DOMAIN linux_basename AS text
 
 -- Columns are ordered for optimal packing, be careful
 CREATE TABLE dirents (
-    parent        bigint          NOT NULL,
-    child_dir     bigint          CHECK (child_dir != parent OR (parent = 1 AND child_dir = 1)),
-    child_file    bigint,
-    child_symlink bigint,
-    basename      linux_basename  NOT NULL,
+    parent         bigint          NOT NULL,
+    child_dir      bigint          CHECK (child_dir != parent OR (parent = 1 AND child_dir = 1)),
+    child_file     bigint,
+    child_symlink  bigint,
+    basename       linux_basename  NOT NULL,
 
     -- Ensure exactly one type of child is set
     CHECK (num_nonnulls(child_dir, child_file, child_symlink) = 1),
