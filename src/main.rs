@@ -22,6 +22,7 @@ use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
 use exastash::fuse;
+use exastash::ts;
 use exastash::info::json_info;
 use exastash::oauth;
 use exastash::{storage_read, storage_write};
@@ -65,6 +66,10 @@ enum ExastashCommand {
     /// FUSE
     #[structopt(name = "fuse")]
     Fuse(FuseCommand),
+
+    /// Terastash commands
+    #[structopt(name = "ts")]
+    Terastash(TerastashCommand),
 }
 
 #[derive(StructOpt, Debug)]
@@ -363,6 +368,21 @@ enum FuseCommand {
     }
 }
 
+#[derive(StructOpt, Debug)]
+enum TerastashCommand {
+    /// List a directory like terastash
+    #[structopt(name = "ls")]
+    Ls {
+        /// Path to list, relative to actual cwd
+        #[structopt(name = "PATH")]
+        path: String,
+
+        /// Whether to print just the filenames
+        #[structopt(long, short = "j")]
+        just_names: bool,
+    }
+}
+
 async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, path: &str) -> Result<InodeId> {
     let path_components: Vec<&str> = if path == "" {
         vec![]
@@ -623,6 +643,14 @@ async fn main() -> Result<()> {
             match &command {
                 FuseCommand::Run { mountpoint } => {
                     fuse::run(mountpoint.into()).await?;
+                }
+            }
+        }
+        ExastashCommand::Terastash(command) => {
+            match &command {
+                TerastashCommand::Ls { path, just_names } => {
+                    let config = ts::get_config()?;
+                    dbg!(config);
                 }
             }
         }

@@ -19,6 +19,7 @@ md-5 = "0.9"
 bytes = "0.5"
 byteorder = "1.3"
 data-encoding = "2"
+directories = "3"
 custom_debug_derive = "0.5"
 once_cell = "1"
 num = "0.3"
@@ -39,7 +40,9 @@ yup-oauth2 = { git = "https://github.com/ludios/yup-oauth2", branch = "prime" }
 serial_test = "0.5"
 serde = "1.0"
 serde_json = "1.0"
+serde_derive = "1.0"
 serde-hex = "0.1"
+toml = "0.5"
 tokio = { version = "0.2", features = ["macros", "rt-core", "fs", "io-util", "io-driver"] }
 tokio-util = { version = "0.3", features = ["compat"] }
 tracing = "0.1"
