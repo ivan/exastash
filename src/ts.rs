@@ -1,3 +1,6 @@
+//! terastash-like operations for manipulating the stash based on
+//! a partial mirror on the local filesystem
+
 use std::fs;
 use std::collections::HashMap;
 use sqlx::{Postgres, Transaction};
