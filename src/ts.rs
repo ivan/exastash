@@ -64,19 +64,20 @@ pub fn get_config() -> Result<Config> {
 /// resolve_root_of_local_path(config, ["a", "b", "c", "d"]) -> (1, ["c", "d"])
 pub fn resolve_root_of_local_path<'a>(config: &Config, path_components: &'a [&'a str]) -> Result<(i64, &'a [&'a str])> {
     let mut idx = path_components.len();
+    // Need a Vec<String> to query the HashMap, can't use &[&str]
+    let mut candidate: Vec<String> = path_components
+        .into_iter()
+        .cloned()
+        .map(String::from)
+        .collect();
     loop {
-        let candidate = &path_components[0..idx];
-        let heap_allocated_candidate: Vec<String> = candidate
-            .into_iter()
-            .cloned()
-            .map(String::from)
-            .collect(); // make HashMap happy :(
-        if let Some(dir_id) = config.ts_paths.get(&heap_allocated_candidate) {
+        if let Some(dir_id) = config.ts_paths.get(&candidate) {
             return Ok((*dir_id, &path_components[idx..]));
         }
-        if idx == 0 {
+        if candidate.len() == 0 {
             break;
         }
+        candidate.pop();
         idx -= 1;
     }
     bail!("no entry in ts_paths could serve as the base dir for #{:?}", path_components);
@@ -85,5 +86,5 @@ pub fn resolve_root_of_local_path<'a>(config: &Config, path_components: &'a [&'a
 /// Resolve some local path to its exastash equivalent
 pub async fn resolve_local_path(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[&str]) -> Result<InodeId> {
     let (root_dir, components) = resolve_root_of_local_path(config, path_components)?;
-    walk_path(transaction, root_dir, &components).await
+    walk_path(transaction, root_dir, components).await
 }

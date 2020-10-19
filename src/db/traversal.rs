@@ -10,14 +10,14 @@ use crate::Error;
 /// Does not resolve symlinks.
 /// 
 /// TODO: speed this up by farming it out to a PL/pgSQL function
-pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[&str]) -> Result<InodeId> {
+pub async fn walk_path<S: AsRef<str> + ToString + Clone>(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[S]) -> Result<InodeId> {
     let mut current_inode = InodeId::Dir(base_dir);
     for component in path_components {
         let dir_id = current_inode.dir_id()?;
-        if let Some(dirent) = Dirent::find_by_parent_and_basename(transaction, dir_id, component).await? {
+        if let Some(dirent) = Dirent::find_by_parent_and_basename(transaction, dir_id, component.as_ref()).await? {
             current_inode = dirent.child;
         } else {
-            bail!(Error::NoDirent { parent: dir_id, basename: String::from(*component) });
+            bail!(Error::NoDirent { parent: dir_id, basename: component.to_string() });
         }
     }
     Ok(current_inode)
@@ -61,7 +61,8 @@ mod tests {
             let mut transaction = pool.begin().await?;
 
             // walk_path returns the base_dir if there are no components to walk
-            assert_eq!(walk_path(&mut transaction, root_dir.id, &[]).await?, InodeId::Dir(root_dir.id));
+            let no_components: Vec<&str> = vec![];
+            assert_eq!(walk_path(&mut transaction, root_dir.id, &no_components).await?, InodeId::Dir(root_dir.id));
 
             // walk_path returns an InodeId::Dir if segments point to a dir
             assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_dir"]).await?, InodeId::Dir(child_dir.id));
