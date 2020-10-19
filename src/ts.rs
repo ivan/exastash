@@ -6,7 +6,6 @@ use std::fs;
 use std::collections::HashMap;
 use sqlx::{Postgres, Transaction};
 use serde_derive::Deserialize;
-use serde::de::{Deserialize, Deserializer};
 use anyhow::Result;
 use directories::ProjectDirs;
 use crate::db::inode::InodeId;
