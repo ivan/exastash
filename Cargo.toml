@@ -14,7 +14,7 @@ mimalloc = { version = "0.1", default-features = false }
 anyhow = "1.0"
 thiserror = "1.0"
 async-recursion = "0.3"
-aes-ctr = "0.5"
+aes-ctr = "0.6"
 crc32c = "0.5"
 md-5 = "0.9"
 bytes = "0.5"

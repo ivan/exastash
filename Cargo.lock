@@ -2,36 +2,35 @@
 # It is not intended for manual editing.
 [[package]]
 name = "aes-ctr"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64c3b03608ea1c077228520a167cca2514dc7cd8100a81b30a2b38be985234e5"
+checksum = "7729c3cde54d67063be556aeac75a81330d802f0259500ca40cb52967f975763"
 dependencies = [
  "aes-soft",
  "aesni",
+ "cipher",
  "ctr",
- "stream-cipher",
 ]
 
 [[package]]
 name = "aes-soft"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63dd91889c49327ad7ef3b500fd1109dbd3c509a03db0d4a9ce413b79f575cb6"
+checksum = "8c5ab1fa47ce0ddf44cbd65b1b4e626e3c03b06fd42005603acdc6fa13526296"
 dependencies = [
- "block-cipher",
  "byteorder",
+ "cipher",
  "opaque-debug",
 ]
 
 [[package]]
 name = "aesni"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6a4d655ae633a96d0acaf0fd7e76aafb8ca5732739bba37aac6f882c8fce656"
+checksum = "ea2e11f5e94c2f7d386164cc2aa1f97823fed6f259e486940a71c174dd01b0ce"
 dependencies = [
- "block-cipher",
+ "cipher",
  "opaque-debug",
- "stream-cipher",
 ]
 
 [[package]]
@@ -203,15 +202,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-cipher"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f337a3e6da609650eb74e02bc9fac7b735049f7623ab12f2e4c719316fcc7e80"
-dependencies = [
- "generic-array",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -256,6 +246,15 @@ dependencies = [
  "serde",
  "time",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "cipher"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1f7954ae5588102b35257639b1c36a2e7425cc6540fcdb4de19dcb91055d659"
+dependencies = [
+ "generic-array",
 ]
 
 [[package]]
@@ -396,11 +395,11 @@ dependencies = [
 
 [[package]]
 name = "ctr"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc03dee3a2843ac6eb4b5fb39cfcf4cb034d078555d1f4a0afbed418b822f3c2"
+checksum = "fb4a30d54f7443bf3d6191dcd486aca19e67cb3c49fa7a06a319966346707e7f"
 dependencies = [
- "stream-cipher",
+ "cipher",
 ]
 
 [[package]]
@@ -2081,16 +2080,6 @@ dependencies = [
  "once_cell",
  "tokio",
  "tokio-native-tls",
-]
-
-[[package]]
-name = "stream-cipher"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c80e15f898d8d8f25db24c253ea615cc14acf418ff307822995814e7d42cfa89"
-dependencies = [
- "block-cipher",
- "generic-array",
 ]
 
 [[package]]
