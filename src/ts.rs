@@ -26,18 +26,15 @@ pub fn get_config() -> Result<Config> {
 
 /// Resolve some local path to a root directory and path components that can
 /// be used to descend back to the exastash equivalent of the machine-local path
-pub fn resolve_root_of_local_path(config: &Config, path: &str) -> Option<(i64, Vec<String>)> {
-    Some((0, vec![]))
+pub fn resolve_root_of_local_path(config: &Config, path: &str) -> Result<(i64, Vec<String>)> {
+    Ok((0, vec![]))
     // get 'up variants' of path until we find a match in config
     // if no match, return None
 }
 
 /// Resolve some local path to its exastash equivalent
-pub async fn resolve_local_path(config: &Config, transaction: &mut Transaction<'_, Postgres>, path: &str) -> Result<Option<InodeId>> {
-    let (root_dir, components) = match resolve_root_of_local_path(config, path) {
-        None => return Ok(None),
-        Some(resolution) => resolution,
-    };
+pub async fn resolve_local_path(config: &Config, transaction: &mut Transaction<'_, Postgres>, path: &str) -> Result<InodeId> {
+    let (root_dir, components) = resolve_root_of_local_path(config, path)?;
     let path_components: Vec<&str> = components.iter().map(String::as_str).collect();
     walk_path(transaction, root_dir, &path_components).await
 }

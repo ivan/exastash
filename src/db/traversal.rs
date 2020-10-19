@@ -1,6 +1,6 @@
 //! Functions for walking a path from a base_dir
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use sqlx::{Postgres, Transaction};
 use crate::db::dirent::Dirent;
 use crate::db::inode::InodeId;
@@ -9,17 +9,17 @@ use crate::db::inode::InodeId;
 /// Does not resolve symlinks.
 /// 
 /// TODO: speed this up by farming it out to a PL/pgSQL function
-pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[&str]) -> Result<Option<InodeId>> {
+pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[&str]) -> Result<InodeId> {
     let mut current_inode = InodeId::Dir(base_dir);
     for component in path_components {
         let dir_id = current_inode.dir_id()?;
         if let Some(dirent) = Dirent::find_by_parent_and_basename(transaction, dir_id, component).await? {
             current_inode = dirent.child;
         } else {
-            return Ok(None);
+            bail!("no such dirent {:?} under dir {:?}", component, dir_id);
         }
     }
-    Ok(Some(current_inode))
+    Ok(current_inode)
 }
 
 #[cfg(test)]
@@ -60,18 +60,18 @@ mod tests {
             let mut transaction = pool.begin().await?;
 
             // walk_path returns the base_dir if there are no components to walk
-            assert_eq!(walk_path(&mut transaction, root_dir.id, &[]).await?, Some(InodeId::Dir(root_dir.id)));
+            assert_eq!(walk_path(&mut transaction, root_dir.id, &[]).await?, InodeId::Dir(root_dir.id));
 
             // walk_path returns an InodeId::Dir if segments point to a dir
-            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_dir"]).await?, Some(InodeId::Dir(child_dir.id)));
+            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_dir"]).await?, InodeId::Dir(child_dir.id));
 
             // walk_path returns an InodeId::File if segments point to a file
-            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_file"]).await?, Some(InodeId::File(child_file.id)));
-            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_dir", "child_file"]).await?, Some(InodeId::File(child_file.id)));
+            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_file"]).await?, InodeId::File(child_file.id));
+            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_dir", "child_file"]).await?, InodeId::File(child_file.id));
 
             // walk_path returns an InodeId::Symlink if segments point to a symlink
-            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_symlink"]).await?, Some(InodeId::Symlink(child_symlink.id)));
-            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_dir", "child_symlink"]).await?, Some(InodeId::Symlink(child_symlink.id)));
+            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_symlink"]).await?, InodeId::Symlink(child_symlink.id));
+            assert_eq!(walk_path(&mut transaction, root_dir.id, &["child_dir", "child_symlink"]).await?, InodeId::Symlink(child_symlink.id));
 
             // walk_path returns an error if some segment is not found
             for (parent, segments) in &[
