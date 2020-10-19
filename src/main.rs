@@ -25,6 +25,7 @@ use exastash::fuse;
 use exastash::ts;
 use exastash::info::json_info;
 use exastash::oauth;
+use exastash::util;
 use exastash::{storage_read, storage_write};
 use futures::stream::TryStreamExt;
 use yup_oauth2::ServiceAccountKey;
@@ -653,7 +654,7 @@ async fn main() -> Result<()> {
                     if let Some(p) = path_arg {
                         path = path.join(p);
                     }
-                    let path = path.canonicalize()?;
+                    let path = util::normalize_path(&path);
                     dbg!(&path);
 
                     let config = ts::get_config()?;

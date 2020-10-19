@@ -1,4 +1,6 @@
 use std::env;
+use std::path::{Path, PathBuf};
+use std::path::Component;
 use anyhow::{anyhow, Result, Context};
 use chrono::{DateTime, Utc, Timelike};
 
@@ -34,4 +36,35 @@ macro_rules! lazy_regex {
     ($expr:expr,) => {
         lazy_regex!($expr)
     };
+}
+
+// Copied from https://github.com/rust-lang/cargo/blob/af64bd644982cc43b231fb39d7e19f697ec8680d/src/cargo/util/paths.rs#L61
+
+/// Like `std::path::Path::canonicalize`, but don't actually check for
+/// the existence of anything on the filesystem
+pub fn normalize_path(path: &Path) -> PathBuf {
+    let mut components = path.components().peekable();
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+        components.next();
+        PathBuf::from(c.as_os_str())
+    } else {
+        PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!(),
+            Component::RootDir => {
+                ret.push(component.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                ret.pop();
+            }
+            Component::Normal(c) => {
+                ret.push(c);
+            }
+        }
+    }
+    ret
 }
