@@ -1,7 +1,10 @@
 use std::fs;
 use std::collections::HashMap;
+use sqlx::{Postgres, Transaction};
 use serde_derive::Deserialize;
 use anyhow::Result;
+use crate::db::inode::InodeId;
+use crate::db::traversal::walk_path;
 
 /// Machine-local exastash configuration
 #[derive(Deserialize, Debug)]
@@ -18,4 +21,23 @@ pub fn get_config() -> Result<Config> {
     let bytes        = fs::read_to_string(config_file)?;
     let config       = toml::from_str(&bytes)?;
     Ok(config)
+}
+
+
+/// Resolve some local path to a root directory and path components that can
+/// be used to descend back to the exastash equivalent of the machine-local path
+pub fn resolve_root_of_local_path(config: &Config, path: &str) -> Option<(i64, Vec<String>)> {
+    Some((0, vec![]))
+    // get 'up variants' of path until we find a match in config
+    // if no match, return None
+}
+
+/// Resolve some local path to its exastash equivalent
+pub async fn resolve_local_path(config: &Config, transaction: &mut Transaction<'_, Postgres>, path: &str) -> Result<Option<InodeId>> {
+    let (root_dir, components) = match resolve_root_of_local_path(config, path) {
+        None => return Ok(None),
+        Some(resolution) => resolution,
+    };
+    let path_components: Vec<&str> = components.iter().map(String::as_str).collect();
+    walk_path(transaction, root_dir, &path_components).await
 }
