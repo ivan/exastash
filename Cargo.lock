@@ -519,6 +519,7 @@ dependencies = [
  "serial_test",
  "sqlx",
  "structopt",
+ "thiserror",
  "tokio",
  "tokio-util",
  "toml",

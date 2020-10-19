@@ -5,6 +5,19 @@ use sqlx::{Postgres, Transaction};
 use crate::db::dirent::Dirent;
 use crate::db::inode::InodeId;
 
+/// exastash error
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    /// A directory entry was expected but could not be found
+    #[error("no such dirent {basename:?} under dir {parent:?}")]
+    NoDirent {
+        /// The parent for the expected directory entry
+        parent: i64,
+        /// The basename for the expected directory entry
+        basename: String,
+    },
+}
+
 /// Return the inode referenced by some path segments, starting from some base directory.
 /// Does not resolve symlinks.
 /// 
@@ -16,7 +29,7 @@ pub async fn walk_path(transaction: &mut Transaction<'_, Postgres>, base_dir: i6
         if let Some(dirent) = Dirent::find_by_parent_and_basename(transaction, dir_id, component).await? {
             current_inode = dirent.child;
         } else {
-            bail!("no such dirent {:?} under dir {:?}", component, dir_id);
+            bail!(Error::NoDirent { parent: dir_id, basename: String::from(*component) });
         }
     }
     Ok(current_inode)

@@ -12,6 +12,7 @@ path = "src/main.rs"
 # Turn off the default secure mode
 mimalloc = { version = "0.1", default-features = false }
 anyhow = "1.0"
+thiserror = "1.0"
 async-recursion = "0.3"
 aes-ctr = "0.5"
 crc32c = "0.5"
