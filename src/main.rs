@@ -375,7 +375,7 @@ enum TerastashCommand {
     Ls {
         /// Path to list, relative to actual cwd
         #[structopt(name = "PATH")]
-        path: String,
+        path: Option<String>,
 
         /// Whether to print just the filenames
         #[structopt(long, short = "j")]
@@ -648,7 +648,14 @@ async fn main() -> Result<()> {
         }
         ExastashCommand::Terastash(command) => {
             match &command {
-                TerastashCommand::Ls { path, just_names } => {
+                TerastashCommand::Ls { path: path_arg, just_names } => {
+                    let mut path = std::env::current_dir()?;
+                    if let Some(p) = path_arg {
+                        path = path.join(p);
+                    }
+                    let path = path.canonicalize()?;
+                    dbg!(&path);
+
                     let config = ts::get_config()?;
                     dbg!(config);
                 }
