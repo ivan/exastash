@@ -1,0 +1,7 @@
+# This goes in ~/.config/exastash/config.toml
+
+[ts_paths]
+"/entire/stash" = 1
+# just another example of mapping a more-specific directory
+"/home/you/Stuff" = 3
+"/home/them/Stuff" = 3
