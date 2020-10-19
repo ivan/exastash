@@ -658,7 +658,20 @@ async fn main() -> Result<()> {
                     dbg!(&path);
 
                     let config = ts::get_config()?;
-                    dbg!(config);
+                    dbg!(&config);
+
+                    let s = path
+                        .to_str()
+                        .ok_or_else(|| anyhow!("could not convert path {:?} to UTF-8", path))?;
+                    assert!(s.starts_with('/'));
+                    let path_components: Vec<&str> = 
+                        s
+                        .split('/')
+                        .skip(1)
+                        .collect();
+
+                    let inode_id = ts::resolve_local_path(&config, &mut transaction, &path_components).await?;
+                    dbg!(inode_id);
                 }
             }
         }
