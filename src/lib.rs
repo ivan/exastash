@@ -45,3 +45,16 @@ pub mod storage_write;
 /// Rows in database will be created with birth_version set to this value.
 /// See `exastash_versions.sql`.
 pub const EXASTASH_VERSION: i16 = 41;
+
+/// exastash error
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    /// A directory entry was expected but could not be found
+    #[error("no such dirent {basename:?} under dir {parent:?}")]
+    NoDirent {
+        /// The parent for the expected directory entry
+        parent: i64,
+        /// The basename for the expected directory entry
+        basename: String,
+    },
+}

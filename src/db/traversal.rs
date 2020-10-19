@@ -4,19 +4,7 @@ use anyhow::{bail, Result};
 use sqlx::{Postgres, Transaction};
 use crate::db::dirent::Dirent;
 use crate::db::inode::InodeId;
-
-/// exastash error
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    /// A directory entry was expected but could not be found
-    #[error("no such dirent {basename:?} under dir {parent:?}")]
-    NoDirent {
-        /// The parent for the expected directory entry
-        parent: i64,
-        /// The basename for the expected directory entry
-        basename: String,
-    },
-}
+use crate::Error;
 
 /// Return the inode referenced by some path segments, starting from some base directory.
 /// Does not resolve symlinks.
