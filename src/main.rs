@@ -684,19 +684,22 @@ async fn main() -> Result<()> {
                                 InodeId::Dir(id) => {
                                     let size = 0;
                                     let dir = dirs.get(&id).unwrap();
-                                    println!("{} {} {}/", size, dir.mtime, dirent.basename);
+                                    let mtime = dir.mtime.format("%Y-%m-%d %H:%M");
+                                    println!("{:>18} {} {}/", size, mtime, dirent.basename);
                                 }
                                 InodeId::File(id) => {
                                     use num_format::{Locale, ToFormattedString};
 
                                     let file = files.get(&id).unwrap();
                                     let size = file.size.to_formatted_string(&Locale::en);
-                                    println!("{} {} {}", size, file.mtime, dirent.basename);
+                                    let mtime = file.mtime.format("%Y-%m-%d %H:%M");
+                                    println!("{:>18} {} {}", size, mtime, dirent.basename);
                                 }
                                 InodeId::Symlink(id) => {
                                     let size = 0;
                                     let symlink = symlinks.get(&id).unwrap();
-                                    println!("{} {} {} -> {}", size, symlink.mtime, dirent.basename, symlink.target);
+                                    let mtime = symlink.mtime.format("%Y-%m-%d %H:%M");
+                                    println!("{:>18} {} {} -> {}", size, mtime, dirent.basename, symlink.target);
                                 }
                             }
                         }
