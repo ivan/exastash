@@ -687,8 +687,11 @@ async fn main() -> Result<()> {
                                     println!("{} {} {}/", size, dir.mtime, dirent.basename);
                                 }
                                 InodeId::File(id) => {
+                                    use num_format::{Locale, ToFormattedString};
+
                                     let file = files.get(&id).unwrap();
-                                    println!("{} {} {}", file.size, file.mtime, dirent.basename);
+                                    let size = file.size.to_formatted_string(&Locale::en);
+                                    println!("{} {} {}", size, file.mtime, dirent.basename);
                                 }
                                 InodeId::Symlink(id) => {
                                     let size = 0;
