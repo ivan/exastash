@@ -17,7 +17,7 @@ use tracing_subscriber::EnvFilter;
 use serde_json::json;
 use exastash::db;
 use exastash::db::storage::gdrive::file::GdriveFile;
-use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
+use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink, find_by_inode_ids};
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
@@ -670,9 +670,34 @@ async fn main() -> Result<()> {
                     let inode_id = ts::resolve_local_path(&config, &mut transaction, &path_components).await?;
                     let dir_id = inode_id.dir_id()?;
 
-                    let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
-                    for dirent in dirents {
-                        println!("{}", dirent.basename);
+                    if *just_names {
+                        let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
+                        for dirent in dirents {
+                            println!("{}", dirent.basename);
+                        }
+                    } else {
+                        let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
+                        let children: Vec<InodeId> = dirents.iter().map(|dirent| dirent.child).collect();
+                        let (dirs, files, symlinks) = find_by_inode_ids(&mut transaction, &children).await?;
+                        for dirent in dirents {
+                            match dirent.child {
+                                InodeId::Dir(id) => {
+                                    let size = 0;
+                                    let dir = dirs.get(&id).unwrap();
+                                    println!("{} {} {}/", size, dir.mtime, dirent.basename);
+                                }
+                                InodeId::File(id) => {
+                                    let file = files.get(&id).unwrap();
+                                    println!("{} {} {}", file.size, file.mtime, dirent.basename);
+                                }
+                                InodeId::Symlink(id) => {
+                                    let size = 0;
+                                    let symlink = symlinks.get(&id).unwrap();
+                                    println!("{} {} {} -> {}", size, symlink.mtime, dirent.basename, symlink.target);
+                                }
+                            }
+                        }
+
                     }
                 }
             }

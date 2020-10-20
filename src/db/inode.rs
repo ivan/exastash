@@ -4,6 +4,7 @@ use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
 use serde::Serialize;
+use std::collections::HashMap;
 use crate::EXASTASH_VERSION;
 use crate::db;
 use crate::util;
@@ -394,23 +395,27 @@ pub enum Inode {
     Symlink(Symlink),
 }
 
-impl Inode {
-    /// Return a `Vec<Inode>` for the corresponding list of `InodeId`.
-    /// There is no error on missing inodes.
-    pub async fn find_by_inode_ids(transaction: &mut Transaction<'_, Postgres>, inode_ids: &[InodeId]) -> Result<Vec<Inode>> {
-        let mut out = Vec::with_capacity(inode_ids.len());
-
-        let dir_ids:     Vec<i64> = inode_ids.iter().filter_map(|inode_id| if let InodeId::Dir(id)     = inode_id { Some(*id) } else { None } ).collect();
-        let file_ids:    Vec<i64> = inode_ids.iter().filter_map(|inode_id| if let InodeId::File(id)    = inode_id { Some(*id) } else { None } ).collect();
-        let symlink_ids: Vec<i64> = inode_ids.iter().filter_map(|inode_id| if let InodeId::Symlink(id) = inode_id { Some(*id) } else { None } ).collect();
-
-        // TODO: run these in parallel
-        out.extend(Dir::find_by_ids(transaction, &dir_ids).await?.into_iter().map(Inode::Dir));
-        out.extend(File::find_by_ids(transaction, &file_ids).await?.into_iter().map(Inode::File));
-        out.extend(Symlink::find_by_ids(transaction, &symlink_ids).await?.into_iter().map(Inode::Symlink));
-
-        Ok(out)
+/// Return three HashMaps of (dirs, files, symlinks) for the corresponding list of `InodeId`.
+/// There is no error on missing inodes.
+pub async fn find_by_inode_ids(transaction: &mut Transaction<'_, Postgres>, inode_ids: &[InodeId]) -> Result<(
+    HashMap<i64, Dir>,
+    HashMap<i64, File>,
+    HashMap<i64, Symlink>
+)> {
+    let mut dir_ids = vec![];
+    let mut file_ids = vec![];
+    let mut symlink_ids = vec![];
+    for inode_id in inode_ids {
+        match *inode_id {
+            InodeId::Dir(id)     => { dir_ids.push(id); }
+            InodeId::File(id)    => { file_ids.push(id); }
+            InodeId::Symlink(id) => { symlink_ids.push(id); }
+        }
     }
+    let dirs:     HashMap<i64, Dir>     = Dir::find_by_ids(transaction, &dir_ids)        .await?.into_iter().map(|dir|     (dir.id, dir)).collect();
+    let files:    HashMap<i64, File>    = File::find_by_ids(transaction, &file_ids)      .await?.into_iter().map(|file|    (file.id, file)).collect();
+    let symlinks: HashMap<i64, Symlink> = Symlink::find_by_ids(transaction, &symlink_ids).await?.into_iter().map(|symlink| (symlink.id, symlink)).collect();
+    Ok((dirs, files, symlinks))
 }
 
 #[cfg(test)]
