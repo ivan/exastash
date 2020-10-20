@@ -80,7 +80,8 @@ pub fn resolve_root_of_local_path<'a>(config: &Config, path_components: &'a [&'a
         candidate.pop();
         idx -= 1;
     }
-    bail!("no entry in ts_paths could serve as the base dir for #{:?}", path_components);
+    let path = format!("/{}", path_components.join("/"));
+    bail!("no entry in ts_paths could serve as the base dir for {}", path);
 }
 
 /// Resolve some local absolute path to its exastash equivalent
