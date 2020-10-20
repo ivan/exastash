@@ -436,10 +436,10 @@ impl Inode {
         let mut file_ids = vec![];
         let mut symlink_ids = vec![];
         for inode_id in inode_ids {
-            match *inode_id {
-                InodeId::Dir(id)     => { dir_ids.push(id); }
-                InodeId::File(id)    => { file_ids.push(id); }
-                InodeId::Symlink(id) => { symlink_ids.push(id); }
+            match inode_id {
+                InodeId::Dir(id)     => { dir_ids.push(*id); }
+                InodeId::File(id)    => { file_ids.push(*id); }
+                InodeId::Symlink(id) => { symlink_ids.push(*id); }
             }
         }
         let mut out = HashMap::new();
