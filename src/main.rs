@@ -25,7 +25,6 @@ use exastash::fuse;
 use exastash::ts;
 use exastash::info::json_info;
 use exastash::oauth;
-use exastash::util;
 use exastash::{storage_read, storage_write};
 use futures::stream::TryStreamExt;
 use yup_oauth2::ServiceAccountKey;
@@ -371,10 +370,17 @@ enum FuseCommand {
 
 #[derive(StructOpt, Debug)]
 enum TerastashCommand {
+    /// Print info for a path in JSON format
+    #[structopt(name = "info")]
+    Info {
+        /// Path to a file, dir, or symlink, relative to cwd
+        #[structopt(name = "PATH")]
+        paths: Vec<String>,
+    },
     /// List a directory like terastash
     #[structopt(name = "ls")]
     Ls {
-        /// Path to list, relative to actual cwd
+        /// Path to list, relative to cwd
         #[structopt(name = "PATH")]
         path: Option<String>,
 
@@ -450,7 +456,7 @@ async fn main() -> Result<()> {
                     for id in ids {
                         let dir = map.remove(&id)
                             .ok_or_else(|| anyhow!("dir with id={} not in database, or duplicate id given", id))?;
-                        println!("{}", json_info(&mut transaction, Inode::Dir(dir)).await?);
+                        println!("{}", json_info(&mut transaction, &Inode::Dir(dir)).await?);
                     }
                 }
                 DirCommand::Count => {
@@ -477,7 +483,7 @@ async fn main() -> Result<()> {
                     for id in ids {
                         let file = map.remove(&id)
                             .ok_or_else(|| anyhow!("file with id={} not in database, or duplicate id given", id))?;
-                        println!("{}", json_info(&mut transaction, Inode::File(file)).await?);
+                        println!("{}", json_info(&mut transaction, &Inode::File(file)).await?);
                     }
                 }
                 FileCommand::Content(content) => {
@@ -518,7 +524,7 @@ async fn main() -> Result<()> {
                     for id in ids {
                         let symlink = map.remove(&id)
                             .ok_or_else(|| anyhow!("symlink with id={} not in database, or duplicate id given", id))?;
-                        println!("{}", json_info(&mut transaction, Inode::Symlink(symlink)).await?);
+                        println!("{}", json_info(&mut transaction, &Inode::Symlink(symlink)).await?);
                     }
                 }
                 SymlinkCommand::Count => {
@@ -649,25 +655,22 @@ async fn main() -> Result<()> {
         }
         ExastashCommand::Terastash(command) => {
             match &command {
-                TerastashCommand::Ls { path: path_arg, just_names } => {
-                    let mut path = std::env::current_dir()?;
-                    if let Some(p) = path_arg {
-                        path = path.join(p);
-                    }
-                    let path = util::normalize_path(&path);
+                TerastashCommand::Info { paths: path_args } => {
                     let config = ts::get_config()?;
-
-                    let s = path
-                        .to_str()
-                        .ok_or_else(|| anyhow!("could not convert path {:?} to UTF-8", path))?;
-                    assert!(s.starts_with('/'));
-                    let path_components: Vec<&str> =
-                        s
-                        .split('/')
-                        .skip(1)
-                        .collect();
-
-                    let inode_id = ts::resolve_local_path(&config, &mut transaction, &path_components).await?;
+                    let mut inode_ids = vec![];
+                    for path_arg in path_args {
+                        let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
+                        inode_ids.push(inode_id);
+                    }
+                    let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
+                    for inode_id in inode_ids {
+                        let inode = inodes.get(&inode_id).unwrap();
+                        println!("{}", json_info(&mut transaction, inode).await?);
+                    }
+                }
+                TerastashCommand::Ls { path: path_arg, just_names } => {
+                    let config = ts::get_config()?;
+                    let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
                     let dir_id = inode_id.dir_id()?;
 
                     if *just_names {

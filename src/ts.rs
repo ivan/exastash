@@ -1,7 +1,7 @@
 //! terastash-like operations for manipulating the stash based on
 //! a partial mirror on the local filesystem
 
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use std::fs;
 use std::collections::HashMap;
 use sqlx::{Postgres, Transaction};
@@ -10,6 +10,7 @@ use anyhow::Result;
 use directories::ProjectDirs;
 use crate::db::inode::InodeId;
 use crate::db::traversal::walk_path;
+use crate::util;
 
 #[derive(Deserialize, Debug)]
 struct RawConfig {
@@ -55,7 +56,7 @@ pub fn get_config() -> Result<Config> {
     Ok(config)
 }
 
-/// Resolve some local path to a root directory and path components that can
+/// Resolve some local absolute path to a root directory and path components that can
 /// be used to descend back to the exastash equivalent of the machine-local path
 ///
 /// Example:
@@ -82,8 +83,30 @@ pub fn resolve_root_of_local_path<'a>(config: &Config, path_components: &'a [&'a
     bail!("no entry in ts_paths could serve as the base dir for #{:?}", path_components);
 }
 
-/// Resolve some local path to its exastash equivalent
-pub async fn resolve_local_path(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[&str]) -> Result<InodeId> {
+/// Resolve some local absolute path to its exastash equivalent
+pub async fn resolve_local_absolute_path(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[&str]) -> Result<InodeId> {
     let (root_dir, components) = resolve_root_of_local_path(config, path_components)?;
     walk_path(transaction, root_dir, components).await
+}
+
+/// Resolve some local relative path argument to its exastash equivalent
+pub async fn resolve_local_path_arg(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_arg: Option<&str>) -> Result<InodeId> {
+    let mut path = std::env::current_dir()?;
+    if let Some(p) = path_arg {
+        path = path.join(p);
+    }
+    let path = util::normalize_path(&path);
+
+    let s = path
+        .to_str()
+        .ok_or_else(|| anyhow!("could not convert path {:?} to UTF-8", path))?;
+    assert!(s.starts_with('/'));
+    let path_components: Vec<&str> =
+        s
+        .split('/')
+        .skip(1)
+        .collect();
+
+    let inode_id = resolve_local_absolute_path(&config, transaction, &path_components).await?;
+    Ok(inode_id)
 }
