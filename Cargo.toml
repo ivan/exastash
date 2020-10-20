@@ -59,7 +59,7 @@ polyfuse = { git = "https://github.com/ubnt-intrepid/polyfuse" }
 polyfuse-tokio = { git = "https://github.com/ubnt-intrepid/polyfuse" }
 libc = "0.2"
 zstd = "0.5"
-# Forked only because the upstream repo is inactive
+# Waiting for https://github.com/bcmyers/num-format/pull/20
 num-format = { git = "https://github.com/ludios/num-format" }
 
 [dev-dependencies]

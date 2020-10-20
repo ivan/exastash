@@ -35,9 +35,9 @@ dependencies = [
 
 [[package]]
 name = "ahash"
-version = "0.5.3"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f166b31431056f04477a03e281aed5655a3fb751c67cd82f70761fe062896d37"
+checksum = "382876bc2b256c49e6830fa12569125f05931359b56fdc6b3ca2b7ab948e8e70"
 dependencies = [
  "getrandom 0.2.0",
  "lazy_static",
@@ -96,15 +96,6 @@ name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4c527152e37cf757a3f78aae5a06fbeefdb07ccc535c980a3208ee3060dd544"
-
-[[package]]
-name = "arrayvec"
-version = "0.4.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd9fd44efafa8690358b7408d253adf110036b88f55672a933f01d616ad9b1b9"
-dependencies = [
- "nodrop",
-]
 
 [[package]]
 name = "arrayvec"
@@ -197,7 +188,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8fb2d74254a3a0b5cac33ac9f8ed0e44aa50378d9dbb2e5d83bd21ed1dc2c8a"
 dependencies = [
  "arrayref",
- "arrayvec 0.5.1",
+ "arrayvec",
  "constant_time_eq",
 ]
 
@@ -1236,9 +1227,9 @@ dependencies = [
 [[package]]
 name = "num-format"
 version = "0.4.1"
-source = "git+https://github.com/ludios/num-format#1368de71b615fe27e970bca4822d3599ef3a6830"
+source = "git+https://github.com/ludios/num-format#444ad545d7ca936fb0c5c0e6a84e8a5802af6fb2"
 dependencies = [
- "arrayvec 0.4.12",
+ "arrayvec",
  "itoa",
 ]
 
@@ -1447,9 +1438,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e555d9e657502182ac97b539fb3dae8b79cda19e3e4f8ffb5e8de4f18df93c95"
+checksum = "c917123afa01924fc84bb20c4c03f004d9c38e5127e3c039bbf7f4b9c76a2f6b"
 
 [[package]]
 name = "pin-utils"
@@ -2021,7 +2012,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.4.0-beta.1"
-source = "git+https://github.com/launchbadge/sqlx#144dcceb445e804b16258d0dd9e580d6a484a01e"
+source = "git+https://github.com/launchbadge/sqlx#4bfd7a555f2e9cd468aba5c0c014cfd5f05aa064"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -2030,7 +2021,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.4.0-beta.1"
-source = "git+https://github.com/launchbadge/sqlx#144dcceb445e804b16258d0dd9e580d6a484a01e"
+source = "git+https://github.com/launchbadge/sqlx#4bfd7a555f2e9cd468aba5c0c014cfd5f05aa064"
 dependencies = [
  "ahash",
  "atoi",
@@ -2075,7 +2066,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.4.0-beta.1"
-source = "git+https://github.com/launchbadge/sqlx#144dcceb445e804b16258d0dd9e580d6a484a01e"
+source = "git+https://github.com/launchbadge/sqlx#4bfd7a555f2e9cd468aba5c0c014cfd5f05aa064"
 dependencies = [
  "dotenv",
  "either",
@@ -2093,7 +2084,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.1.1"
-source = "git+https://github.com/launchbadge/sqlx#144dcceb445e804b16258d0dd9e580d6a484a01e"
+source = "git+https://github.com/launchbadge/sqlx#4bfd7a555f2e9cd468aba5c0c014cfd5f05aa064"
 dependencies = [
  "native-tls",
  "once_cell",
