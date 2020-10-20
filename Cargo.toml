@@ -43,6 +43,7 @@ serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
 serde-hex = "0.1"
+termcolor = "1.1"
 toml = "0.5"
 tokio = { version = "0.2", features = ["macros", "rt-core", "fs", "io-util", "io-driver"] }
 tokio-util = { version = "0.3", features = ["compat"] }
