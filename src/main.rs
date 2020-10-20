@@ -10,7 +10,6 @@ use futures::future::FutureExt;
 use tokio::fs;
 use std::convert::TryInto;
 use std::path::PathBuf;
-use std::collections::HashMap;
 use sqlx::{Postgres, Transaction};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing_subscriber::EnvFilter;
@@ -451,12 +450,11 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                 }
                 DirCommand::Info { ids } => {
-                    let dirs = Dir::find_by_ids(&mut transaction, &ids).await?;
-                    let mut map: HashMap<i64, Dir> = dirs.into_iter().map(|dir| (dir.id, dir)).collect();
-                    for id in ids {
-                        let dir = map.remove(&id)
-                            .ok_or_else(|| anyhow!("dir with id={} not in database, or duplicate id given", id))?;
-                        println!("{}", json_info(&mut transaction, &Inode::Dir(dir)).await?);
+                    let inode_ids: Vec<InodeId> = ids.into_iter().map(InodeId::Dir).collect();
+                    let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
+                    for inode_id in inode_ids {
+                        let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
+                        println!("{}", json_info(&mut transaction, inode).await?);
                     }
                 }
                 DirCommand::Count => {
@@ -478,12 +476,11 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                 }
                 FileCommand::Info { ids } => {
-                    let files = File::find_by_ids(&mut transaction, &ids).await?;
-                    let mut map: HashMap<i64, File> = files.into_iter().map(|file| (file.id, file)).collect();
-                    for id in ids {
-                        let file = map.remove(&id)
-                            .ok_or_else(|| anyhow!("file with id={} not in database, or duplicate id given", id))?;
-                        println!("{}", json_info(&mut transaction, &Inode::File(file)).await?);
+                    let inode_ids: Vec<InodeId> = ids.into_iter().map(InodeId::File).collect();
+                    let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
+                    for inode_id in inode_ids {
+                        let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
+                        println!("{}", json_info(&mut transaction, inode).await?);
                     }
                 }
                 FileCommand::Content(content) => {
@@ -519,12 +516,11 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                 }
                 SymlinkCommand::Info { ids } => {
-                    let symlinks = Symlink::find_by_ids(&mut transaction, &ids).await?;
-                    let mut map: HashMap<i64, Symlink> = symlinks.into_iter().map(|symlink| (symlink.id, symlink)).collect();
-                    for id in ids {
-                        let symlink = map.remove(&id)
-                            .ok_or_else(|| anyhow!("symlink with id={} not in database, or duplicate id given", id))?;
-                        println!("{}", json_info(&mut transaction, &Inode::Symlink(symlink)).await?);
+                    let inode_ids: Vec<InodeId> = ids.into_iter().map(InodeId::Symlink).collect();
+                    let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
+                    for inode_id in inode_ids {
+                        let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
+                        println!("{}", json_info(&mut transaction, inode).await?);
                     }
                 }
                 SymlinkCommand::Count => {
@@ -672,7 +668,6 @@ async fn main() -> Result<()> {
                     let config = ts::get_config()?;
                     let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
                     let dir_id = inode_id.dir_id()?;
-
                     if *just_names {
                         let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
                         for dirent in dirents {
