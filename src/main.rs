@@ -1,6 +1,7 @@
 #![feature(format_args_capture)]
 
 use tracing::info;
+use yansi::Paint;
 use async_recursion::async_recursion;
 use clap::arg_enum;
 use anyhow::{anyhow, Error, Result};
@@ -685,7 +686,7 @@ async fn main() -> Result<()> {
                                     // returned all the inodes we asked for, therefore .unwrap()
                                     let dir = inodes.get(&inode).unwrap().dir().unwrap();
                                     let mtime = dir.mtime.format("%Y-%m-%d %H:%M");
-                                    println!("{:>18} {} {}/", size, mtime, dirent.basename);
+                                    println!("{:>18} {} {}/", size, mtime, Paint::blue(dirent.basename));
                                 }
                                 inode @ InodeId::File(_) => {
                                     use num_format::{Locale, ToFormattedString};
@@ -703,7 +704,6 @@ async fn main() -> Result<()> {
                                 }
                             }
                         }
-
                     }
                 }
             }
