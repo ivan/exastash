@@ -17,7 +17,7 @@ use tracing_subscriber::EnvFilter;
 use serde_json::json;
 use exastash::db;
 use exastash::db::storage::gdrive::file::GdriveFile;
-use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink, find_by_inode_ids};
+use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
@@ -678,26 +678,28 @@ async fn main() -> Result<()> {
                     } else {
                         let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
                         let children: Vec<InodeId> = dirents.iter().map(|dirent| dirent.child).collect();
-                        let (dirs, files, symlinks) = find_by_inode_ids(&mut transaction, &children).await?;
+                        let inodes = Inode::find_by_inode_ids(&mut transaction, &children).await?;
                         for dirent in dirents {
                             match dirent.child {
-                                InodeId::Dir(id) => {
+                                inode @ InodeId::Dir(_) => {
                                     let size = 0;
-                                    let dir = dirs.get(&id).unwrap();
+                                    // We're in the same transaction, so database should really have
+                                    // returned all the inodes we asked for, therefore .unwrap()
+                                    let dir = inodes.get(&inode).unwrap().dir().unwrap();
                                     let mtime = dir.mtime.format("%Y-%m-%d %H:%M");
                                     println!("{:>18} {} {}/", size, mtime, dirent.basename);
                                 }
-                                InodeId::File(id) => {
+                                inode @ InodeId::File(_) => {
                                     use num_format::{Locale, ToFormattedString};
 
-                                    let file = files.get(&id).unwrap();
+                                    let file = inodes.get(&inode).unwrap().file().unwrap();
                                     let size = file.size.to_formatted_string(&Locale::en);
                                     let mtime = file.mtime.format("%Y-%m-%d %H:%M");
                                     println!("{:>18} {} {}", size, mtime, dirent.basename);
                                 }
-                                InodeId::Symlink(id) => {
+                                inode @ InodeId::Symlink(_) => {
                                     let size = 0;
-                                    let symlink = symlinks.get(&id).unwrap();
+                                    let symlink = inodes.get(&inode).unwrap().symlink().unwrap();
                                     let mtime = symlink.mtime.format("%Y-%m-%d %H:%M");
                                     println!("{:>18} {} {} -> {}", size, mtime, dirent.basename, symlink.target);
                                 }

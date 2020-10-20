@@ -10,7 +10,7 @@ use crate::db;
 use crate::util;
 
 /// A dir, file, or symlink
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum InodeId {
     /// A directory
     Dir(i64),
@@ -404,27 +404,56 @@ pub enum Inode {
     Symlink(Symlink),
 }
 
-/// Return three HashMaps of (dirs, files, symlinks) for the corresponding list of `InodeId`.
-/// There is no error on missing inodes.
-pub async fn find_by_inode_ids(transaction: &mut Transaction<'_, Postgres>, inode_ids: &[InodeId]) -> Result<(
-    HashMap<i64, Dir>,
-    HashMap<i64, File>,
-    HashMap<i64, Symlink>
-)> {
-    let mut dir_ids = vec![];
-    let mut file_ids = vec![];
-    let mut symlink_ids = vec![];
-    for inode_id in inode_ids {
-        match *inode_id {
-            InodeId::Dir(id)     => { dir_ids.push(id); }
-            InodeId::File(id)    => { file_ids.push(id); }
-            InodeId::Symlink(id) => { symlink_ids.push(id); }
+impl Inode {
+    /// Return the directory for this inode, if it is one
+    pub fn dir(&self) -> Result<&Dir> {
+        match self {
+            Inode::Dir(dir) => Ok(dir),
+            _ => bail!("{:?} is not a dir", self),
         }
     }
-    let dirs:     HashMap<i64, Dir>     = Dir::find_by_ids(transaction, &dir_ids)        .await?.into_iter().map(|dir|     (dir.id, dir)).collect();
-    let files:    HashMap<i64, File>    = File::find_by_ids(transaction, &file_ids)      .await?.into_iter().map(|file|    (file.id, file)).collect();
-    let symlinks: HashMap<i64, Symlink> = Symlink::find_by_ids(transaction, &symlink_ids).await?.into_iter().map(|symlink| (symlink.id, symlink)).collect();
-    Ok((dirs, files, symlinks))
+
+    /// Return the file for this inode, if it is one
+    pub fn file(&self) -> Result<&File> {
+        match self {
+            Inode::File(file) => Ok(file),
+            _ => bail!("{:?} is not a file", self),
+        }
+    }
+
+    /// Return the symlink for this inode, if it is one
+    pub fn symlink(&self) -> Result<&Symlink> {
+        match self {
+            Inode::Symlink(symlink) => Ok(symlink),
+            _ => bail!("{:?} is not a symlink", self),
+        }
+    }
+
+    /// Return HashMaps of InodeId -> Inode for the corresponding list of `InodeId`.
+    /// There is no error on missing inodes.
+    pub async fn find_by_inode_ids(transaction: &mut Transaction<'_, Postgres>, inode_ids: &[InodeId]) -> Result<HashMap<InodeId, Inode>> {
+        let mut dir_ids = vec![];
+        let mut file_ids = vec![];
+        let mut symlink_ids = vec![];
+        for inode_id in inode_ids {
+            match *inode_id {
+                InodeId::Dir(id)     => { dir_ids.push(id); }
+                InodeId::File(id)    => { file_ids.push(id); }
+                InodeId::Symlink(id) => { symlink_ids.push(id); }
+            }
+        }
+        let mut out = HashMap::new();
+        for dir in Dir::find_by_ids(transaction, &dir_ids).await? {
+            out.insert(InodeId::Dir(dir.id), Inode::Dir(dir));
+        }
+        for file in File::find_by_ids(transaction, &file_ids).await? {
+            out.insert(InodeId::File(file.id), Inode::File(file));
+        }
+        for symlink in Symlink::find_by_ids(transaction, &symlink_ids).await? {
+            out.insert(InodeId::Symlink(symlink.id), Inode::Symlink(symlink));
+        }
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
