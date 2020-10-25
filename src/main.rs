@@ -67,7 +67,7 @@ enum ExastashCommand {
     #[structopt(name = "fuse")]
     Fuse(FuseCommand),
 
-    /// Terastash commands
+    /// terastash-like commands that take paths relative to cwd
     #[structopt(name = "ts")]
     Terastash(TerastashCommand),
 }
