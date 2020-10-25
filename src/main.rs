@@ -63,7 +63,7 @@ enum ExastashCommand {
     #[structopt(name = "internal")]
     Internal(InternalCommand),
 
-    /// FUSE
+    /// (nonfunctional) FUSE server
     #[structopt(name = "fuse")]
     Fuse(FuseCommand),
 
