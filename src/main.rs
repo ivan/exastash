@@ -455,19 +455,18 @@ async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segmen
 }
 
 #[async_recursion]
-async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str], dir_id: i64) -> Result<()> {
+async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str], terminator: char, dir_id: i64) -> Result<()> {
     let path_string = match segments {
         [] => "".into(),
         parts => format!("{}/", parts.join("/")),
     };
     let dirents = Dirent::find_by_parents(transaction, &[dir_id]).await?;
     for dirent in dirents {
-        let path = format!("{}{}", path_string, dirent.basename);
-        println!("{}", path);
+        print!("{}{}{}", path_string, dirent.basename, terminator);
 
         if let InodeId::Dir(dir_id) = dirent.child {
             let segments = [segments, &[&dirent.basename]].concat();
-            ts_find(transaction, &segments, dir_id).await?;
+            ts_find(transaction, &segments, terminator, dir_id).await?;
         }
     }
     Ok(())
@@ -787,14 +786,14 @@ async fn main() -> Result<()> {
                         runs.push((dir_id, path_arg));
                     }
 
+                    let terminator = if *null_sep { '\0' } else { '\n' };
                     for (dir_id, path_arg) in runs {
                         // Print the top-level dir like findutils find
-                        println!("{}", path_arg);
-                        ts_find(&mut transaction, &[&path_arg], dir_id).await?;
+                        print!("{}{}", path_arg, terminator);
+                        ts_find(&mut transaction, &[&path_arg], terminator, dir_id).await?;
                     }
 
                     // dbg!(r#type);
-                    // dbg!(null_sep);
                 }
             }
         }
