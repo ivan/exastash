@@ -55,8 +55,9 @@ futures = "0.3"
 futures-async-stream = "0.2"
 pin-project = "1.0"
 parking_lot = "0.11"
-polyfuse = { git = "https://github.com/ubnt-intrepid/polyfuse" }
-polyfuse-tokio = { git = "https://github.com/ubnt-intrepid/polyfuse" }
+# Disabled for now to improve build time while we're not working on it
+#polyfuse = { git = "https://github.com/ubnt-intrepid/polyfuse" }
+#polyfuse-tokio = { git = "https://github.com/ubnt-intrepid/polyfuse" }
 libc = "0.2"
 zstd = "0.5"
 # Waiting for https://github.com/bcmyers/num-format/pull/20

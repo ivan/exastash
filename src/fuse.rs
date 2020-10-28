@@ -1,4 +1,4 @@
-//! FUSE server
+//! (nonfunctional) FUSE server
 
 use polyfuse::{
     io::{Reader, Writer},

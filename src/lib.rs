@@ -33,7 +33,8 @@ pub(crate) mod ranges;
 pub(crate) mod retry;
 pub mod util;
 pub mod db;
-pub mod fuse;
+//pub mod fuse;
+
 pub mod ts;
 pub(crate) mod gdrive;
 pub(crate) mod crypto;

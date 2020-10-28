@@ -21,7 +21,7 @@ use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal::walk_path;
-use exastash::fuse;
+//use exastash::fuse;
 use exastash::ts;
 use exastash::info::json_info;
 use exastash::oauth;
@@ -652,8 +652,9 @@ async fn main() -> Result<()> {
         }
         ExastashCommand::Fuse(command) => {
             match &command {
-                FuseCommand::Run { mountpoint } => {
-                    fuse::run(mountpoint.into()).await?;
+                FuseCommand::Run { mountpoint: _ } => {
+                    panic!("FUSE server was not built");
+                    //fuse::run(mountpoint.into()).await?;
                 }
             }
         }
