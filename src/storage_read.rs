@@ -173,7 +173,10 @@ pub(crate) fn get_aes_gcm_length(content_length: u64, block_size: usize) -> u64 
     content_length + length_of_tags
 }
 
-fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
+/// Pinned boxed dyn Stream of bytes::Bytes
+pub type ReadStream = Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>;
+
+fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> ReadStream {
     let file = file.clone();
     let storage = storage.clone();
 
@@ -226,7 +229,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
     )
 }
 
-fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
+fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> ReadStream {
     match storage.cipher {
         gdrive::Cipher::Aes128Gcm => stream_gdrive_gcm_chunks(file, storage),
         // We no longer create AES-128-CTR files, but we still need to read them
@@ -235,7 +238,7 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box
 }
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`
-pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>> {
+pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
     info!(id = file.id, "reading file");
     Ok(match storage {
         Storage::Inline(inline::Storage { content_zstd, .. }) => {
@@ -258,7 +261,7 @@ pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<Pin<B
 }
 
 /// Return the content of a file as a pinned boxed Stream on which caller can call `.into_async_read()`
-pub async fn read(file_id: i64) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>> {
+pub async fn read(file_id: i64) -> Result<ReadStream> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
 

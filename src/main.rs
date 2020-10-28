@@ -370,10 +370,17 @@ enum FuseCommand {
 
 #[derive(StructOpt, Debug)]
 enum TerastashCommand {
-    /// Print info for a path in JSON format
+    /// Print info in JSON format for a path's inode
     #[structopt(name = "info")]
     Info {
         /// Path to a file, dir, or symlink, relative to cwd
+        #[structopt(name = "PATH")]
+        paths: Vec<String>,
+    },
+    /// Write the contents of a file to stdout
+    #[structopt(name = "cat")]
+    Cat {
+        /// Path to a file, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
@@ -420,6 +427,16 @@ async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segmen
             walk_dir(transaction, root, &segments, dir_id).await?;
         }
     }
+    Ok(())
+}
+
+async fn write_stream_to_stdout(stream: storage_read::ReadStream) -> Result<()> {
+    let mut read = stream
+        .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+        .into_async_read()
+        .compat();
+    let mut stdout = tokio::io::stdout();
+    tokio::io::copy(&mut read, &mut stdout).await?;
     Ok(())
 }
 
@@ -488,12 +505,7 @@ async fn main() -> Result<()> {
                     match content {
                         ContentCommand::Read { id } => {
                             let stream = storage_read::read(id).await?;
-                            let mut read = stream
-                                .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                                .into_async_read()
-                                .compat();
-                            let mut stdout = tokio::io::stdout();
-                            tokio::io::copy(&mut read, &mut stdout).await?;
+                            write_stream_to_stdout(stream).await?;
                         }
                     }
                 }
@@ -632,13 +644,8 @@ async fn main() -> Result<()> {
                     let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
                     let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
                     for gdrive_file in &gdrive_files {
-                        let stream = storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?;
-                        let mut read = stream
-                            .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                            .into_async_read()
-                            .compat();
-                        let mut stdout = tokio::io::stdout();
-                        tokio::io::copy(&mut read, &mut stdout).await?;
+                        let stream = Box::pin(storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?);
+                        write_stream_to_stdout(stream).await?;
                     }
                 }
             }
@@ -663,6 +670,20 @@ async fn main() -> Result<()> {
                     for inode_id in inode_ids {
                         let inode = inodes.get(&inode_id).unwrap();
                         println!("{}", json_info(&mut transaction, inode).await?);
+                    }
+                }
+                TerastashCommand::Cat { paths: path_args } => {
+                    let config = ts::get_config()?;
+                    let mut file_ids = vec![];
+                    // Resolve all paths to inodes before doing the unpredictably-long read operations,
+                    // during which files could be renamed.
+                    for path_arg in path_args {
+                        let file_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?.file_id()?;
+                        file_ids.push(file_id);
+                    }
+                    for file_id in file_ids {
+                        let stream = storage_read::read(file_id).await?;
+                        write_stream_to_stdout(stream).await?;
                     }
                 }
                 TerastashCommand::Ls { path: path_arg, just_names } => {
