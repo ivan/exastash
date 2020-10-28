@@ -61,18 +61,19 @@ pub fn get_config() -> Result<Config> {
 ///
 /// Example:
 /// ts_paths has /a/b -> 1
-/// resolve_root_of_local_path(config, ["a", "b", "c", "d"]) -> (1, ["c", "d"])
-pub fn resolve_root_of_local_path<'a>(config: &Config, path_components: &'a [&'a str]) -> Result<(i64, &'a [&'a str])> {
+/// resolve_root_of_local_path(config, ["a", "b", "c", "d"]) -> (1, idx 2 - indicating ["c", "d"])
+pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Config, path_components: &[S]) -> Result<(i64, usize)> {
     let mut idx = path_components.len();
     // Need a Vec<String> to query the HashMap, can't use &[&str]
     let mut candidate: Vec<String> = path_components
         .into_iter()
         .cloned()
-        .map(String::from)
+        .map(|s| s.to_string())
         .collect();
+    let path_components_joinable = candidate.clone();
     loop {
         if let Some(dir_id) = config.ts_paths.get(&candidate) {
-            return Ok((*dir_id, &path_components[idx..]));
+            return Ok((*dir_id, idx));
         }
         if candidate.len() == 0 {
             break;
@@ -80,18 +81,18 @@ pub fn resolve_root_of_local_path<'a>(config: &Config, path_components: &'a [&'a
         candidate.pop();
         idx -= 1;
     }
-    let path = format!("/{}", path_components.join("/"));
+    let path = format!("/{}", path_components_joinable.join("/"));
     bail!("no entry in ts_paths could serve as the base dir for {}", path);
 }
 
 /// Resolve some local absolute path to its exastash equivalent
-pub async fn resolve_local_absolute_path(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[&str]) -> Result<InodeId> {
-    let (root_dir, components) = resolve_root_of_local_path(config, path_components)?;
-    walk_path(transaction, root_dir, components).await
+pub async fn resolve_local_absolute_path<S: AsRef<str> + ToString + Clone>(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[S]) -> Result<InodeId> {
+    let (root_dir, idx) = resolve_root_of_local_path(config, path_components)?;
+    walk_path(transaction, root_dir, &path_components[idx..]).await
 }
 
-/// Resolve some local relative path argument to its exastash equivalent
-pub async fn resolve_local_path_arg(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_arg: Option<&str>) -> Result<InodeId> {
+/// Resolve some local relative path argument to normalized path components
+pub fn resolve_local_path_to_path_components(path_arg: Option<&str>) -> Result<Vec<String>> {
     let mut path = std::env::current_dir()?;
     if let Some(p) = path_arg {
         path = path.join(p);
@@ -102,12 +103,23 @@ pub async fn resolve_local_path_arg(config: &Config, transaction: &mut Transacti
         .to_str()
         .ok_or_else(|| anyhow!("could not convert path {:?} to UTF-8", path))?;
     assert!(s.starts_with('/'));
-    let path_components: Vec<&str> =
+    let path_components: Vec<String> =
         s
         .split('/')
         .skip(1)
+        .map(String::from)
         .collect();
 
-    let inode_id = resolve_local_absolute_path(&config, transaction, &path_components).await?;
-    Ok(inode_id)
+    Ok(path_components)
+}
+
+/// Resolve normalized path components to its exastash equivalent inode
+pub async fn resolve_path_components<S: AsRef<str> + ToString + Clone>(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[S]) -> Result<InodeId> {
+    resolve_local_absolute_path(&config, transaction, path_components).await
+}
+
+/// Resolve some local relative path argument to its exastash equivalent inode
+pub async fn resolve_local_path_arg(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_arg: Option<&str>) -> Result<InodeId> {
+    let path_components = resolve_local_path_to_path_components(path_arg)?;
+    resolve_path_components(config, transaction, &path_components).await
 }

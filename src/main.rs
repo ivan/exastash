@@ -367,6 +367,15 @@ enum FuseCommand {
         mountpoint: String,
     }
 }
+arg_enum! {
+    #[derive(Debug)]
+    #[allow(non_camel_case_types)]
+    enum FindKind {
+        d, // dir
+        f, // file
+        s, // symlink
+    }
+}
 
 #[derive(StructOpt, Debug)]
 enum TerastashCommand {
@@ -394,6 +403,21 @@ enum TerastashCommand {
         /// Whether to print just the filenames
         #[structopt(long, short = "j")]
         just_names: bool,
+    },
+    /// Recursively list a directory like findutils find
+    #[structopt(name = "find")]
+    Find {
+        /// Path to list, relative to cwd
+        #[structopt(name = "PATH")]
+        paths: Vec<String>,
+
+        /// Limit output to paths pointing to inodes of this type (d = dir, f = file, s = symlink)
+        #[structopt(long, short = "t", possible_values = &FindKind::variants(), case_insensitive = false)]
+        r#type: Option<FindKind>,
+
+        /// Print filenames separated by NULL instead of LF
+        #[structopt(short = "0")]
+        null_sep: bool,
     }
 }
 
@@ -425,6 +449,25 @@ async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segmen
         if let InodeId::Dir(dir_id) = dirent.child {
             let segments = [segments, &[&dirent.basename]].concat();
             walk_dir(transaction, root, &segments, dir_id).await?;
+        }
+    }
+    Ok(())
+}
+
+#[async_recursion]
+async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str], dir_id: i64) -> Result<()> {
+    let path_string = match segments {
+        [] => "".into(),
+        parts => format!("{}/", parts.join("/")),
+    };
+    let dirents = Dirent::find_by_parents(transaction, &[dir_id]).await?;
+    for dirent in dirents {
+        let path = format!("{}{}", path_string, dirent.basename);
+        println!("{}", path);
+
+        if let InodeId::Dir(dir_id) = dirent.child {
+            let segments = [segments, &[&dirent.basename]].concat();
+            ts_find(transaction, &segments, dir_id).await?;
         }
     }
     Ok(())
@@ -727,6 +770,29 @@ async fn main() -> Result<()> {
                             }
                         }
                     }
+                }
+                TerastashCommand::Find { paths: path_args, r#type, null_sep } => {
+                    // find in cwd if no path args
+                    let mut path_args = path_args.clone();
+                    if path_args.is_empty() {
+                        path_args.push(String::from("."));
+                    }
+
+                    let config = ts::get_config()?;
+                    let mut runs = vec![];
+                    // Resolve all root paths to inodes before doing the walk operations,
+                    // during which files could be renamed.
+                    for path_arg in path_args {
+                        let dir_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(&path_arg)).await?.dir_id()?;
+                        runs.push((dir_id, path_arg));
+                    }
+
+                    for (dir_id, path_arg) in runs {
+                        ts_find(&mut transaction, &[&path_arg], dir_id).await?;
+                    }
+
+                    // dbg!(r#type);
+                    // dbg!(null_sep);
                 }
             }
         }
