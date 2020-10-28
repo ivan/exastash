@@ -788,6 +788,8 @@ async fn main() -> Result<()> {
                     }
 
                     for (dir_id, path_arg) in runs {
+                        // Print the top-level dir like findutils find
+                        println!("{}", path_arg);
                         ts_find(&mut transaction, &[&path_arg], dir_id).await?;
                     }
 
