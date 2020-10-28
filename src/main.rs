@@ -778,16 +778,16 @@ async fn main() -> Result<()> {
                     }
 
                     let config = ts::get_config()?;
-                    let mut runs = vec![];
+                    let mut roots = vec![];
                     // Resolve all root paths to inodes before doing the walk operations,
                     // during which files could be renamed.
                     for path_arg in path_args {
                         let dir_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(&path_arg)).await?.dir_id()?;
-                        runs.push((dir_id, path_arg));
+                        roots.push((dir_id, path_arg));
                     }
 
                     let terminator = if *null_sep { '\0' } else { '\n' };
-                    for (dir_id, path_arg) in runs {
+                    for (dir_id, path_arg) in roots {
                         // Print the top-level dir like findutils find
                         print!("{}{}", path_arg, terminator);
                         ts_find(&mut transaction, &[&path_arg], terminator, dir_id).await?;
