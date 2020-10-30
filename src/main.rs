@@ -368,7 +368,7 @@ enum FuseCommand {
     }
 }
 arg_enum! {
-    #[derive(Debug)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     #[allow(non_camel_case_types)]
     enum FindKind {
         d, // dir
@@ -455,18 +455,33 @@ async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segmen
 }
 
 #[async_recursion]
-async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str], terminator: char, dir_id: i64) -> Result<()> {
+async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str], terminator: char, r#type: Option<FindKind>, dir_id: i64) -> Result<()> {
     let path_string = match segments {
         [] => "".into(),
         parts => format!("{}/", parts.join("/")),
     };
     let dirents = Dirent::find_by_parents(transaction, &[dir_id]).await?;
     for dirent in dirents {
-        print!("{}{}{}", path_string, dirent.basename, terminator);
+        // No type filter means we output
+        let mut do_output = false;
+        if r#type.is_none() {
+            do_output = true;
+        } else {
+            // Make sure the type matches
+            match dirent.child {
+                InodeId::Dir(_)     => if r#type == Some(FindKind::d) { do_output = true; },
+                InodeId::File(_)    => if r#type == Some(FindKind::f) { do_output = true; },
+                InodeId::Symlink(_) => if r#type == Some(FindKind::s) { do_output = true; },
+            };
+        }
+
+        if do_output {
+            print!("{}{}{}", path_string, dirent.basename, terminator);
+        }
 
         if let InodeId::Dir(dir_id) = dirent.child {
             let segments = [segments, &[&dirent.basename]].concat();
-            ts_find(transaction, &segments, terminator, dir_id).await?;
+            ts_find(transaction, &segments, terminator, r#type, dir_id).await?;
         }
     }
     Ok(())
@@ -788,12 +803,12 @@ async fn main() -> Result<()> {
 
                     let terminator = if *null_sep { '\0' } else { '\n' };
                     for (dir_id, path_arg) in roots {
-                        // Print the top-level dir like findutils find
-                        print!("{}{}", path_arg, terminator);
-                        ts_find(&mut transaction, &[&path_arg], terminator, dir_id).await?;
+                        if r#type.is_none() || *r#type == Some(FindKind::d) {
+                            // Print the top-level dir like findutils find
+                            print!("{}{}", path_arg, terminator);
+                        }
+                        ts_find(&mut transaction, &[&path_arg], terminator, *r#type, dir_id).await?;
                     }
-
-                    // dbg!(r#type);
                 }
             }
         }
