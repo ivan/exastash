@@ -387,6 +387,7 @@ enum TerastashCommand {
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
+
     /// Write the contents of a file to stdout
     #[structopt(name = "cat")]
     Cat {
@@ -394,6 +395,7 @@ enum TerastashCommand {
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
+
     /// List a directory like terastash
     #[structopt(name = "ls")]
     Ls {
@@ -405,6 +407,7 @@ enum TerastashCommand {
         #[structopt(long, short = "j")]
         just_names: bool,
     },
+
     /// Recursively list a directory like findutils find
     #[structopt(name = "find")]
     Find {
