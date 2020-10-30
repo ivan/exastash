@@ -367,6 +367,7 @@ enum FuseCommand {
         mountpoint: String,
     }
 }
+
 arg_enum! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     #[allow(non_camel_case_types)]
