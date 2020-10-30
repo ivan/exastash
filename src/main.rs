@@ -455,7 +455,7 @@ async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segmen
 }
 
 #[async_recursion]
-async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str], terminator: char, r#type: Option<FindKind>, dir_id: i64) -> Result<()> {
+async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str], dir_id: i64, r#type: Option<FindKind>, terminator: char) -> Result<()> {
     let path_string = match segments {
         [] => "".into(),
         parts => format!("{}/", parts.join("/")),
@@ -481,7 +481,7 @@ async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str],
 
         if let InodeId::Dir(dir_id) = dirent.child {
             let segments = [segments, &[&dirent.basename]].concat();
-            ts_find(transaction, &segments, terminator, r#type, dir_id).await?;
+            ts_find(transaction, &segments, dir_id, r#type, terminator).await?;
         }
     }
     Ok(())
@@ -807,7 +807,7 @@ async fn main() -> Result<()> {
                             // Print the top-level dir like findutils find
                             print!("{}{}", path_arg, terminator);
                         }
-                        ts_find(&mut transaction, &[&path_arg], terminator, *r#type, dir_id).await?;
+                        ts_find(&mut transaction, &[&path_arg], dir_id, *r#type, terminator).await?;
                     }
                 }
             }
