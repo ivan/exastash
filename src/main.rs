@@ -20,7 +20,7 @@ use exastash::db::storage::gdrive::file::GdriveFile;
 use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
-use exastash::db::traversal::walk_path;
+use exastash::db::traversal;
 //use exastash::fuse;
 use exastash::ts;
 use exastash::info::json_info;
@@ -422,7 +422,17 @@ enum TerastashCommand {
         /// Print filenames separated by NULL instead of LF
         #[structopt(short = "0")]
         null_sep: bool,
-    }
+    },
+
+    /// Create a directory
+    #[structopt(name = "mkdir")]
+    Mkdir {
+        /// Directory path to create, relative to cwd. Parent directories are
+        /// also created as needed. For your convenience, the same directories
+        /// are also created in cwd.
+        #[structopt(name = "PATH")]
+        paths: Vec<String>,
+    },
 }
 
 async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, path: &str) -> Result<InodeId> {
@@ -431,7 +441,7 @@ async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, pa
     } else {
         path.split('/').collect()
     };
-    walk_path(transaction, root, &path_components).await
+    traversal::walk_path(transaction, root, &path_components).await
 }
 
 #[async_recursion]
@@ -812,6 +822,24 @@ async fn main() -> Result<()> {
                             print!("{}{}", path_arg, terminator);
                         }
                         ts_find(&mut transaction, &[&path_arg], dir_id, *r#type, terminator).await?;
+                    }
+                }
+                TerastashCommand::Mkdir { paths: path_args } => {
+                    // We need one transaction per new directory below.
+                    drop(transaction);
+
+                    let config = ts::get_config()?;
+
+                    for path_arg in path_args {
+                        let mut transaction = pool.begin().await?;
+                        let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
+                        let (base_dir, idx) = ts::resolve_root_of_local_path(&config, &path_components)?;
+                        let remaining_components = &path_components[idx..];
+                        traversal::make_dirs(&mut transaction, base_dir, remaining_components).await?;
+                        transaction.commit().await?;
+
+                        // For convenience, also create the corresponding directory on the local filesystem
+                        std::fs::create_dir_all(path_arg)?;
                     }
                 }
             }

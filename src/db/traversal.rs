@@ -1,9 +1,10 @@
 //! Functions for walking a path from a base_dir
 
+use chrono::Utc;
 use anyhow::{bail, Result};
 use sqlx::{Postgres, Transaction};
 use crate::db::dirent::Dirent;
-use crate::db::inode::InodeId;
+use crate::db::inode::{InodeId, NewDir, Birth};
 use crate::Error;
 
 /// Return the inode referenced by some path segments, starting from some base directory.
@@ -18,6 +19,26 @@ pub async fn walk_path<S: AsRef<str> + ToString + Clone>(transaction: &mut Trans
             current_inode = dirent.child;
         } else {
             bail!(Error::NoDirent { parent: dir_id, basename: component.to_string() });
+        }
+    }
+    Ok(current_inode)
+}
+
+/// Resolve path_components but also create new directories as needed, like `mkdir -p`.
+/// Does not commit the transaction, you must do so yourself.
+pub async fn make_dirs<S: AsRef<str> + ToString + Clone>(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[S]) -> Result<InodeId> {
+    let mut current_inode = InodeId::Dir(base_dir);
+    for component in path_components {
+        let dir_id = current_inode.dir_id()?;
+        if let Some(dirent) = Dirent::find_by_parent_and_basename(transaction, dir_id, component.as_ref()).await? {
+            current_inode = dirent.child;
+        } else {
+            let mtime = Utc::now();
+            let birth = Birth::here_and_now();
+            let dir = NewDir { mtime, birth }.create(transaction).await?;
+            Dirent::new(dir_id, component.as_ref(), InodeId::Dir(dir.id)).create(transaction).await?;
+
+            current_inode = InodeId::Dir(dir.id);
         }
     }
     Ok(current_inode)
