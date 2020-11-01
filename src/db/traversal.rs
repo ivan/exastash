@@ -63,18 +63,16 @@ pub async fn make_dirs<S: AsRef<str> + ToString + Clone>(transaction: &mut Trans
 mod tests {
     use super::*;
     use crate::db::tests::new_primary_pool;
-    use crate::db::dirent::Dirent;
-    use chrono::Utc;
     use crate::db::inode;
+    use crate::db::dirent::Dirent;
     use crate::db::dirent::tests::make_basename;
+    use chrono::Utc;
+    use sqlx::Pool;
 
     mod api {
         use super::*;
 
-        #[tokio::test]
-        async fn test_resolve_inode() -> Result<()> {
-            let pool = new_primary_pool().await;
-
+        async fn set_up_tree(pool: &Pool<sqlx::Postgres>) -> Result<(inode::Dir, inode::Dir, inode::File, inode::Symlink)> {
             let mut transaction = pool.begin().await?;
             let birth = inode::Birth::here_and_now();
             let root_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
@@ -93,6 +91,15 @@ mod tests {
             // Give child_symlink a second location as well
             Dirent::new(child_dir.id, "child_symlink", InodeId::Symlink(child_symlink.id)).create(&mut transaction).await?;
             transaction.commit().await?;
+
+            Ok((root_dir, child_dir, child_file, child_symlink))
+        }
+
+        #[tokio::test]
+        async fn test_resolve_inode() -> Result<()> {
+            let pool = new_primary_pool().await;
+
+            let (root_dir, child_dir, child_file, child_symlink) = set_up_tree(&pool).await?;
 
             let mut transaction = pool.begin().await?;
 
@@ -143,24 +150,7 @@ mod tests {
         async fn test_resolve_dirent() -> Result<()> {
             let pool = new_primary_pool().await;
 
-            let mut transaction = pool.begin().await?;
-            let birth = inode::Birth::here_and_now();
-            let root_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(1, make_basename("root_dir"), InodeId::Dir(root_dir.id)).create(&mut transaction).await?;
-            transaction.commit().await?;
-
-            let mut transaction = pool.begin().await?;
-            let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            Dirent::new(root_dir.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
-            Dirent::new(root_dir.id, "child_file", InodeId::File(child_file.id)).create(&mut transaction).await?;
-            Dirent::new(root_dir.id, "child_symlink", InodeId::Symlink(child_symlink.id)).create(&mut transaction).await?;
-            // Give child_file a second location as well
-            Dirent::new(child_dir.id, "child_file", InodeId::File(child_file.id)).create(&mut transaction).await?;
-            // Give child_symlink a second location as well
-            Dirent::new(child_dir.id, "child_symlink", InodeId::Symlink(child_symlink.id)).create(&mut transaction).await?;
-            transaction.commit().await?;
+            let (root_dir, child_dir, child_file, child_symlink) = set_up_tree(&pool).await?;
 
             let mut transaction = pool.begin().await?;
 
