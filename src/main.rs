@@ -433,6 +433,16 @@ enum TerastashCommand {
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
+
+    /// Delete a directory entry given some path, relative to cwd. Also deletes
+    /// the corresponding dir when removing a child_dir dirent. Does not delete
+    /// files or symlinks, even removing the last dirent to a file or symlink.
+    #[structopt(name = "rm")]
+    Rm {
+        /// Path to a dirent to remove, relative to cwd.
+        #[structopt(name = "PATH")]
+        paths: Vec<String>,
+    },
 }
 
 async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, path: &str) -> Result<InodeId> {
@@ -441,7 +451,7 @@ async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, pa
     } else {
         path.split('/').collect()
     };
-    traversal::walk_path(transaction, root, &path_components).await
+    traversal::resolve_inode(transaction, root, &path_components).await
 }
 
 #[async_recursion]
@@ -840,6 +850,27 @@ async fn main() -> Result<()> {
 
                         // For convenience, also create the corresponding directory on the local filesystem
                         std::fs::create_dir_all(path_arg)?;
+                    }
+                }
+                TerastashCommand::Rm { paths: path_args } => {
+                    // We need one transaction per dirent removal below (at least for dirents with a child_dir).
+                    drop(transaction);
+
+                    let config = ts::get_config()?;
+
+                    for path_arg in path_args {
+                        let mut transaction = pool.begin().await?;
+                        let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
+                        let (base_dir, idx) = ts::resolve_root_of_local_path(&config, &path_components)?;
+                        let remaining_components = &path_components[idx..];
+
+                        let dirent = traversal::resolve_dirent(&mut transaction, base_dir, remaining_components).await?;
+                        dirent.remove(&mut transaction).await?;
+                        if let InodeId::Dir(dir_id) = dirent.child {
+                            Dir::remove(&mut transaction, &[dir_id]).await?;
+                        }
+
+                        transaction.commit().await?;
                     }
                 }
             }

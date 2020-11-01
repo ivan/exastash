@@ -9,7 +9,7 @@ use serde_derive::Deserialize;
 use anyhow::Result;
 use directories::ProjectDirs;
 use crate::db::inode::InodeId;
-use crate::db::traversal::walk_path;
+use crate::db::traversal;
 use crate::util;
 
 #[derive(Deserialize, Debug)]
@@ -88,7 +88,7 @@ pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Con
 /// Resolve some local absolute path to its exastash equivalent
 pub async fn resolve_local_absolute_path<S: AsRef<str> + ToString + Clone>(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[S]) -> Result<InodeId> {
     let (root_dir, idx) = resolve_root_of_local_path(config, path_components)?;
-    walk_path(transaction, root_dir, &path_components[idx..]).await
+    traversal::resolve_inode(transaction, root_dir, &path_components[idx..]).await
 }
 
 /// Resolve some local relative path argument to normalized path components

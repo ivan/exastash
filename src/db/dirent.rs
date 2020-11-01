@@ -77,6 +77,17 @@ impl Dirent {
         Ok(self)
     }
 
+    /// Remove this directory entry.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
+        let stmt = "DELETE FROM dirents WHERE parent = $1::bigint AND basename = $2::text";
+        sqlx::query(stmt)
+            .bind(self.parent)
+            .bind(&self.basename)
+            .execute(transaction).await?;
+        Ok(())
+    }
+
     /// Remove a directory entry by `parent` and `basename`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_parent_basename(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<()> {
