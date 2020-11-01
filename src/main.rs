@@ -4,7 +4,7 @@ use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
 use clap::arg_enum;
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, bail, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use futures::future::FutureExt;
@@ -396,6 +396,15 @@ enum TerastashCommand {
         paths: Vec<String>,
     },
 
+    /// Retrieve a dir, file, or symlink to the local filesystem.
+    /// Not recursive.
+    #[structopt(name = "get")]
+    Get {
+        /// Path to a file, relative to cwd
+        #[structopt(name = "PATH")]
+        paths: Vec<String>,
+    },
+
     /// List a directory like terastash
     #[structopt(name = "ls")]
     Ls {
@@ -511,13 +520,14 @@ async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str],
     Ok(())
 }
 
-async fn write_stream_to_stdout(stream: storage_read::ReadStream) -> Result<()> {
+async fn write_stream_to_sink<S>(stream: storage_read::ReadStream, sink: &mut S) -> Result<()>
+where S: tokio::io::AsyncWrite + Unpin
+{
     let mut read = stream
         .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
         .into_async_read()
         .compat();
-    let mut stdout = tokio::io::stdout();
-    tokio::io::copy(&mut read, &mut stdout).await?;
+    tokio::io::copy(&mut read, sink).await?;
     Ok(())
 }
 
@@ -586,7 +596,8 @@ async fn main() -> Result<()> {
                     match content {
                         ContentCommand::Read { id } => {
                             let stream = storage_read::read(id).await?;
-                            write_stream_to_stdout(stream).await?;
+                            let mut stdout = tokio::io::stdout();
+                            write_stream_to_sink(stream, &mut stdout).await?;
                         }
                     }
                 }
@@ -726,7 +737,8 @@ async fn main() -> Result<()> {
                     let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
                     for gdrive_file in &gdrive_files {
                         let stream = Box::pin(storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?);
-                        write_stream_to_stdout(stream).await?;
+                        let mut stdout = tokio::io::stdout();
+                        write_stream_to_sink(stream, &mut stdout).await?;
                     }
                 }
             }
@@ -765,7 +777,46 @@ async fn main() -> Result<()> {
                     }
                     for file_id in file_ids {
                         let stream = storage_read::read(file_id).await?;
-                        write_stream_to_stdout(stream).await?;
+                        let mut stdout = tokio::io::stdout();
+                        write_stream_to_sink(stream, &mut stdout).await?;
+                    }
+                }
+                TerastashCommand::Get { paths: path_args } => {
+                    let config = ts::get_config()?;
+                    let mut retrievals = vec![];
+                    // Resolve all paths to inodes before doing the unpredictably-long read operations,
+                    // during which files could be renamed.
+                    for path_arg in path_args {
+                        let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
+                        retrievals.push((inode_id, path_arg));
+                    }
+                    for (inode_id, path_arg) in retrievals {
+                        match inode_id {
+                            InodeId::Dir(_) => {
+                                unimplemented!();
+                            }
+                            InodeId::File(file_id) => {
+                                // TODO: create parent directories as needed
+                                // TODO: skip download if file already exists with same size and mtime
+
+                                // Remove any existing file to reset permissions
+                                if let Err(err) = tokio::fs::remove_file(&path_arg).await {
+                                    if err.kind() != std::io::ErrorKind::NotFound {
+                                        bail!(err);
+                                    }
+                                }
+
+                                let mut file = tokio::fs::File::create(&path_arg).await?;
+                                let stream = storage_read::read(file_id).await?;
+                                write_stream_to_sink(stream, &mut file).await?;
+
+                                // TODO: set mtime
+                                // TODO: set executable bit if file is executable
+                            }
+                            InodeId::Symlink(_) => {
+                                unimplemented!();
+                            }
+                        }
                     }
                 }
                 TerastashCommand::Ls { path: path_arg, just_names } => {
