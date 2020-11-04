@@ -400,7 +400,16 @@ enum TerastashCommand {
     /// Not recursive.
     #[structopt(name = "get")]
     Get {
-        /// Path to a file, relative to cwd
+        /// Path to get, relative to cwd
+        #[structopt(name = "PATH")]
+        paths: Vec<String>,
+    },
+
+    /// Add a dir, file, or symlink.
+    /// Not recursive.
+    #[structopt(name = "add")]
+    Add {
+        /// Path, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
@@ -817,6 +826,23 @@ async fn main() -> Result<()> {
                                 unimplemented!();
                             }
                         }
+                    }
+                }
+                TerastashCommand::Add { paths: path_args } => {
+                    // We need one transaction per new directory below.
+                    drop(transaction);
+
+                    let config = ts::get_config()?;
+                    for path_arg in path_args {
+                        let mut transaction = pool.begin().await?;
+                        let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
+                        let (base_dir, idx) = ts::resolve_root_of_local_path(&config, &path_components)?;
+                        let remaining_components = &path_components[idx..];
+
+                        let attr = fs::metadata(path_arg).await?;
+                        dbg!(attr);
+
+                        transaction.commit().await?;
                     }
                 }
                 TerastashCommand::Ls { path: path_arg, just_names } => {
