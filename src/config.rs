@@ -10,6 +10,7 @@ use quick_js::{Context, JsValue};
 use directories::ProjectDirs;
 use custom_debug_derive::Debug as CustomDebug;
 use crate::util::elide;
+use crate::storage_write::DesiredStorage;
 
 #[derive(Deserialize, Debug)]
 struct RawConfig {
@@ -53,15 +54,6 @@ pub fn get_config() -> Result<Config> {
     let raw_config: RawConfig = toml::from_str(&bytes)?;
     let config = raw_config.into();
     Ok(config)
-}
-
-/// Descriptor indicating which storages should be used for a new file
-#[derive(Debug, PartialEq, Eq)]
-pub struct DesiredStorage {
-    /// Whether to store inline in the database
-    pub inline: bool,
-    /// A list of gsuite_domain ids in which to store the file
-    pub gdrive: Vec<i16>,
 }
 
 impl TryFrom<JsValue> for DesiredStorage {

@@ -585,7 +585,8 @@ async fn main() -> Result<()> {
             match file {
                 FileCommand::Create { path, store_inline, store_gdrive } => {
                     drop(transaction);
-                    let file_id = storage_write::write(path, store_inline, &store_gdrive).await?;
+                    let desired_storage = storage_write::DesiredStorage { inline: store_inline, gdrive: store_gdrive };
+                    let file_id = storage_write::write(path, &desired_storage).await?;
                     println!("{}", file_id);
                 }
                 FileCommand::Remove { file_id } => {

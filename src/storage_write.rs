@@ -257,8 +257,20 @@ pub fn paranoid_zstd_encode_all(bytes: &[u8], level: i32) -> Result<Vec<u8>> {
     Ok(content_zstd)
 }
 
+/// Descriptor indicating which storages should be used for a new file
+#[derive(Debug, PartialEq, Eq)]
+pub struct DesiredStorage {
+    /// Whether to store inline in the database
+    pub inline: bool,
+    /// A list of gsuite_domain ids in which to store the file
+    pub gdrive: Vec<i16>,
+}
+
 /// Write a file to storage and return the new file id
-pub async fn write(path: String, store_inline: bool, store_gdrive: &[i16]) -> Result<i64> {
+pub async fn write(path: String, desired_storage: &DesiredStorage) -> Result<i64> {
+    let store_inline = desired_storage.inline;
+    let store_gdrive = &desired_storage.gdrive;
+
     let pool = db::pgpool().await;
 
     let attr = fs::metadata(&path).await?;
