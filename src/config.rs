@@ -55,8 +55,12 @@ pub fn get_config() -> Result<Config> {
     Ok(config)
 }
 
-struct DesiredStorage {
+/// Descriptor indicating which storages should be used for a new file
+#[derive(Debug, PartialEq, Eq)]
+pub struct DesiredStorage {
+    /// Whether to store inline in the database
     pub inline: bool,
+    /// A list of gsuite_domain ids in which to store the file
     pub gdrive: Vec<i16>,
 }
 
@@ -134,19 +138,63 @@ pub fn get_policy() -> Result<Policy> {
     parse_policy(&script)
 }
 
+// TODO add tests for config.toml parser
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_parse_policy() -> Result<()> {
-        let script = r#"
-            function newFileStorages(stashPath, fileSize) {
-                return {inline: true};
-            }
-        "#;
-        parse_policy(script)?;
+    mod policy {
+        use super::*;
 
-        Ok(())
+        #[test]
+        fn test_parse_policy() -> Result<()> {
+            let script = r#"
+                function newFileStorages({ stashPath, size, mtime, executable }) {
+                    return {inline: true};
+                }
+            "#;
+            parse_policy(script)?;
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_new_file_storage() -> Result<()> {
+            let script = r#"
+                function newFileStorages({ stashPath, size, mtime, executable }) {
+                    if (stashPath.endsWith(".json")) {
+                        // Not something we'd do in practice
+                        return {inline: true, gdrive: [1]};
+                    } else if (size > 100 || stashPath.endsWith(".jpg")) {
+                        return {gdrive: [1, 2]};
+                    } else {
+                        return {inline: true};
+                    }
+                }
+            "#;
+            let policy = parse_policy(script)?;
+
+            assert_eq!(
+                policy.new_file_storages("something.json", 0, Utc::now(), false)?,
+                DesiredStorage { inline: true, gdrive: vec![1] }
+            );
+
+            assert_eq!(
+                policy.new_file_storages("something.jpg", 0, Utc::now(), false)?,
+                DesiredStorage { inline: false, gdrive: vec![1, 2] }
+            );
+            assert_eq!(
+                policy.new_file_storages("something", 101, Utc::now(), false)?,
+                DesiredStorage { inline: false, gdrive: vec![1, 2] }
+            );
+
+            assert_eq!(
+                policy.new_file_storages("small", 50, Utc::now(), false)?,
+                DesiredStorage { inline: true, gdrive: vec![] }
+            );
+
+            Ok(())
+        }
     }
 }
