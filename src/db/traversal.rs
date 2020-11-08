@@ -59,6 +59,21 @@ pub async fn make_dirs<S: AsRef<str> + ToString + Clone>(transaction: &mut Trans
     Ok(current_inode)
 }
 
+/// Takes a dir id and walks up to the root of the filesystem (dir id 1).
+/// Returns a list of path segments needed to reach the dir id from the root.
+pub async fn get_path_segments_from_root_to_dir(transaction: &mut Transaction<'_, Postgres>, mut target_dir: i64) -> Result<Vec<String>> {
+    let root_dir = 1;
+    let mut segments = vec![];
+    while target_dir != root_dir {
+        let dirent = Dirent::find_by_child_dir(transaction, target_dir).await?
+            .ok_or_else(|| anyhow!("no dirent with child dir {}", target_dir))?;
+        segments.push(dirent.basename.clone());
+        target_dir = dirent.parent;   
+    }
+    segments.reverse();
+    Ok(segments)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,6 +212,29 @@ mod tests {
                     format!("{:?} is not a dir", not_a_dir)
                 );
             }
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_get_path_segments_from_root_to_dir() -> Result<()> {
+            let pool = new_primary_pool().await;
+
+            let birth = inode::Birth::here_and_now();
+
+            let mut transaction = pool.begin().await?;
+            let test_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(1, "test_get_path_segments_from_root_to_dir", InodeId::Dir(test_dir.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = pool.begin().await?;
+            let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            Dirent::new(test_dir.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            let mut transaction = pool.begin().await?;
+            let segments = get_path_segments_from_root_to_dir(&mut transaction, child_dir.id).await?;
+            assert_eq!(segments, vec!["test_get_path_segments_from_root_to_dir", "child_dir"]);
 
             Ok(())
         }

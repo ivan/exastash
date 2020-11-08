@@ -834,14 +834,22 @@ async fn main() -> Result<()> {
                     drop(transaction);
 
                     let config = config::get_config()?;
+                    let policy = config::get_policy()?;
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
                         let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
                         let (base_dir, idx) = ts::resolve_root_of_local_path(&config, &path_components)?;
                         let remaining_components = &path_components[idx..];
+                        // TODO: need to walk up to get the full stash path, because we might not be rooted in dir '1'
 
-                        let attr = fs::metadata(path_arg).await?;
-                        dbg!(attr);
+                        let metadata = fs::metadata(path_arg).await?;
+                        if metadata.is_file() {
+                            //let desired_storage = policy.new_file_storages(stash_path, size, mtime, executable)?;
+                            //let file_id = storage_write::write(path, &desired_storage).await?;        
+                            // TODO create dirent
+                        } else {
+                            bail!("can only add a file right now")
+                        }
 
                         transaction.commit().await?;
                     }
