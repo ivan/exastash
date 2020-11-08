@@ -1,7 +1,7 @@
 //! code for loading ~/.config/exastash/*
 
 use std::fs;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use anyhow::{bail, Result};
@@ -60,28 +60,13 @@ struct DesiredStorage {
     pub gdrive: Vec<i16>,
 }
 
-/// Policy object that can be used to make decisions about file placement
-#[derive(CustomDebug)]
-pub struct Policy {
-    #[debug(with = "elide")]
-    js_context: Context,
-}
+impl TryFrom<JsValue> for DesiredStorage {
+    type Error = anyhow::Error;
 
-// TODO: make the function take an object with properties
-
-impl Policy {
-    fn new_file_storages(&self, stash_path: &str, size: i64, mtime: DateTime<Utc>, executable: bool) -> Result<DesiredStorage> {
-        let mut properties: HashMap<String, JsValue> = HashMap::new();
-        properties.insert("stashPath".into(),  JsValue::String(stash_path.into()));
-        properties.insert("size".into(),       JsValue::BigInt(size.into()));
-        properties.insert("mtime".into(),      JsValue::Date(mtime));
-        properties.insert("executable".into(), JsValue::Bool(executable));
-
-        let out = self.js_context.call_function("newFileStorages", vec![JsValue::Object(properties)])?;
-
+    fn try_from(js_obj: JsValue) -> Result<DesiredStorage> {
         let mut desired_storage = DesiredStorage { inline: false, gdrive: vec![] };
 
-        if let JsValue::Object(map) = out {
+        if let JsValue::Object(map) = js_obj {
             if let Some(val) = map.get("gdrive") {
                 if let JsValue::Array(gdrive_ids) = val {
                     for val in gdrive_ids {
@@ -111,6 +96,27 @@ impl Policy {
         }
 
         Ok(desired_storage)
+    }
+}
+
+/// Policy object that can be used to make decisions about file placement
+#[derive(CustomDebug)]
+pub struct Policy {
+    #[debug(with = "elide")]
+    js_context: Context,
+}
+
+// TODO: make the function take an object with properties
+
+impl Policy {
+    fn new_file_storages(&self, stash_path: &str, size: i64, mtime: DateTime<Utc>, executable: bool) -> Result<DesiredStorage> {
+        let mut properties: HashMap<String, JsValue> = HashMap::new();
+        properties.insert("stashPath".into(),  JsValue::String(stash_path.into()));
+        properties.insert("size".into(),       JsValue::BigInt(size.into()));
+        properties.insert("mtime".into(),      JsValue::Date(mtime));
+        properties.insert("executable".into(), JsValue::Bool(executable));
+
+        self.js_context.call_function("newFileStorages", vec![JsValue::Object(properties)])?.try_into()
     }
 }
 
