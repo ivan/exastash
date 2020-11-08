@@ -9,7 +9,7 @@ use serde_derive::Deserialize;
 use quick_js::{Context, JsValue};
 use directories::ProjectDirs;
 use custom_debug_derive::Debug as CustomDebug;
-use crate::util::elide;
+use crate::util::{self, elide};
 use crate::storage_write::DesiredStorage;
 
 #[derive(Deserialize, Debug)]
@@ -25,25 +25,12 @@ pub struct Config {
     pub ts_paths: HashMap<Vec<String>, i64>,
 }
 
-pub(crate) fn utf8_path_to_components(path: &str) -> Vec<String> {
-    assert!(path.starts_with('/'));
-    let mut parts: Vec<String> = path
-        .split('/')
-        .skip(1)
-        .map(String::from)
-        .collect();
-    if parts.get(0).unwrap() == "" {
-        parts.pop();
-    }
-    parts
-}
-
 impl From<RawConfig> for Config {
     fn from(raw_config: RawConfig) -> Self {
         Config {
             ts_paths: raw_config.ts_paths
                 .into_iter()
-                .map(|(k, v)| (utf8_path_to_components(&k), v))
+                .map(|(k, v)| (util::utf8_path_to_components(&k), v))
                 .collect()
         }
     }

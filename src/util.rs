@@ -72,6 +72,20 @@ pub fn normalize_path(path: &Path) -> PathBuf {
     ret
 }
 
+/// Convert an absolute path to a Vec of String path components
+pub(crate) fn utf8_path_to_components(path: &str) -> Vec<String> {
+    assert!(path.starts_with('/'));
+    let mut parts: Vec<String> = path
+        .split('/')
+        .skip(1)
+        .map(String::from)
+        .collect();
+    if parts.get(0).unwrap() == "" {
+        parts.pop();
+    }
+    parts
+}
+
 // For use with custom_debug_derive::Debug + #[debug(with = "elide")]
 #[inline]
 pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {

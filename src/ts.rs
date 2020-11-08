@@ -4,7 +4,7 @@
 use anyhow::{anyhow, bail};
 use sqlx::{Postgres, Transaction};
 use anyhow::Result;
-use crate::config::{self, Config};
+use crate::config::Config;
 use crate::db::inode::InodeId;
 use crate::db::traversal;
 use crate::util;
@@ -55,7 +55,7 @@ pub fn resolve_local_path_to_path_components(path_arg: Option<&str>) -> Result<V
     let s = path
         .to_str()
         .ok_or_else(|| anyhow!("could not convert path {:?} to UTF-8", path))?;
-    Ok(config::utf8_path_to_components(s))
+    Ok(util::utf8_path_to_components(s))
 }
 
 /// Resolve normalized path components to its exastash equivalent inode
