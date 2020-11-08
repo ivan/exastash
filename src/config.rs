@@ -63,6 +63,7 @@ struct DesiredStorage {
 impl TryFrom<JsValue> for DesiredStorage {
     type Error = anyhow::Error;
 
+    /// Convert JS object e.g. {inline: true, gdrive: [1]} to a DesiredStorage
     fn try_from(js_obj: JsValue) -> Result<DesiredStorage> {
         let mut desired_storage = DesiredStorage { inline: false, gdrive: vec![] };
 
@@ -105,8 +106,6 @@ pub struct Policy {
     #[debug(with = "elide")]
     js_context: Context,
 }
-
-// TODO: make the function take an object with properties
 
 impl Policy {
     fn new_file_storages(&self, stash_path: &str, size: i64, mtime: DateTime<Utc>, executable: bool) -> Result<DesiredStorage> {
