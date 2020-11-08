@@ -1,16 +1,11 @@
 //! CRUD operations for Google OAuth 2.0 and service account entities in PostgreSQL
 
-use std::fmt;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use yup_oauth2::ServiceAccountKey;
 use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
 use custom_debug_derive::Debug as CustomDebug;
-
-#[inline]
-fn elide<T: fmt::Debug>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "...")
-}
+use crate::util::elide;
 
 /// A gsuite_application_secret entity
 #[derive(Clone, CustomDebug, sqlx::FromRow)]

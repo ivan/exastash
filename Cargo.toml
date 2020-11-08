@@ -63,6 +63,7 @@ zstd = "0.5"
 # Waiting for https://github.com/bcmyers/num-format/pull/20
 num-format = { git = "https://github.com/ludios/num-format" }
 yansi = "0.5"
+quick-js = { version = "0.3.3", features = ["bigint", "chrono", "log"] }
 
 [dev-dependencies]
 atomic-counter = "1.0"

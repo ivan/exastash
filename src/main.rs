@@ -21,8 +21,8 @@ use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal;
-//use exastash::fuse;
 use exastash::ts;
+use exastash::config;
 use exastash::info::json_info;
 use exastash::oauth;
 use exastash::{storage_read, storage_write};
@@ -763,7 +763,7 @@ async fn main() -> Result<()> {
         ExastashCommand::Terastash(command) => {
             match &command {
                 TerastashCommand::Info { paths: path_args } => {
-                    let config = ts::get_config()?;
+                    let config = config::get_config()?;
                     let mut inode_ids = vec![];
                     for path_arg in path_args {
                         let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
@@ -776,7 +776,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 TerastashCommand::Cat { paths: path_args } => {
-                    let config = ts::get_config()?;
+                    let config = config::get_config()?;
                     let mut file_ids = vec![];
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
                     // during which files could be renamed.
@@ -791,7 +791,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 TerastashCommand::Get { paths: path_args } => {
-                    let config = ts::get_config()?;
+                    let config = config::get_config()?;
                     let mut retrievals = vec![];
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
                     // during which files could be renamed.
@@ -832,7 +832,7 @@ async fn main() -> Result<()> {
                     // We need one transaction per new directory below.
                     drop(transaction);
 
-                    let config = ts::get_config()?;
+                    let config = config::get_config()?;
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
                         let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
@@ -846,7 +846,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 TerastashCommand::Ls { path: path_arg, just_names } => {
-                    let config = ts::get_config()?;
+                    let config = config::get_config()?;
                     let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
                     let dir_id = inode_id.dir_id()?;
                     if *just_names {
@@ -893,7 +893,7 @@ async fn main() -> Result<()> {
                         path_args.push(String::from("."));
                     }
 
-                    let config = ts::get_config()?;
+                    let config = config::get_config()?;
                     let mut roots = vec![];
                     // Resolve all root paths to inodes before doing the walk operations,
                     // during which files could be renamed.
@@ -915,7 +915,7 @@ async fn main() -> Result<()> {
                     // We need one transaction per new directory below.
                     drop(transaction);
 
-                    let config = ts::get_config()?;
+                    let config = config::get_config()?;
 
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
@@ -933,7 +933,7 @@ async fn main() -> Result<()> {
                     // We need one transaction per dirent removal below (at least for dirents with a child_dir).
                     drop(transaction);
 
-                    let config = ts::get_config()?;
+                    let config = config::get_config()?;
 
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;

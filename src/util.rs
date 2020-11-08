@@ -1,6 +1,7 @@
 //! Utility functions
 
 use std::env;
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::path::Component;
 use anyhow::{anyhow, Result, Context};
@@ -69,4 +70,10 @@ pub fn normalize_path(path: &Path) -> PathBuf {
         }
     }
     ret
+}
+
+// For use with custom_debug_derive::Debug + #[debug(with = "elide")]
+#[inline]
+pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "...")
 }

@@ -2,59 +2,12 @@
 //! a partial mirror on the local filesystem
 
 use anyhow::{anyhow, bail};
-use std::fs;
-use std::collections::HashMap;
 use sqlx::{Postgres, Transaction};
-use serde_derive::Deserialize;
 use anyhow::Result;
-use directories::ProjectDirs;
+use crate::config::Config;
 use crate::db::inode::InodeId;
 use crate::db::traversal;
 use crate::util;
-
-#[derive(Deserialize, Debug)]
-struct RawConfig {
-    /// map of paths -> dir id
-    ts_paths: HashMap<String, i64>,
-}
-
-/// Machine-local exastash configuration
-#[derive(Deserialize, Debug)]
-pub struct Config {
-    /// map of path components -> dir id
-    ts_paths: HashMap<Vec<String>, i64>,
-}
-
-fn utf8_path_to_components(path: &str) -> Vec<String> {
-    assert!(path.starts_with('/'));
-    path
-        .split('/')
-        .skip(1)
-        .map(String::from)
-        .collect()
-}
-
-impl From<RawConfig> for Config {
-    fn from(raw_config: RawConfig) -> Self {
-        Config {
-            ts_paths: raw_config.ts_paths
-                .into_iter()
-                .map(|(k, v)| (utf8_path_to_components(&k), v))
-                .collect()
-        }
-    }
-}
-
-/// Return the machine-local exastash configuration
-pub fn get_config() -> Result<Config> {
-    let project_dirs = ProjectDirs::from("", "",  "exastash").unwrap();
-    let config_dir = project_dirs.config_dir();
-    let config_file = config_dir.join("config.toml");
-    let bytes = fs::read_to_string(config_file)?;
-    let raw_config: RawConfig = toml::from_str(&bytes)?;
-    let config = raw_config.into();
-    Ok(config)
-}
 
 /// Resolve some local absolute path to a root directory and path components that can
 /// be used to descend back to the exastash equivalent of the machine-local path
