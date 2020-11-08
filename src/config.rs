@@ -128,10 +128,9 @@ pub(crate) fn parse_policy(script: &str) -> Result<Policy> {
 /// Return a Policy object that can be used to make decisions about file placement
 pub fn get_policy() -> Result<Policy> {
     let project_dirs = ProjectDirs::from("", "",  "exastash").unwrap();
-    let config_dir = project_dirs.config_dir();
-    let policy_file = config_dir.join("policy.js");
-    let script = fs::read_to_string(policy_file)?;
-
+    let config_dir   = project_dirs.config_dir();
+    let policy_file  = config_dir.join("policy.js");
+    let script       = fs::read_to_string(policy_file)?;
     parse_policy(&script)
 }
 
