@@ -4,8 +4,10 @@ use rand::Rng;
 use std::sync::Arc;
 use std::pin::Pin;
 use std::cmp::min;
+use std::convert::{TryFrom, TryInto};
+use std::fs::Metadata;
 use std::os::unix::fs::PermissionsExt;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use anyhow::bail;
 use futures::{
     ready,
@@ -266,27 +268,57 @@ pub struct DesiredStorage {
     pub gdrive: Vec<i16>,
 }
 
-/// Write a file to storage and return the new file id
-pub async fn write(path: String, desired_storage: &DesiredStorage) -> Result<i64> {
-    let store_inline = desired_storage.inline;
-    let store_gdrive = &desired_storage.gdrive;
+/// Local file metadata that can be stored in exastash
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct RelevantFileMetadata {
+    /// Size of the local file in bytes
+    pub size: i64,
+    /// The mtime of the local file
+    pub mtime: DateTime<Utc>,
+    /// Whether the local file is executable
+    pub executable: bool,
+}
 
+impl TryFrom<&Metadata> for RelevantFileMetadata {
+    type Error = anyhow::Error;
+
+    fn try_from(attr: &Metadata) -> Result<RelevantFileMetadata> {
+        let mtime = attr.modified()?.into();
+        let size = attr.len() as i64;
+        let permissions = attr.permissions();
+        let executable = permissions.mode() & 0o100 != 0;
+        Ok(RelevantFileMetadata { size, mtime, executable })
+    }
+}
+
+impl TryFrom<Metadata> for RelevantFileMetadata {
+    type Error = anyhow::Error;
+
+    fn try_from(attr: Metadata) -> Result<RelevantFileMetadata> {
+        (&attr).try_into()
+    }
+}
+
+/// Write a file to storage and return the new file id
+pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storage: &DesiredStorage) -> Result<i64> {
     let pool = db::pgpool().await;
 
-    let attr = fs::metadata(&path).await?;
-    let mtime = attr.modified()?.into();
-    let birth = inode::Birth::here_and_now();
-    let size = attr.len();
-    let permissions = attr.permissions();
-    let executable = permissions.mode() & 0o111 != 0;
     // We don't want to hold a transaction open as we upload a file, so we get a new id for a
     // file here but don't create it until later.
     let mut transaction = pool.begin().await?;
     let next_file_id = inode::File::next_id(&mut transaction).await?;
     drop(transaction);
-    let file = inode::File { id: next_file_id, mtime, birth, size: size as i64, executable };
 
-    if size > 0 && !store_inline && store_gdrive.is_empty() {
+    let birth = inode::Birth::here_and_now();
+    let file = inode::File {
+        id: next_file_id,
+        mtime: metadata.mtime,
+        birth,
+        size: metadata.size,
+        executable: metadata.executable
+    };
+
+    if metadata.size > 0 && !desired_storage.inline && desired_storage.gdrive.is_empty() {
         bail!("a file with size > 0 needs storage, but no storage was specified");
     }
 
@@ -294,10 +326,10 @@ pub async fn write(path: String, desired_storage: &DesiredStorage) -> Result<i64
     let mut gdrive_files_to_commit: Vec<GdriveFile> = vec![];
     let mut gdrive_storages_to_commit: Vec<gdrive::Storage> = vec![];
 
-    if store_inline {
+    if desired_storage.inline {
         let content = fs::read(path.clone()).await?;
         ensure!(
-            content.len() as u64 == size,
+            content.len() as i64 == metadata.size,
             "read {} bytes from file but file size was read as {}", content.len(), file.size
         );
         let compression_level = 22;
@@ -307,13 +339,13 @@ pub async fn write(path: String, desired_storage: &DesiredStorage) -> Result<i64
         inline_storages_to_commit.push(storage);
     }
 
-    if !store_gdrive.is_empty() {
+    if !desired_storage.gdrive.is_empty() {
         let file_stream_fn = |offset| {
             // TODO: support non-0 offset if we implement upload retries
             assert_eq!(offset, 0);
             fs::read(path.clone()).into_stream()
         };
-        for domain in store_gdrive {
+        for domain in &desired_storage.gdrive {
             let (gdrive_file, storage) = write_to_gdrive(file_stream_fn, &file, *domain).await?;
             gdrive_files_to_commit.push(gdrive_file);
             gdrive_storages_to_commit.push(storage);

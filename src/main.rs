@@ -586,7 +586,9 @@ async fn main() -> Result<()> {
                 FileCommand::Create { path, store_inline, store_gdrive } => {
                     drop(transaction);
                     let desired_storage = storage_write::DesiredStorage { inline: store_inline, gdrive: store_gdrive };
-                    let file_id = storage_write::write(path, &desired_storage).await?;
+                    let attr = fs::metadata(path.clone()).await?;
+                    let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
+                    let file_id = storage_write::write(path, &metadata, &desired_storage).await?;
                     println!("{}", file_id);
                 }
                 FileCommand::Remove { file_id } => {
@@ -840,12 +842,17 @@ async fn main() -> Result<()> {
                         let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
                         let (base_dir, idx) = ts::resolve_root_of_local_path(&config, &path_components)?;
                         let remaining_components = &path_components[idx..];
-                        // TODO: need to walk up to get the full stash path, because we might not be rooted in dir '1'
+                        let components_to_base_dir = traversal::get_path_segments_from_root_to_dir(&mut transaction, base_dir).await?;
+                        let stash_path = [&components_to_base_dir, remaining_components].concat();
 
-                        let metadata = fs::metadata(path_arg).await?;
-                        if metadata.is_file() {
-                            //let desired_storage = policy.new_file_storages(stash_path, size, mtime, executable)?;
-                            //let file_id = storage_write::write(path, &desired_storage).await?;        
+                        let attr = fs::metadata(path_arg).await?;
+                        let metadata: storage_write::RelevantFileMetadata = (&attr).try_into()?;
+                        if attr.is_file() {
+                            let stash_path: Vec<&str> = stash_path.iter().map(String::as_str).collect();
+                            let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
+                            let file_id = storage_write::write(path_arg.clone(), &metadata, &desired_storage).await?;
+                            dbg!(desired_storage);
+                            dbg!(file_id);
                             // TODO create dirent
                         } else {
                             bail!("can only add a file right now")

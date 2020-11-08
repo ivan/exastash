@@ -3,14 +3,14 @@
 use std::fs;
 use std::convert::{TryFrom, TryInto};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 use anyhow::{bail, Result};
 use serde_derive::Deserialize;
+use tracing::info;
 use quick_js::{Context, JsValue};
 use directories::ProjectDirs;
 use custom_debug_derive::Debug as CustomDebug;
 use crate::util::{self, elide};
-use crate::storage_write::DesiredStorage;
+use crate::storage_write::{DesiredStorage, RelevantFileMetadata};
 
 #[derive(Deserialize, Debug)]
 struct RawConfig {
@@ -100,14 +100,21 @@ pub struct Policy {
 }
 
 impl Policy {
-    fn new_file_storages(&self, stash_path: &str, size: i64, mtime: DateTime<Utc>, executable: bool) -> Result<DesiredStorage> {
+    /// Call policy.js's newFileStorages and convert the result to a DesiredStorage
+    pub fn new_file_storages(&self, stash_path: &[&str], metadata: &RelevantFileMetadata) -> Result<DesiredStorage> {
         let mut properties: HashMap<String, JsValue> = HashMap::new();
-        properties.insert("stashPath".into(),  JsValue::String(stash_path.into()));
-        properties.insert("size".into(),       JsValue::BigInt(size.into()));
-        properties.insert("mtime".into(),      JsValue::Date(mtime));
-        properties.insert("executable".into(), JsValue::Bool(executable));
+        let stash_path_js = stash_path
+            .iter()
+            .map(|s| JsValue::String(s.clone().into()))
+            .collect();
+        properties.insert("stashPath".into(),  JsValue::Array(stash_path_js));
+        properties.insert("size".into(),       JsValue::BigInt(metadata.size.into()));
+        properties.insert("mtime".into(),      JsValue::Date(metadata.mtime));
+        properties.insert("executable".into(), JsValue::Bool(metadata.executable));
 
-        self.js_context.call_function("newFileStorages", vec![JsValue::Object(properties)])?.try_into()
+        let desired_storages = self.js_context.call_function("newFileStorages", vec![JsValue::Object(properties)])?.try_into()?;
+        info!("policy.js:newFileStorages returned {:?} for stash_path={:?}", desired_storages, stash_path);
+        Ok(desired_storages)
     }
 }
 
@@ -125,8 +132,6 @@ pub fn get_policy() -> Result<Policy> {
     let script       = fs::read_to_string(policy_file)?;
     parse_policy(&script)
 }
-
-// TODO add tests for config.toml parser
 
 #[cfg(test)]
 mod tests {
@@ -160,6 +165,7 @@ mod tests {
 
     mod policy {
         use super::*;
+        use chrono::Utc;
 
         #[test]
         fn test_parse_policy() -> Result<()> {
@@ -174,13 +180,14 @@ mod tests {
         }
 
         #[test]
-        fn test_new_file_storage() -> Result<()> {
+        fn test_new_file_storages() -> Result<()> {
             let script = r#"
                 function newFileStorages({ stashPath, size, mtime, executable }) {
-                    if (stashPath.endsWith(".json")) {
+                    let path = stashPath.join("/");
+                    if (path.endsWith(".json")) {
                         // Not something we'd do in practice
                         return {inline: true, gdrive: [1]};
-                    } else if (size > 100 || stashPath.endsWith(".jpg")) {
+                    } else if (size > 100 || path.endsWith(".jpg")) {
                         return {gdrive: [1, 2]};
                     } else {
                         return {inline: true};
@@ -190,21 +197,21 @@ mod tests {
             let policy = parse_policy(script)?;
 
             assert_eq!(
-                policy.new_file_storages("something.json", 0, Utc::now(), false)?,
+                policy.new_file_storages(&["parent", "something.json"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
                 DesiredStorage { inline: true, gdrive: vec![1] }
             );
 
             assert_eq!(
-                policy.new_file_storages("something.jpg", 0, Utc::now(), false)?,
+                policy.new_file_storages(&["something.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
                 DesiredStorage { inline: false, gdrive: vec![1, 2] }
             );
             assert_eq!(
-                policy.new_file_storages("something", 101, Utc::now(), false)?,
+                policy.new_file_storages(&["something"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
                 DesiredStorage { inline: false, gdrive: vec![1, 2] }
             );
 
             assert_eq!(
-                policy.new_file_storages("small", 50, Utc::now(), false)?,
+                policy.new_file_storages(&["small"], &RelevantFileMetadata { size: 50, mtime: Utc::now(), executable: false })?,
                 DesiredStorage { inline: true, gdrive: vec![] }
             );
 
