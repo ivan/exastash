@@ -59,6 +59,7 @@ parking_lot = "0.11"
 #polyfuse = { git = "https://github.com/ubnt-intrepid/polyfuse" }
 #polyfuse-tokio = { git = "https://github.com/ubnt-intrepid/polyfuse" }
 libc = "0.2"
+literally = "0.1"
 zstd = "0.5"
 # Waiting for https://github.com/bcmyers/num-format/pull/20
 num-format = { git = "https://github.com/ludios/num-format" }

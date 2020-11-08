@@ -19,19 +19,23 @@ struct RawConfig {
 }
 
 /// Machine-local exastash configuration
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct Config {
     /// map of path components -> dir id
     pub ts_paths: HashMap<Vec<String>, i64>,
 }
 
-fn utf8_path_to_components(path: &str) -> Vec<String> {
+pub(crate) fn utf8_path_to_components(path: &str) -> Vec<String> {
     assert!(path.starts_with('/'));
-    path
+    let mut parts: Vec<String> = path
         .split('/')
         .skip(1)
         .map(String::from)
-        .collect()
+        .collect();
+    if parts.get(0).unwrap() == "" {
+        parts.pop();
+    }
+    parts
 }
 
 impl From<RawConfig> for Config {
@@ -45,15 +49,20 @@ impl From<RawConfig> for Config {
     }
 }
 
+/// Return a Config parsed from a string containing toml configuration
+fn parse_config(content: &str) -> Result<Config> {
+    let raw_config = toml::from_str::<RawConfig>(&content)?;
+    let config     = raw_config.into();
+    Ok(config)
+}
+
 /// Return the machine-local exastash configuration
 pub fn get_config() -> Result<Config> {
     let project_dirs = ProjectDirs::from("", "",  "exastash").unwrap();
-    let config_dir = project_dirs.config_dir();
-    let config_file = config_dir.join("config.toml");
-    let bytes = fs::read_to_string(config_file)?;
-    let raw_config: RawConfig = toml::from_str(&bytes)?;
-    let config = raw_config.into();
-    Ok(config)
+    let config_dir   = project_dirs.config_dir();
+    let config_file  = config_dir.join("config.toml");
+    let content      = fs::read_to_string(config_file)?;
+    parse_config(&content)
 }
 
 impl TryFrom<JsValue> for DesiredStorage {
@@ -135,6 +144,32 @@ pub fn get_policy() -> Result<Policy> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod config {
+        use super::*;
+        use literally::hmap;
+
+        #[test]
+        fn test_parse_config() -> Result<()> {
+            let config = parse_config(r#"
+                [ts_paths]
+                "/some/path" = 1
+                "/other/path" = 2
+                # Not a good idea, but test the parse
+                "/" = 3
+            "#)?;
+            
+            let expected_ts_paths = hmap!{
+                vec!["some".into(), "path".into()] => 1,
+                vec!["other".into(), "path".into()] => 2,
+                vec![] => 3,
+            };
+
+            assert_eq!(config, Config { ts_paths: expected_ts_paths });
+
+            Ok(())
+        }
+    }
 
     mod policy {
         use super::*;
