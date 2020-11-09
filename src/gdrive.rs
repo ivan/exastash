@@ -74,7 +74,7 @@ pub(crate) struct GdriveUploadResponse {
 }
 
 pub(crate) async fn create_gdrive_file<S, A>(
-    mut file_stream_fn: impl FnMut(u64) -> S,
+    file_stream_fn: impl FnOnce(u64) -> S,
     access_token_fn: impl Fn() -> A,
     size: u64,
     parent: &str,

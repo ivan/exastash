@@ -41,7 +41,7 @@ fn gcm_decrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8], ta
 
 const GCM_TAG_LENGTH: usize = 16;
 
-/// Decodes a stream of bytes to a stream of GCM blocks, one `Bytes` per GCM block
+/// Decodes an AsyncRead to a stream of GCM blocks, one `Bytes` per GCM block
 #[derive(Debug)]
 pub(crate) struct GcmDecoder {
     block_size: usize,
@@ -96,7 +96,6 @@ impl Decoder for GcmDecoder {
         Ok(Some(data.to_bytes()))
     }
 }
-
 /// Encodes a stream of GCM blocks (one `Bytes` per block) to a stream of bytes.
 ///
 /// All `Bytes` must be of length block_size, except for the last `Bytes` which
@@ -120,7 +119,7 @@ impl Encoder<Bytes> for GcmEncoder {
     type Error = Error;
 
     fn encode(&mut self, item: Bytes, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        ensure!(item.len() <= self.block_size, "AES-GCM block must be shorter or same length as block size");
+        ensure!(item.len() <= self.block_size, "AES-GCM block must be shorter or same length as block size {}, was {}", self.block_size, item.len());
         ensure!(item.len() > 0, "AES-GCM block must not be 0 bytes");
         if self.finalized {
             bail!("cannot encode another AES-GCM block after encoding a block shorter than the block size");
@@ -134,6 +133,42 @@ impl Encoder<Bytes> for GcmEncoder {
         dst.put_slice(tag.as_ref());
         dst.put_slice(in_out.as_ref());
         Ok(())
+    }
+}
+
+/// Decodes an AsyncRead to a stream of Bytes of fixed length,
+/// except for the last chunk which may be shorter.
+#[derive(Debug)]
+pub(crate) struct ChunkDecoder {
+    chunk_size: usize,
+}
+
+impl ChunkDecoder {
+    pub(crate) fn new(chunk_size: usize) -> Self {
+        assert!(chunk_size > 0, "chunk size must be > 0");
+        ChunkDecoder { chunk_size }
+    }
+}
+
+impl Decoder for ChunkDecoder {
+    type Item = Bytes;
+    type Error = std::io::Error;
+
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if src.len() < self.chunk_size {
+            return Ok(None);
+        }
+        let mut data = src.split_to(self.chunk_size);
+        src.reserve(self.chunk_size);
+        Ok(Some(data.to_bytes()))
+    }
+
+    // Last chunk is not necessarily full-sized
+    fn decode_eof(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if src.is_empty() {
+            return Ok(None)
+        }
+        Ok(Some(src.to_bytes()))
     }
 }
 
