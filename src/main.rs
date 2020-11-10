@@ -849,12 +849,16 @@ async fn main() -> Result<()> {
                         let metadata: storage_write::RelevantFileMetadata = (&attr).try_into()?;
                         if attr.is_file() {
                             let stash_path: Vec<&str> = stash_path.iter().map(String::as_str).collect();
-                            let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
-                            let file_id = storage_write::write(path_arg.clone(), &metadata, &desired_storage).await?;
 
                             let basename = remaining_components.last().unwrap();
                             let dir_components = &remaining_components[..remaining_components.len() - 1];
                             let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
+                            if let Some(existing) = Dirent::find_by_parent_and_basename(&mut transaction, dir_id, basename).await? {
+                                bail!("{:?} already exists as {:?}", stash_path, existing);
+                            }
+
+                            let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
+                            let file_id = storage_write::write(path_arg.clone(), &metadata, &desired_storage).await?;
 
                             let child = InodeId::File(file_id);
                             Dirent::new(dir_id, basename, child).create(&mut transaction).await?;
