@@ -851,9 +851,13 @@ async fn main() -> Result<()> {
                             let stash_path: Vec<&str> = stash_path.iter().map(String::as_str).collect();
                             let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
                             let file_id = storage_write::write(path_arg.clone(), &metadata, &desired_storage).await?;
-                            dbg!(desired_storage);
-                            dbg!(file_id);
-                            // TODO create dirent
+
+                            let basename = remaining_components.last().unwrap();
+                            let dir_components = &remaining_components[..remaining_components.len() - 1];
+                            let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
+
+                            let child = InodeId::File(file_id);
+                            Dirent::new(dir_id, basename, child).create(&mut transaction).await?;
                         } else {
                             bail!("can only add a file right now")
                         }
