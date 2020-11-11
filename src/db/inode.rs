@@ -80,10 +80,12 @@ pub struct Dir {
 
 impl<'c> sqlx::FromRow<'c, PgRow> for Dir {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let mtime = row.get("mtime");
+        util::assert_without_nanos(mtime);
         Ok(
             Dir {
                 id: row.get("id"),
-                mtime: row.get("mtime"),
+                mtime,
                 birth: Birth {
                     time: row.get("birth_time"),
                     version: row.get("birth_version"),
@@ -180,10 +182,12 @@ pub struct File {
 
 impl<'c> sqlx::FromRow<'c, PgRow> for File {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let mtime = row.get("mtime");
+        util::assert_without_nanos(mtime);
         Ok(
             File {
                 id: row.get("id"),
-                mtime: row.get("mtime"),
+                mtime,
                 birth: Birth {
                     time: row.get("birth_time"),
                     version: row.get("birth_version"),
@@ -310,10 +314,12 @@ pub struct Symlink {
 
 impl<'c> sqlx::FromRow<'c, PgRow> for Symlink {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let mtime = row.get("mtime");
+        util::assert_without_nanos(mtime);
         Ok(
             Symlink {
                 id: row.get("id"),
-                mtime: row.get("mtime"),
+                mtime,
                 birth: Birth {
                     time: row.get("birth_time"),
                     version: row.get("birth_version"),
