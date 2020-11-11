@@ -26,6 +26,7 @@ use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::create_gdrive_file;
 use crate::crypto::{ChunkDecoder, GcmEncoder, gcm_create_key};
 use crate::conceal_size::conceal_size;
+use crate::util;
 use pin_project::pin_project;
 use parking_lot::Mutex;
 use md5::{Md5, Digest};
@@ -280,7 +281,7 @@ pub struct DesiredStorage {
 pub struct RelevantFileMetadata {
     /// Size of the local file in bytes
     pub size: i64,
-    /// The mtime of the local file
+    /// The mtime of the local file, precision only up to microseconds
     pub mtime: DateTime<Utc>,
     /// Whether the local file is executable
     pub executable: bool,
@@ -290,7 +291,9 @@ impl TryFrom<&Metadata> for RelevantFileMetadata {
     type Error = anyhow::Error;
 
     fn try_from(attr: &Metadata) -> Result<RelevantFileMetadata> {
-        let mtime = attr.modified()?.into();
+        // Remove the nanoseconds so that a RelevantFileMetadata's mtime
+        // can be compared directly with a timestamptz from PostgreSQL.
+        let mtime = util::without_nanos(attr.modified()?.into());
         let size = attr.len() as i64;
         let permissions = attr.permissions();
         let executable = permissions.mode() & 0o100 != 0;
