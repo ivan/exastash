@@ -412,6 +412,9 @@ enum TerastashCommand {
         /// Path, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
+
+        #[structopt(long, short = "c")]
+        continue_on_exists: bool,
     },
 
     /// List a directory like terastash
@@ -834,7 +837,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                TerastashCommand::Add { paths: path_args } => {
+                TerastashCommand::Add { paths: path_args, continue_on_exists } => {
                     // We need one transaction per new directory below.
                     drop(transaction);
 
@@ -857,7 +860,12 @@ async fn main() -> Result<()> {
                             let dir_components = &remaining_components[..remaining_components.len() - 1];
                             let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
                             if let Some(existing) = Dirent::find_by_parent_and_basename(&mut transaction, dir_id, basename).await? {
-                                bail!("{:?} already exists as {:?}", stash_path, existing);
+                                if *continue_on_exists {
+                                    warn!("{:?} already exists as {:?}", stash_path, existing);
+                                    continue;
+                                } else {
+                                    bail!("{:?} already exists as {:?}", stash_path, existing);
+                                }
                             }
 
                             let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
