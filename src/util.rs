@@ -17,13 +17,18 @@ pub(crate) fn get_hostname() -> String {
     hostname.to_owned()
 }
 
-/// chrono::Utc::now() but with the nanoseconds rounded off to microsecond
-/// precision, suitable for round-tripping through PostgreSQL's timestamptz.
-pub(crate) fn now_no_nanos() -> DateTime<Utc> {
-    let dt = Utc::now();
+/// Make a chrono::Utc merely microsecond-precise, making it suitable for
+/// round-tripping through PostgreSQL's timestamptz.
+pub(crate) fn without_nanos<T: chrono::TimeZone>(dt: DateTime<T>) -> DateTime<T> {
     let new_nanos = 1000 * (dt.timestamp_subsec_nanos() / 1000);
     assert_eq!(new_nanos % 1000, 0);
     dt.with_nanosecond(new_nanos).unwrap()
+}
+
+/// chrono::Utc::now() but with the nanoseconds rounded off to microsecond
+/// precision, suitable for round-tripping through PostgreSQL's timestamptz.
+pub(crate) fn now_no_nanos() -> DateTime<Utc> {
+    without_nanos(Utc::now())
 }
 
 // Copied from https://github.com/qryxip/snowchains/blob/dcd76c1dbb87eea239ba17f28b44ee11fdd3fd80/src/macros.rs
@@ -90,4 +95,21 @@ pub(crate) fn utf8_path_to_components(path: &str) -> Vec<String> {
 #[inline]
 pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "...")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_without_nanos() {
+        let dt000_000 = chrono::DateTime::parse_from_rfc3339("1996-12-19T16:39:57.000000000+00:00").unwrap();
+        let dt001_000 = chrono::DateTime::parse_from_rfc3339("1996-12-19T16:39:57.000001000+00:00").unwrap();
+        let dt001_999 = chrono::DateTime::parse_from_rfc3339("1996-12-19T16:39:57.000001999+00:00").unwrap();
+        assert_ne!(dt000_000, dt001_000);
+        assert_ne!(dt001_000, dt001_999);
+
+        assert_eq!(without_nanos(dt001_999), dt001_000);
+        assert_eq!(without_nanos(dt001_000), dt001_000);
+    }
 }
