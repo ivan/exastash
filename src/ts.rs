@@ -13,7 +13,7 @@ use crate::util;
 /// be used to descend back to the exastash equivalent of the machine-local path
 ///
 /// Example:
-/// ts_paths has /a/b -> 1
+/// path_roots has /a/b -> 1
 /// resolve_root_of_local_path(config, ["a", "b", "c", "d"]) -> (1, idx 2 - indicating ["c", "d"])
 pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Config, path_components: &[S]) -> Result<(i64, usize)> {
     let mut idx = path_components.len();
@@ -25,7 +25,7 @@ pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Con
         .collect();
     let path_components_joinable = candidate.clone();
     loop {
-        if let Some(dir_id) = config.ts_paths.get(&candidate) {
+        if let Some(dir_id) = config.path_roots.get(&candidate) {
             return Ok((*dir_id, idx));
         }
         if candidate.len() == 0 {
@@ -35,7 +35,7 @@ pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Con
         idx -= 1;
     }
     let path = format!("/{}", path_components_joinable.join("/"));
-    bail!("no entry in ts_paths could serve as the base dir for {}", path);
+    bail!("no entry in path_roots could serve as the base dir for {}", path);
 }
 
 /// Resolve some local absolute path to its exastash equivalent

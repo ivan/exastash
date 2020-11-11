@@ -15,20 +15,20 @@ use crate::storage_write::{DesiredStorage, RelevantFileMetadata};
 #[derive(Deserialize, Debug)]
 struct RawConfig {
     /// map of paths -> dir id
-    ts_paths: HashMap<String, i64>,
+    path_roots: HashMap<String, i64>,
 }
 
 /// Machine-local exastash configuration
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct Config {
     /// map of path components -> dir id
-    pub ts_paths: HashMap<Vec<String>, i64>,
+    pub path_roots: HashMap<Vec<String>, i64>,
 }
 
 impl From<RawConfig> for Config {
     fn from(raw_config: RawConfig) -> Self {
         Config {
-            ts_paths: raw_config.ts_paths
+            path_roots: raw_config.path_roots
                 .into_iter()
                 .map(|(k, v)| (util::utf8_path_to_components(&k), v))
                 .collect()
@@ -144,20 +144,20 @@ mod tests {
         #[test]
         fn test_parse_config() -> Result<()> {
             let config = parse_config(r#"
-                [ts_paths]
+                [path_roots]
                 "/some/path" = 1
                 "/other/path" = 2
                 # Not a good idea, but test the parse
                 "/" = 3
             "#)?;
             
-            let expected_ts_paths = hmap!{
+            let expected_path_roots = hmap!{
                 vec!["some".into(), "path".into()] => 1,
                 vec!["other".into(), "path".into()] => 2,
                 vec![] => 3,
             };
 
-            assert_eq!(config, Config { ts_paths: expected_ts_paths });
+            assert_eq!(config, Config { path_roots: expected_path_roots });
 
             Ok(())
         }

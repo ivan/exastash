@@ -67,9 +67,11 @@ enum ExastashCommand {
     #[structopt(name = "fuse")]
     Fuse(FuseCommand),
 
-    /// terastash-like commands that take paths relative to cwd
-    #[structopt(name = "ts")]
-    Terastash(TerastashCommand),
+    /// Commands that operate based on paths relative to cwd. To resolve paths,
+    /// exastash walks up to find a root directory that points to some stash
+    /// dir inode. Root directories can be configured in ~/.config/exastash/config.toml
+    #[structopt(name = "x")]
+    Path(PathCommand),
 }
 
 #[derive(StructOpt, Debug)]
@@ -379,11 +381,11 @@ arg_enum! {
 }
 
 #[derive(StructOpt, Debug)]
-enum TerastashCommand {
+enum PathCommand {
     /// Print info in JSON format for a path's inode
     #[structopt(name = "info")]
     Info {
-        /// Path to a file, dir, or symlink, relative to cwd
+        /// Path to an inode to print info for, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
@@ -391,7 +393,7 @@ enum TerastashCommand {
     /// Write the contents of a file to stdout
     #[structopt(name = "cat")]
     Cat {
-        /// Path to a file, relative to cwd
+        /// Path to a file to cat, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
@@ -400,7 +402,7 @@ enum TerastashCommand {
     /// Not recursive.
     #[structopt(name = "get")]
     Get {
-        /// Path to get, relative to cwd
+        /// Path to get from stash, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
@@ -409,7 +411,7 @@ enum TerastashCommand {
     /// Not recursive.
     #[structopt(name = "add")]
     Add {
-        /// Path, relative to cwd
+        /// Path to add to stash, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
 
@@ -422,7 +424,7 @@ enum TerastashCommand {
         remove_local_files: bool,
     },
 
-    /// List a directory like terastash
+    /// List a directory
     #[structopt(name = "ls")]
     Ls {
         /// Path to list, relative to cwd
@@ -437,7 +439,7 @@ enum TerastashCommand {
     /// Recursively list a directory like findutils find
     #[structopt(name = "find")]
     Find {
-        /// Path to list, relative to cwd
+        /// Path to list recursively, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
 
@@ -460,9 +462,9 @@ enum TerastashCommand {
         paths: Vec<String>,
     },
 
-    /// Delete a directory entry given some path, relative to cwd. Also deletes
-    /// the corresponding dir when removing a child_dir dirent. Does not delete
-    /// files or symlinks, even removing the last dirent to a file or symlink.
+    /// Delete a directory entry. Also deletes the corresponding dir when removing
+    /// a child_dir dirent. Does not delete files or symlinks, even when removing
+    /// the last dirent to a file or symlink.
     #[structopt(name = "rm")]
     Rm {
         /// Path to a dirent to remove, relative to cwd.
@@ -774,9 +776,9 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        ExastashCommand::Terastash(command) => {
+        ExastashCommand::Path(command) => {
             match &command {
-                TerastashCommand::Info { paths: path_args } => {
+                PathCommand::Info { paths: path_args } => {
                     let config = config::get_config()?;
                     let mut inode_ids = vec![];
                     for path_arg in path_args {
@@ -789,7 +791,7 @@ async fn main() -> Result<()> {
                         println!("{}", json_info(&mut transaction, inode).await?);
                     }
                 }
-                TerastashCommand::Cat { paths: path_args } => {
+                PathCommand::Cat { paths: path_args } => {
                     let config = config::get_config()?;
                     let mut file_ids = vec![];
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
@@ -804,7 +806,7 @@ async fn main() -> Result<()> {
                         write_stream_to_sink(stream, &mut stdout).await?;
                     }
                 }
-                TerastashCommand::Get { paths: path_args } => {
+                PathCommand::Get { paths: path_args } => {
                     let config = config::get_config()?;
                     let mut retrievals = vec![];
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
@@ -842,7 +844,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                TerastashCommand::Add { paths: path_args, continue_on_exists, remove_local_files } => {
+                PathCommand::Add { paths: path_args, continue_on_exists, remove_local_files } => {
                     // We need one transaction per new directory below.
                     drop(transaction);
 
@@ -892,7 +894,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                TerastashCommand::Ls { path: path_arg, just_names } => {
+                PathCommand::Ls { path: path_arg, just_names } => {
                     let config = config::get_config()?;
                     let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
                     let dir_id = inode_id.dir_id()?;
@@ -933,7 +935,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                TerastashCommand::Find { paths: path_args, r#type, null_sep } => {
+                PathCommand::Find { paths: path_args, r#type, null_sep } => {
                     // find in cwd if no path args
                     let mut path_args = path_args.clone();
                     if path_args.is_empty() {
@@ -958,7 +960,7 @@ async fn main() -> Result<()> {
                         ts_find(&mut transaction, &[&path_arg], dir_id, *r#type, terminator).await?;
                     }
                 }
-                TerastashCommand::Mkdir { paths: path_args } => {
+                PathCommand::Mkdir { paths: path_args } => {
                     // We need one transaction per new directory below.
                     drop(transaction);
 
@@ -976,7 +978,7 @@ async fn main() -> Result<()> {
                         std::fs::create_dir_all(path_arg)?;
                     }
                 }
-                TerastashCommand::Rm { paths: path_args } => {
+                PathCommand::Rm { paths: path_args } => {
                     // We need one transaction per dirent removal below (at least for dirents with a child_dir).
                     drop(transaction);
 
