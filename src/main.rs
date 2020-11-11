@@ -21,7 +21,7 @@ use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
 use exastash::db::traversal;
-use exastash::ts;
+use exastash::path;
 use exastash::config;
 use exastash::info::json_info;
 use exastash::oauth;
@@ -782,7 +782,7 @@ async fn main() -> Result<()> {
                     let config = config::get_config()?;
                     let mut inode_ids = vec![];
                     for path_arg in path_args {
-                        let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
+                        let inode_id = path::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
                         inode_ids.push(inode_id);
                     }
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
@@ -797,7 +797,7 @@ async fn main() -> Result<()> {
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
                     // during which files could be renamed.
                     for path_arg in path_args {
-                        let file_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?.file_id()?;
+                        let file_id = path::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?.file_id()?;
                         file_ids.push(file_id);
                     }
                     for file_id in file_ids {
@@ -812,7 +812,7 @@ async fn main() -> Result<()> {
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
                     // during which files could be renamed.
                     for path_arg in path_args {
-                        let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
+                        let inode_id = path::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
                         retrievals.push((inode_id, path_arg));
                     }
                     for (inode_id, path_arg) in retrievals {
@@ -852,8 +852,8 @@ async fn main() -> Result<()> {
                     let policy = config::get_policy()?;
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
-                        let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
-                        let (base_dir, idx) = ts::resolve_root_of_local_path(&config, &path_components)?;
+                        let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
+                        let (base_dir, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
                         let remaining_components = &path_components[idx..];
                         let components_to_base_dir = traversal::get_path_segments_from_root_to_dir(&mut transaction, base_dir).await?;
                         let stash_path = [&components_to_base_dir, remaining_components].concat();
@@ -896,7 +896,7 @@ async fn main() -> Result<()> {
                 }
                 PathCommand::Ls { path: path_arg, just_names } => {
                     let config = config::get_config()?;
-                    let inode_id = ts::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
+                    let inode_id = path::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
                     let dir_id = inode_id.dir_id()?;
                     if *just_names {
                         let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
@@ -947,7 +947,7 @@ async fn main() -> Result<()> {
                     // Resolve all root paths to inodes before doing the walk operations,
                     // during which files could be renamed.
                     for path_arg in path_args {
-                        let dir_id = ts::resolve_local_path_arg(&config, &mut transaction, Some(&path_arg)).await?.dir_id()?;
+                        let dir_id = path::resolve_local_path_arg(&config, &mut transaction, Some(&path_arg)).await?.dir_id()?;
                         roots.push((dir_id, path_arg));
                     }
 
@@ -968,8 +968,8 @@ async fn main() -> Result<()> {
 
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
-                        let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
-                        let (base_dir, idx) = ts::resolve_root_of_local_path(&config, &path_components)?;
+                        let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
+                        let (base_dir, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
                         let remaining_components = &path_components[idx..];
                         traversal::make_dirs(&mut transaction, base_dir, remaining_components).await?;
                         transaction.commit().await?;
@@ -986,8 +986,8 @@ async fn main() -> Result<()> {
 
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
-                        let path_components = ts::resolve_local_path_to_path_components(Some(path_arg))?;
-                        let (base_dir, idx) = ts::resolve_root_of_local_path(&config, &path_components)?;
+                        let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
+                        let (base_dir, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
                         let remaining_components = &path_components[idx..];
 
                         let dirent = traversal::resolve_dirent(&mut transaction, base_dir, remaining_components).await?;
