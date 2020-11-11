@@ -1,6 +1,6 @@
 #![feature(format_args_capture)]
 
-use tracing::info;
+use tracing::{info, warn};
 use yansi::Paint;
 use async_recursion::async_recursion;
 use clap::arg_enum;
@@ -542,9 +542,12 @@ where S: tokio::io::AsyncWrite + Unpin
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let env_filter = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("warn"))
+        .unwrap();
     let _subscriber = tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(env_filter)
         .init();
 
     // Do this first for --help to work without a database connection
