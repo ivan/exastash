@@ -280,7 +280,7 @@ mod tests {
         let mut dst = BytesMut::new();
 
         let result = encoder.encode(Bytes::from_static(b"too long"), &mut dst);
-        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM block must be shorter or same length as block size");
+        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM block must be shorter or same length as block size 7, was 8");
 
         Ok(())
     }
