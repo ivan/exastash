@@ -489,6 +489,7 @@ dependencies = [
  "custom_debug_derive",
  "data-encoding",
  "directories",
+ "filetime",
  "futures",
  "futures-async-stream",
  "gethostname",
@@ -527,6 +528,18 @@ dependencies = [
  "yansi",
  "yup-oauth2",
  "zstd",
+]
+
+[[package]]
+name = "filetime"
+version = "0.2.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c122a393ea57648015bf06fbd3d372378992e86b9ff5a7a497b076a28c79efe"
+dependencies = [
+ "cfg-if 1.0.0",
+ "libc",
+ "redox_syscall",
+ "winapi 0.3.9",
 ]
 
 [[package]]

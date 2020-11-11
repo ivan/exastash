@@ -835,14 +835,15 @@ async fn main() -> Result<()> {
                                 let (stream, file) = storage_read::read(file_id).await?;
                                 write_stream_to_sink(stream, &mut local_file).await?;
 
-                                // TODO: set mtime
-
                                 if file.executable {
                                     use std::os::unix::fs::PermissionsExt;
 
                                     let permissions = std::fs::Permissions::from_mode(0o770);
                                     fs::set_permissions(&path_arg, permissions).await?;
                                 }
+
+                                let mtime = filetime::FileTime::from_system_time(file.mtime.into());
+                                filetime::set_file_mtime(&path_arg, mtime)?;
                             }
                             InodeId::Symlink(_) => {
                                 unimplemented!();
