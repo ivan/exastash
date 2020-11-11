@@ -413,8 +413,13 @@ enum TerastashCommand {
         #[structopt(name = "PATH")]
         paths: Vec<String>,
 
+        /// Continue to the next file if for the current file some inode already exists at the stash path
         #[structopt(long, short = "c")]
         continue_on_exists: bool,
+
+        /// Remove each local file after successfully storing it and creating a dirent
+        #[structopt(long)]
+        remove_local_files: bool,
     },
 
     /// List a directory like terastash
@@ -837,7 +842,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                TerastashCommand::Add { paths: path_args, continue_on_exists } => {
+                TerastashCommand::Add { paths: path_args, continue_on_exists, remove_local_files } => {
                     // We need one transaction per new directory below.
                     drop(transaction);
 
@@ -867,10 +872,12 @@ async fn main() -> Result<()> {
                                     bail!("{:?} already exists as {:?}", stash_path, existing);
                                 }
                             }
+                            drop(transaction);
 
                             let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
                             let file_id = storage_write::write(path_arg.clone(), &metadata, &desired_storage).await?;
 
+                            transaction = pool.begin().await?;
                             let child = InodeId::File(file_id);
                             Dirent::new(dir_id, basename, child).create(&mut transaction).await?;
                         } else {
@@ -878,6 +885,11 @@ async fn main() -> Result<()> {
                         }
 
                         transaction.commit().await?;
+
+                        if *remove_local_files {
+                            info!("removing local file {:?} after committing to database", path_arg);
+                            fs::remove_file(path_arg).await?;
+                        }
                     }
                 }
                 TerastashCommand::Ls { path: path_arg, just_names } => {
