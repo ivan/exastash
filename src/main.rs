@@ -620,7 +620,7 @@ async fn main() -> Result<()> {
                 FileCommand::Content(content) => {
                     match content {
                         ContentCommand::Read { id } => {
-                            let stream = storage_read::read(id).await?;
+                            let (stream, _) = storage_read::read(id).await?;
                             let mut stdout = tokio::io::stdout();
                             write_stream_to_sink(stream, &mut stdout).await?;
                         }
@@ -801,7 +801,7 @@ async fn main() -> Result<()> {
                         file_ids.push(file_id);
                     }
                     for file_id in file_ids {
-                        let stream = storage_read::read(file_id).await?;
+                        let (stream, _) = storage_read::read(file_id).await?;
                         let mut stdout = tokio::io::stdout();
                         write_stream_to_sink(stream, &mut stdout).await?;
                     }
@@ -831,12 +831,18 @@ async fn main() -> Result<()> {
                                     }
                                 }
 
-                                let mut file = tokio::fs::File::create(&path_arg).await?;
-                                let stream = storage_read::read(file_id).await?;
-                                write_stream_to_sink(stream, &mut file).await?;
+                                let mut local_file = tokio::fs::File::create(&path_arg).await?;
+                                let (stream, file) = storage_read::read(file_id).await?;
+                                write_stream_to_sink(stream, &mut local_file).await?;
 
                                 // TODO: set mtime
-                                // TODO: set executable bit if file is executable
+
+                                if file.executable {
+                                    use std::os::unix::fs::PermissionsExt;
+
+                                    let permissions = std::fs::Permissions::from_mode(0o770);
+                                    fs::set_permissions(&path_arg, permissions).await?;
+                                }
                             }
                             InodeId::Symlink(_) => {
                                 unimplemented!();

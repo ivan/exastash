@@ -261,23 +261,24 @@ pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadS
 }
 
 /// Return the content of a file as a pinned boxed Stream on which caller can call `.into_async_read()`
-pub async fn read(file_id: i64) -> Result<ReadStream> {
+pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
 
-    let files = inode::File::find_by_ids(&mut transaction, &[file_id]).await?;
+    let mut files = inode::File::find_by_ids(&mut transaction, &[file_id]).await?;
     ensure!(files.len() == 1, "no such file with id={}", file_id);
-    let file = &files[0];
+    let file = files.pop().unwrap();
 
     if file.size == 0 {
         let bytes = Bytes::new();
-        return Ok(Box::pin(stream::iter::<_>(vec![Ok(bytes)])));
+        return Ok((Box::pin(stream::iter::<_>(vec![Ok(bytes)])), file));
     }
 
     let storages = get_storages(&mut transaction, &[file_id]).await?;
     drop(transaction);
-    match storages.get(0) {
-        Some(storage) => read_storage(&file, &storage).await,
+    let stream = match storages.get(0) {
+        Some(storage) => read_storage(&file, &storage).await?,
         None          => bail!("file with id={} has no storage", file_id)
-    }
+    };
+    Ok((stream, file))
 }
