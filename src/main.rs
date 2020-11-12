@@ -826,9 +826,7 @@ async fn main() -> Result<()> {
                             InodeId::Dir(_) => {
                                 unimplemented!();
                             }
-                            InodeId::File(file_id) => {
-                                // TODO: create parent directories as needed
-                                
+                            InodeId::File(file_id) => {                              
                                 if *skip_if_exists {
                                     match fs::metadata(path_arg).await {
                                         Err(err) => {
@@ -862,6 +860,11 @@ async fn main() -> Result<()> {
                                         bail!(err);
                                     }
                                 }
+
+                                // TODO: do this properly and apply dir mtimes from the database
+                                let path_buf = PathBuf::from(path_arg);
+                                let dir_path = path_buf.parent().unwrap();
+                                tokio::fs::create_dir_all(&dir_path).await?;
 
                                 let mut local_file = tokio::fs::File::create(&path_arg).await?;
                                 let (stream, file) = storage_read::read(file_id).await?;
