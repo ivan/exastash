@@ -118,7 +118,8 @@ enum FileCommand {
         #[structopt(long)]
         store_inline: bool,
 
-        /// Store the file data in some gsuite domain (specified by id). Can be specified multiple times and with other --store-* options.
+        /// Store the file data in some gsuite domain (specified by id).
+        /// Can be specified multiple times and with other --store-* options.
         #[structopt(long)]
         store_gdrive: Vec<i16>,
     },
@@ -511,7 +512,13 @@ async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segmen
 }
 
 #[async_recursion]
-async fn ts_find(transaction: &mut Transaction<'_, Postgres>, segments: &[&str], dir_id: i64, r#type: Option<FindKind>, terminator: char) -> Result<()> {
+async fn ts_find(
+    transaction: &mut Transaction<'_, Postgres>,
+    segments: &[&str],
+    dir_id: i64,
+    r#type: Option<FindKind>,
+    terminator: char
+) -> Result<()> {
     let path_string = match segments {
         [] => "".into(),
         parts => format!("{}/", parts.join("/")),
@@ -757,7 +764,9 @@ async fn main() -> Result<()> {
                         assert_eq!(offset, 0);
                         fs::read(path.clone()).into_stream().map_ok(|vec| vec.into())
                     };
-                    let gdrive_file = storage_write::create_gdrive_file_on_domain(file_stream_fn, size, *domain_id, *owner_id, parent, filename).await?;
+                    let gdrive_file = storage_write::create_gdrive_file_on_domain(
+                        file_stream_fn, size, *domain_id, *owner_id, parent, filename
+                    ).await?;
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                     println!("{j}");
                 }
