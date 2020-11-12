@@ -405,6 +405,10 @@ enum PathCommand {
         /// Path to get from stash, relative to cwd
         #[structopt(name = "PATH")]
         paths: Vec<String>,
+
+        /// Skip retrieval if the file exists locally with a matching size and mtime
+        #[structopt(long, short = "s")]
+        skip_if_exists: bool,
     },
 
     /// Add a dir, file, or symlink.
@@ -806,7 +810,9 @@ async fn main() -> Result<()> {
                         write_stream_to_sink(stream, &mut stdout).await?;
                     }
                 }
-                PathCommand::Get { paths: path_args } => {
+                PathCommand::Get { paths: path_args, skip_if_exists } => {
+                    use std::os::unix::fs::PermissionsExt;
+
                     let config = config::get_config()?;
                     let mut retrievals = vec![];
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
@@ -822,7 +828,33 @@ async fn main() -> Result<()> {
                             }
                             InodeId::File(file_id) => {
                                 // TODO: create parent directories as needed
-                                // TODO: skip download if file already exists with same size and mtime
+                                
+                                if *skip_if_exists {
+                                    match fs::metadata(path_arg).await {
+                                        Err(err) => {
+                                            if err.kind() != std::io::ErrorKind::NotFound {
+                                                bail!(err);
+                                            }
+                                        }
+                                        Ok(attr) => {
+                                            let metadata: storage_write::RelevantFileMetadata = (&attr).try_into()?;
+                                            let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
+                                            let file = files.iter().next().ok_or_else(|| {
+                                                anyhow!("database unexpectedly missing file id={}", file_id)
+                                            })?;
+                                            if file.mtime == metadata.mtime && file.size == metadata.size {
+                                                info!("{:?} already exists locally with matching size and mtime", path_arg);
+
+                                                let permissions = std::fs::Permissions::from_mode(
+                                                    if file.executable { 0o770 } else { 0o660 }
+                                                );
+                                                fs::set_permissions(&path_arg, permissions).await?;
+
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
 
                                 // Remove any existing file to reset permissions
                                 if let Err(err) = tokio::fs::remove_file(&path_arg).await {
@@ -836,8 +868,6 @@ async fn main() -> Result<()> {
                                 write_stream_to_sink(stream, &mut local_file).await?;
 
                                 if file.executable {
-                                    use std::os::unix::fs::PermissionsExt;
-
                                     let permissions = std::fs::Permissions::from_mode(0o770);
                                     fs::set_permissions(&path_arg, permissions).await?;
                                 }
