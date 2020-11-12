@@ -33,9 +33,7 @@ structopt = "0.3"
 rand = "0.7"
 # Waiting for https://github.com/briansmith/ring/pull/909
 ring = { git = "https://github.com/ludios/ring", branch = "prime" }
-sqlx = { git = "https://github.com/launchbadge/sqlx", default-features = false, features = [ "runtime-tokio", "macros", "postgres", "uuid", "chrono", "json" ] }
-# Vendored openssl for sqlx
-openssl = { version = "0.10", features = [ "vendored" ] }
+sqlx = { git = "https://github.com/launchbadge/sqlx", default-features = false, features = [ "runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "json" ] }
 uuid = "0.8"
 chrono = "0.4"
 yup-oauth2 = { git = "https://github.com/ludios/yup-oauth2", branch = "prime" }
