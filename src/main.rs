@@ -902,6 +902,7 @@ async fn main() -> Result<()> {
 
                             let basename = remaining_components.last().unwrap();
                             let dir_components = &remaining_components[..remaining_components.len() - 1];
+                            // TODO: do this properly and use the mtimes of the local dirs
                             let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
                             if let Some(existing) = Dirent::find_by_parent_and_basename(&mut transaction, dir_id, basename).await? {
                                 if *continue_on_exists {
