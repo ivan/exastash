@@ -12,6 +12,7 @@ use std::io::Cursor;
 use std::future::Future;
 use byteorder::{BigEndian, ReadBytesExt};
 use futures::stream::Stream;
+use std::pin::Pin;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
@@ -73,14 +74,15 @@ pub(crate) struct GdriveUploadResponse {
     pub(crate) md5: [u8; 16],
 }
 
-pub(crate) async fn create_gdrive_file<S, A>(
-    file_stream_fn: impl FnOnce(u64) -> S,
+pub(crate) async fn create_gdrive_file<F, S, A>(
+    file_stream_fn: impl FnOnce(u64) -> F,
     access_token_fn: impl Fn() -> A,
     size: u64,
     parent: &str,
     filename: &str
 ) -> Result<GdriveUploadResponse>
 where
+    F: Future<Output = Result<S>>,
     S: Stream<Item=Result<Bytes, std::io::Error>> + Send + Sync + 'static,
     A: Future<Output=Result<String>>
 {
@@ -112,7 +114,7 @@ where
     let upload_url = headers.get("Location")
         .ok_or_else(|| anyhow!("did not get Location header in response to initial upload request: {:#?}", headers))?
         .to_str()?;
-    let stream = file_stream_fn(0);
+    let stream = file_stream_fn(0).await?;
     let body = reqwest::Body::wrap_stream(stream);
     let upload_response = client
         .put(upload_url)
