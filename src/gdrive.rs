@@ -1,7 +1,6 @@
 //! Functions to read from and write to Google Drive, without anything exastash-specific
 
 use anyhow::{anyhow, bail, ensure, Result};
-use bytes::Bytes;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use data_encoding::BASE64;
@@ -11,9 +10,9 @@ use serde_json::json;
 use std::io::Cursor;
 use std::future::Future;
 use byteorder::{BigEndian, ReadBytesExt};
-use futures::stream::Stream;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
+use crate::storage_write::StreamAtOffset;
 
 pub fn get_header_value<'a>(response: &'a reqwest::Response, header: &str) -> Result<&'a str> {
     let headers = response.headers();
@@ -73,15 +72,14 @@ pub(crate) struct GdriveUploadResponse {
     pub(crate) md5: [u8; 16],
 }
 
-pub(crate) async fn create_gdrive_file<S, A>(
-    file_stream_fn: impl FnOnce(u64) -> S,
+pub(crate) async fn create_gdrive_file<SAO: StreamAtOffset, A>(
+    mut producer: SAO,
     access_token_fn: impl Fn() -> A,
     size: u64,
     parent: &str,
     filename: &str
 ) -> Result<GdriveUploadResponse>
 where
-    S: Stream<Item=Result<Bytes, std::io::Error>> + Send + Sync + 'static,
     A: Future<Output=Result<String>>
 {
     let client = reqwest::Client::new();
@@ -112,7 +110,8 @@ where
     let upload_url = headers.get("Location")
         .ok_or_else(|| anyhow!("did not get Location header in response to initial upload request: {:#?}", headers))?
         .to_str()?;
-    let stream = file_stream_fn(0);
+    let offset = 0;
+    let stream = producer.stream(offset).await?;
     let body = reqwest::Body::wrap_stream(stream);
     let upload_response = client
         .put(upload_url)

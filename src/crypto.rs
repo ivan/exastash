@@ -139,18 +139,18 @@ impl Encoder<Bytes> for GcmEncoder {
 /// Decodes an AsyncRead to a stream of Bytes of fixed length,
 /// except for the last chunk which may be shorter.
 #[derive(Debug)]
-pub(crate) struct ChunkDecoder {
+pub(crate) struct FixedReadSizeDecoder {
     chunk_size: usize,
 }
 
-impl ChunkDecoder {
+impl FixedReadSizeDecoder {
     pub(crate) fn new(chunk_size: usize) -> Self {
         assert!(chunk_size > 0, "chunk size must be > 0");
-        ChunkDecoder { chunk_size }
+        FixedReadSizeDecoder { chunk_size }
     }
 }
 
-impl Decoder for ChunkDecoder {
+impl Decoder for FixedReadSizeDecoder {
     type Item = Bytes;
     type Error = std::io::Error;
 

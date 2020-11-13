@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 aes-ctr = "0.6"
+async-trait = "0.1"
 anyhow = "1.0"
 async-recursion = "0.3"
 byteorder = "1.3"

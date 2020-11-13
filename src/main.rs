@@ -7,7 +7,6 @@ use clap::arg_enum;
 use anyhow::{anyhow, bail, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
-use futures::future::FutureExt;
 use tokio::fs;
 use std::convert::TryInto;
 use std::path::PathBuf;
@@ -759,13 +758,11 @@ async fn main() -> Result<()> {
                 InternalCommand::CreateGdriveFile { path, domain_id, owner_id, parent, filename } => {
                     let attr = fs::metadata(&path).await?;
                     let size = attr.len();
-                    let file_stream_fn = |offset| {
-                        // TODO: support non-0 offset if we implement upload retries
-                        assert_eq!(offset, 0);
-                        fs::read(path.clone()).into_stream().map_ok(|vec| vec.into())
-                    };
+
+                    let mut lfp = storage_write::LocalFileProducer::new(path.clone());
+                    lfp.set_read_size(65536);
                     let gdrive_file = storage_write::create_gdrive_file_on_domain(
-                        file_stream_fn, size, *domain_id, *owner_id, parent, filename
+                        lfp, size, *domain_id, *owner_id, parent, filename
                     ).await?;
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                     println!("{j}");
