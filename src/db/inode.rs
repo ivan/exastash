@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use crate::EXASTASH_VERSION;
 use crate::db;
 use crate::util;
@@ -178,12 +179,16 @@ pub struct File {
     pub size: i64,
     /// Whether the file is marked executable
     pub executable: bool,
+    /// b3sum (BLAKE3 hash) for the full content of the file
+    pub b3sum: Option<[u8; 32]>,
 }
 
 impl<'c> sqlx::FromRow<'c, PgRow> for File {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         let mtime = row.get("mtime");
         util::assert_without_nanos(mtime);
+        let b3sum = row.get::<Option<Vec<u8>>, _>("b3sum")
+            .map(|o| o.try_into().expect("b3sum from postgres wasn't 32 bytes?"));
         Ok(
             File {
                 id: row.get("id"),
@@ -195,6 +200,7 @@ impl<'c> sqlx::FromRow<'c, PgRow> for File {
                 },
                 size: row.get("size"),
                 executable: row.get("executable"),
+                b3sum,
             }
         )
     }
@@ -207,7 +213,7 @@ impl File {
         if ids.is_empty() {
             return Ok(vec![])
         }
-        let query = "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname FROM files WHERE id = ANY($1::bigint[])";
+        let query = "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum FROM files WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, File>(query).bind(ids).fetch_all(transaction).await?)
     }
 
@@ -221,9 +227,9 @@ impl File {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
         assert!(self.size >= 0, "size must be >= 0");
-        let query = "INSERT INTO files (id, mtime, size, executable, birth_time, birth_version, birth_hostname)
+        let query = "INSERT INTO files (id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
                      OVERRIDING SYSTEM VALUE
-                     VALUES ($1::bigint, $2::timestamptz, $3::bigint, $4::boolean, $5::timestamptz, $6::smallint, $7::text)";
+                     VALUES ($1::bigint, $2::timestamptz, $3::bigint, $4::boolean, $5::timestamptz, $6::smallint, $7::text, $8::bytea)";
         sqlx::query(query)
             .bind(self.id)
             .bind(self.mtime)
@@ -232,6 +238,7 @@ impl File {
             .bind(self.birth.time)
             .bind(self.birth.version)
             .bind(&self.birth.hostname)
+            .bind(self.b3sum.map(Vec::from))
             .execute(transaction).await?;
         Ok(self)
     }
@@ -268,6 +275,8 @@ pub struct NewFile {
     pub size: i64,
     /// Whether the file is marked executable
     pub executable: bool,
+    /// b3sum (BLAKE3 hash) for the full content of the file
+    pub b3sum: Option<[u8; 32]>,
 }
 
 impl NewFile {
@@ -294,6 +303,7 @@ impl NewFile {
             birth: self.birth,
             size: self.size,
             executable: self.executable,
+            b3sum: self.b3sum,
         })
     }
 }
@@ -469,7 +479,7 @@ pub(crate) mod tests {
     use serial_test::serial;
 
     pub(crate) async fn create_dummy_file(transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
-        NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now() }.create(transaction).await
+        NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(transaction).await
     }
 
     mod api {
@@ -542,7 +552,7 @@ pub(crate) mod tests {
         async fn test_file_find_by_ids_nonempty() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
-            let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() }
+            let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now(), b3sum: None }
                 .create(&mut transaction).await?;
             let nonexistent_id = 0;
             let files = File::find_by_ids(&mut transaction, &[file.id, nonexistent_id]).await?;
@@ -556,7 +566,7 @@ pub(crate) mod tests {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
 
-            let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now() }
+            let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now(), b3sum: None }
                 .create(&mut transaction).await?;
             let files = File::find_by_ids(&mut transaction, &[file.id]).await?;
             assert_eq!(files, vec![file.clone()]);
@@ -660,7 +670,7 @@ pub(crate) mod tests {
         async fn test_can_change_file_mutables() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
-            let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
+            let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(&mut transaction).await?;
             transaction.commit().await?;
             let mut transaction = pool.begin().await?;
             sqlx::query("UPDATE files SET mtime = now() WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
@@ -679,7 +689,7 @@ pub(crate) mod tests {
         async fn test_cannot_change_file_immutables() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
-            let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
+            let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(&mut transaction).await?;
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;

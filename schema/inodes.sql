@@ -43,7 +43,9 @@ CREATE TABLE files (
     birth_time      timestamptz       NOT NULL,
     birth_version   smallint          NOT NULL REFERENCES exastash_versions (id),
     executable      boolean           NOT NULL,
-    birth_hostname  hostname          NOT NULL
+    birth_hostname  hostname          NOT NULL,
+    -- Ideally this would be a 256-bit type instead of bytea, which wastes 1 byte per row
+    b3sum           bytea                      CHECK (octet_length(b3sum) = 32)
 );
 
 CREATE TABLE symlinks (

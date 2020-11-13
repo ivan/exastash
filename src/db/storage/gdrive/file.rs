@@ -88,10 +88,10 @@ pub struct GdriveFile {
     pub id: String,
     /// The email address of the owner, or other identifier like "teamdrive"
     pub owner_id: Option<i32>,
-    /// The MD5 hash
+    /// The MD5 hash of the content of this chunk file
     #[serde(with = "SerHex::<Strict>")]
     pub md5: [u8; 16], // TODO: maybe [u32; 4]
-    /// The CRC32C
+    /// The CRC32C of the content of this chunk file
     pub crc32c: u32,
     /// The size of this file in bytes
     pub size: i64,

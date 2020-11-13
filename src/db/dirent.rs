@@ -179,7 +179,7 @@ pub(crate) mod tests {
 
             let mut transaction = pool.begin().await?;
             let child_dir = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
-            let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
+            let child_file = inode::NewFile { size: 0, executable: false, mtime: Utc::now(), birth: birth.clone(), b3sum: None }.create(&mut transaction).await?;
             let child_symlink = inode::NewSymlink { target: "target".into(), mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(parent.id, "child_dir", InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             Dirent::new(parent.id, "child_file", InodeId::File(child_file.id)).create(&mut transaction).await?;
@@ -382,7 +382,7 @@ pub(crate) mod tests {
                 let mut transaction = pool.begin().await?;
                 // Avoid using a child dir because the mutual FK results in "deadlock detected"
                 // some of the time instead of the error we want to see
-                let child = inode::NewFile { mtime: Utc::now(), birth: birth.clone(), size: 0, executable: false }.create(&mut transaction).await?;
+                let child = inode::NewFile { mtime: Utc::now(), birth: birth.clone(), size: 0, executable: false, b3sum: None }.create(&mut transaction).await?;
                 let result = Dirent::new(parent.id, basename.to_string(), InodeId::Dir(child.id)).create(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),

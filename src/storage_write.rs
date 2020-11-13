@@ -325,7 +325,9 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
         mtime: metadata.mtime,
         birth,
         size: metadata.size,
-        executable: metadata.executable
+        executable: metadata.executable,
+        // TODO: compute and set a b3sum
+        b3sum: None,
     };
 
     if metadata.size > 0 && !desired_storage.inline && desired_storage.gdrive.is_empty() {
