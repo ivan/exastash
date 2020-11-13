@@ -973,7 +973,11 @@ async fn main() -> Result<()> {
                                     let file = inodes.get(&inode).unwrap().file().unwrap();
                                     let size = file.size.to_formatted_string(&Locale::en);
                                     let mtime = file.mtime.format("%Y-%m-%d %H:%M");
-                                    println!("{:>18} {} {}", size, mtime, dirent.basename);
+                                    if file.executable {
+                                        println!("{:>18} {} {}*", size, mtime, Paint::green(dirent.basename).bold());
+                                    } else {
+                                        println!("{:>18} {} {}", size, mtime, dirent.basename);
+                                    };
                                 }
                                 inode @ InodeId::Symlink(_) => {
                                     let size = 0;
