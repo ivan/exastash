@@ -30,6 +30,7 @@ hyper-rustls = "0.21"
 libc = "0.2"
 literally = "0.1"
 md-5 = "0.9"
+blake3 = "0.3"
 mimalloc = { version = "0.1", default-features = false } # Turn off the default secure mode
 num = "0.3"
 num-format = { git = "https://github.com/ludios/num-format" } # Waiting for https://github.com/bcmyers/num-format/pull/20
