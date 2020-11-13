@@ -7,14 +7,12 @@ use std::cmp::min;
 use std::convert::{TryFrom, TryInto};
 use std::fs::Metadata;
 use std::os::unix::fs::PermissionsExt;
-use std::future::Future;
 use chrono::{DateTime, Utc};
 use anyhow::bail;
 use futures::{
     ready,
     stream::{self, Stream, StreamExt, TryStreamExt},
     task::{Context, Poll},
-    future::FutureExt,
 };
 use anyhow::{ensure, Result};
 use bytes::{Bytes, BytesMut};
@@ -34,7 +32,7 @@ use parking_lot::Mutex;
 use md5::{Md5, Digest};
 
 #[pin_project]
-struct StreamWithGdriveHashing<S> {
+struct StreamWithHashing<S> {
     #[pin]
     stream: S,
     // We use Arc<Mutex<...>> here because reqwest::Body::wrap_stream wants to take
@@ -44,9 +42,9 @@ struct StreamWithGdriveHashing<S> {
     md5: Arc<Mutex<Md5>>,
 }
 
-impl<S> StreamWithGdriveHashing<S> {
-    fn new(stream: S) -> StreamWithGdriveHashing<S> {
-        StreamWithGdriveHashing {
+impl<S> StreamWithHashing<S> {
+    fn new(stream: S) -> StreamWithHashing<S> {
+        StreamWithHashing {
             stream,
             crc32c: Arc::new(Mutex::new(0)),
             md5: Arc::new(Mutex::new(Md5::new())),
@@ -66,7 +64,7 @@ impl<S> StreamWithGdriveHashing<S> {
     }
 }
 
-impl<S, O, E> Stream for StreamWithGdriveHashing<S>
+impl<S, O, E> Stream for StreamWithHashing<S>
 where
     O: AsRef<[u8]>,
     E: std::error::Error,
@@ -99,8 +97,8 @@ where
 /// `domain_id` is the gsuite_domain for the file
 /// `parent` is the Google Drive folder in which to create a file
 /// `filename` is the name of the file to create in Google Drive
-pub async fn create_gdrive_file_on_domain<F, S>(
-    file_stream_fn: impl FnOnce(u64) -> F,
+pub async fn create_gdrive_file_on_domain<S>(
+    file_stream_fn: impl FnOnce(u64) -> S,
     size: u64,
     domain_id: i16,
     owner_id: i32,
@@ -108,19 +106,18 @@ pub async fn create_gdrive_file_on_domain<F, S>(
     filename: &str
 ) -> Result<GdriveFile>
 where
-    F: Future<Output = Result<S>>,
     S: Stream<Item=Result<Bytes, std::io::Error>> + Send + Sync + 'static
 {
     let mut crc32c = None;
     let mut md5 = None;
 
-    let hashing_stream_fn = async move |offset| -> Result<StreamWithGdriveHashing<S>> {
+    let hashing_stream_fn = |offset| {
         // TODO: support non-0 offset (rehash the part of the file already uploaded?)
         assert_eq!(offset, 0);
-        let stream = StreamWithGdriveHashing::new(file_stream_fn(offset).await?);
+        let stream = StreamWithHashing::new(file_stream_fn(offset));
         crc32c = Some(stream.crc32c());
         md5 = Some(stream.md5());
-        Ok(stream)
+        stream
     };
 
     let access_token_fn = async || -> Result<String> {
@@ -196,15 +193,11 @@ impl Iterator for RandomPadding {
 
 /// Write the content of a file to a G Suite domain.
 /// Returns a `(GdriveFile, gdrive::Storage)` that caller must `.create()` and commit the themselves.
-pub async fn write_to_gdrive<F, S>(
-    file_stream_fn: impl FnOnce(u64, ChunkDecoder) -> F,
+pub async fn write_to_gdrive(
+    path: String,
     file: &inode::File,
     domain_id: i16
-) -> Result<(GdriveFile, gdrive::Storage)>
-where
-    F: Future<Output = Result<S>>,
-    S: Stream<Item = std::io::Result<Bytes>>
-{
+) -> Result<(GdriveFile, gdrive::Storage)> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
 
@@ -225,17 +218,18 @@ where
     let padding_size = gdrive_file_size - encrypted_size;
 
     let cipher_key = new_cipher_key();
-    let encrypted_stream_fn = async move |offset| -> Result<S> {
+    let local_file = fs::File::open(path).await?;
+    let encrypted_stream_fn = |offset| {
         // TODO: support non-0 offset
         assert_eq!(offset, 0);
 
         let chunk_decoder = ChunkDecoder::new(block_size);
-        let unencrypted = file_stream_fn(offset, chunk_decoder).await?;
+        let unencrypted = FramedRead::new(local_file, chunk_decoder);
 
         let key = gcm_create_key(cipher_key).unwrap();
         let mut encoder = GcmEncoder::new(block_size, key, 0);
 
-        let stream = unencrypted.map_ok(move |bytes| -> Bytes {
+        unencrypted.map_ok(move |bytes| -> Bytes {
             assert!(bytes.len() <= block_size, "single read from file must be shorter or same length as block size {}, was {}", block_size, bytes.len());
             let mut out = BytesMut::new();
             encoder.encode(bytes.into(), &mut out).unwrap();
@@ -243,8 +237,7 @@ where
         }).chain(
             stream::iter(RandomPadding::new(padding_size))
             .map(Ok)
-        );
-        Ok(stream)
+        )
     };
 
     let filename = new_chunk_filename();
@@ -327,7 +320,7 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
     drop(transaction);
 
     let birth = inode::Birth::here_and_now();
-    let mut file = inode::File {
+    let file = inode::File {
         id: next_file_id,
         mtime: metadata.mtime,
         birth,
@@ -359,15 +352,8 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
     }
 
     if !desired_storage.gdrive.is_empty() {
-        let file_stream_fn = async move |offset, decoder| {
-            // TODO: support non-0 offset if we implement upload retries
-            assert_eq!(offset, 0);
-            let async_read = fs::File::open(path.clone()).await?;
-            Ok(FramedRead::new(async_read, decoder))
-        };
-
         for domain in &desired_storage.gdrive {
-            let (gdrive_file, storage) = write_to_gdrive(file_stream_fn, &file, *domain).await?;
+            let (gdrive_file, storage) = write_to_gdrive(path.clone(), &file, *domain).await?;
             gdrive_files_to_commit.push(gdrive_file);
             gdrive_storages_to_commit.push(storage);
         }
