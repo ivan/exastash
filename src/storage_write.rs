@@ -440,7 +440,7 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
     }
 
     let mut transaction = pool.begin().await?;
-    let file = file.create(&mut transaction).await?;
+    file.create(&mut transaction).await?;
     for storage in inline_storages_to_commit {
         storage.create(&mut transaction).await?;
     }

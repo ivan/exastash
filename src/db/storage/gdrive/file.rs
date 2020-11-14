@@ -117,7 +117,7 @@ impl<'c> sqlx::FromRow<'c, PgRow> for GdriveFile {
 impl GdriveFile {
     /// Create a gdrive_file in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GdriveFile> {
+    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query("INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
                      VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)")
             .bind(&self.id)
@@ -127,7 +127,7 @@ impl GdriveFile {
             .bind(&self.size)
             .bind(&self.last_probed)
             .execute(transaction).await?;
-        Ok(self)
+        Ok(())
     }
 
     /// Remove gdrive files in the database.
@@ -193,8 +193,10 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner.id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None }.create(&mut transaction).await?;
-            let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) }.create(&mut transaction).await?;
+            let file1 = GdriveFile { id: "A".repeat(28),  owner_id: Some(owner.id), md5: [0; 16], crc32c: 0,   size: 1,    last_probed: None };
+            file1.create(&mut transaction).await?;
+            let file2 = GdriveFile { id: "A".repeat(160), owner_id: None,           md5: [0; 16], crc32c: 100, size: 1000, last_probed: Some(util::now_no_nanos()) };
+            file2.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
@@ -224,7 +226,8 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file = GdriveFile { id: "Q".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
+            let file = GdriveFile { id: "Q".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            file.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
@@ -243,7 +246,8 @@ pub(crate) mod tests {
             let dummy = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
+            let file = GdriveFile { id: "M".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            file.create(&mut transaction).await?;
             // create_storage expects the domain to already be committed
             transaction.commit().await?;
 
@@ -275,7 +279,8 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
+            let file = GdriveFile { id: "B".repeat(28), owner_id: Some(owner.id), md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            file.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let new_id = format!("'{}'", "C".repeat(28));

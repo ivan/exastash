@@ -17,7 +17,7 @@ pub struct Storage {
 impl Storage {
     /// Create an inline storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Self> {
+    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query(
             "INSERT INTO storage_inline (file_id, content_zstd)
              VALUES ($1::bigint, $2::bytea)",
@@ -26,7 +26,7 @@ impl Storage {
             .bind(&self.content_zstd)
             .execute(transaction)
             .await?;
-        Ok(self)
+        Ok(())
     }
 
     /// Remove storages with given `ids`.
@@ -82,7 +82,8 @@ mod tests {
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() }.create(&mut transaction).await?;
+            let storage = Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() };
+            storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;

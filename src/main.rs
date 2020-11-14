@@ -322,7 +322,9 @@ enum GsuiteCommand {
 
 #[derive(StructOpt, Debug)]
 enum InternalCommand {
-    /// Create a Google Drive file based on some local file
+    /// Create an unencrypted/unaltered Google Drive file based on some local
+    /// file and record it in the database. Output the info of the new gdrive
+    /// file to stdout as JSON.
     #[structopt(name = "create-gdrive-file")]
     CreateGdriveFile {
         /// Path to the local file to upload
@@ -346,7 +348,7 @@ enum InternalCommand {
         filename: String,
     },
 
-    /// Read the contents of a sequence of Google Drive files to stdout
+    /// Read the contents of a sequence of Google Drive files to stdout.
     #[structopt(name = "read-gdrive-files")]
     ReadGdriveFiles {
         /// gsuite_domain to read from
@@ -764,6 +766,8 @@ async fn main() -> Result<()> {
                     let gdrive_file = storage_write::create_gdrive_file_on_domain(
                         lfp, size, *domain_id, *owner_id, parent, filename
                     ).await?;
+                    gdrive_file.create(&mut transaction).await?;
+                    transaction.commit().await?;
                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                     println!("{j}");
                 }

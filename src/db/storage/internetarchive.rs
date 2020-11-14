@@ -23,7 +23,7 @@ pub struct Storage {
 impl Storage {
     /// Create an internetarchive storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Self> {
+    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query(
             "INSERT INTO storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
              VALUES ($1::bigint, $2::text, $3::text, $4::boolean, $5::timestamptz)",
@@ -35,7 +35,7 @@ impl Storage {
             .bind(&self.last_probed)
             .execute(transaction)
             .await?;
-        Ok(self)
+        Ok(())
     }
 
     /// Remove storages with given `ids`.
@@ -97,7 +97,8 @@ mod tests {
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
+            let storage = Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None };
+            storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
@@ -113,8 +114,10 @@ mod tests {
 
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
-            let storage1 = Storage { file_id: dummy.id, ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
-            let storage2 = Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) }.create(&mut transaction).await?;
+            let storage1 = Storage { file_id: dummy.id, ia_item: "item1".into(), pathname: "path".into(), darked: false, last_probed: None };
+            storage1.create(&mut transaction).await?;
+            let storage2 = Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path".into(), darked: true, last_probed: Some(util::now_no_nanos()) };
+            storage2.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;

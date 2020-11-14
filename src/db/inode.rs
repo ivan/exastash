@@ -225,7 +225,7 @@ impl File {
     /// Create an entry for a file in the database and return self.
     /// This is very similar to `NewFile::create` but creates a file with a specific `id`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
+    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         assert!(self.size >= 0, "size must be >= 0");
         let query = "INSERT INTO files (id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
                      OVERRIDING SYSTEM VALUE
@@ -240,7 +240,7 @@ impl File {
             .bind(&self.birth.hostname)
             .bind(self.b3sum.map(Vec::from))
             .execute(transaction).await?;
-        Ok(self)
+        Ok(())
     }
 
     /// Remove files with given `ids`.

@@ -81,16 +81,21 @@ mod tests {
 
             // internetarchive
             let dummy = create_dummy_file(&mut transaction).await?;
-            let storage1 = internetarchive::Storage { file_id: dummy.id, ia_item: "item1".into(), pathname: "path1".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
-            let storage2 = internetarchive::Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path2".into(), darked: true, last_probed: None }.create(&mut transaction).await?;
+            let storage1 = internetarchive::Storage { file_id: dummy.id, ia_item: "item1".into(), pathname: "path1".into(), darked: false, last_probed: None };
+            storage1.create(&mut transaction).await?;
+            let storage2 = internetarchive::Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path2".into(), darked: true, last_probed: None };
+            storage2.create(&mut transaction).await?;
 
             // gdrive
-            let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
+            let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
+            gdrive_file.create(&mut transaction).await?;
             let domain = gdrive::tests::create_dummy_domain(&mut transaction).await?;
-            let storage3 = gdrive::Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![gdrive_file.id.clone()] }.create(&mut transaction).await?;
+            let storage3 = gdrive::Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![gdrive_file.id.clone()] };
+            storage3.create(&mut transaction).await?;
 
             // inline
-            let storage4 = inline::Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() }.create(&mut transaction).await?;
+            let storage4 = inline::Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() };
+            storage4.create(&mut transaction).await?;
 
             transaction.commit().await?;
 

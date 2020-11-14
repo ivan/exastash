@@ -63,7 +63,7 @@ impl Dirent {
 
     /// Create a directory entry.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Self> {
+    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         let InodeTuple(child_dir, child_file, child_symlink) = self.child.into();
         let stmt = "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
                     VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)";
@@ -74,7 +74,7 @@ impl Dirent {
             .bind(child_file)
             .bind(child_symlink)
             .execute(transaction).await?;
-        Ok(self)
+        Ok(())
     }
 
     /// Remove this directory entry.
