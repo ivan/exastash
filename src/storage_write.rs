@@ -429,11 +429,10 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
         inline_storages_to_commit.push(storage);
     }
 
-    let lfp = LocalFileProducer::new(path.clone());
-
     if !desired_storage.gdrive.is_empty() {
         for domain in &desired_storage.gdrive {
-            let (gdrive_file, storage) = write_to_gdrive(lfp.clone(), &file, *domain).await?;
+            let lfp = LocalFileProducer::new(path.clone());
+            let (gdrive_file, storage) = write_to_gdrive(lfp, &file, *domain).await?;
             gdrive_files_to_commit.push(gdrive_file);
             gdrive_storages_to_commit.push(storage);
         }
