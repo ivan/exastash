@@ -6,7 +6,6 @@ use std::pin::Pin;
 use std::cmp::min;
 use std::convert::{TryFrom, TryInto};
 use std::fs::Metadata;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use anyhow::bail;
@@ -339,6 +338,8 @@ impl TryFrom<&Metadata> for RelevantFileMetadata {
     type Error = anyhow::Error;
 
     fn try_from(attr: &Metadata) -> Result<RelevantFileMetadata> {
+        use std::os::unix::fs::PermissionsExt;
+
         // Remove the nanoseconds so that a RelevantFileMetadata's mtime
         // can be compared directly with a timestamptz from PostgreSQL.
         let mtime = util::without_nanos(attr.modified()?.into());
