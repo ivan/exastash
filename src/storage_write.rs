@@ -358,22 +358,73 @@ impl TryFrom<Metadata> for RelevantFileMetadata {
     }
 }
 
+#[pin_project]
+struct Blake3HashingStream<S> {
+    #[pin]
+    stream: S,
+    b3sum: Arc<Mutex<blake3::Hasher>>,
+}
+
+impl<S> Blake3HashingStream<S> {
+    fn new(stream: S, b3sum: Arc<Mutex<blake3::Hasher>>) -> Blake3HashingStream<S> {
+        Blake3HashingStream { stream, b3sum }
+    }
+
+    /// Returns an `Arc` which can be derefenced to get the blake3 Hasher
+    #[inline]
+    fn b3sum(&self) -> Arc<Mutex<blake3::Hasher>> {
+        self.b3sum.clone()
+    }
+}
+
+impl<S, O, E> Stream for Blake3HashingStream<S>
+where
+    O: AsRef<[u8]>,
+    E: std::error::Error,
+    S: Stream<Item = Result<O, E>>,
+{
+    type Item = Result<O, E>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let b3sum = self.b3sum();
+        if let Some(res) = ready!(self.project().stream.poll_next(cx)) {
+            if let Ok(bytes) = &res {
+                b3sum.lock().update(bytes.as_ref());
+            }
+            Poll::Ready(Some(res))
+        } else {
+            Poll::Ready(None)
+        }
+    }
+}
+
 /// Provide a Stream for a local file and compute a b3sum of the complete file contents
 #[derive(Debug, Clone)]
 pub struct LocalFileProducer {
     path: PathBuf,
     read_size: usize,
+    b3sum: Arc<Mutex<blake3::Hasher>>,
 }
 
 impl LocalFileProducer {
     /// Create a `LocalFileProducer` that can stream a local file
     pub fn new<P: Into<PathBuf>>(path: P) -> Self {
-        LocalFileProducer { path: path.into(), read_size: 0 }
+        LocalFileProducer {
+            path: path.into(),
+            read_size: 0,
+            b3sum: Arc::new(Mutex::new(blake3::Hasher::new())),
+        }
     }
 
     /// You must call this before .stream(...) to set the max length of the Bytes yielded by the stream
     pub fn set_read_size(&mut self, read_size: usize) {
         self.read_size = read_size;
+    }
+
+    /// Returns an `Arc` which can be derefenced to get the b3sum of the data streamed so far
+    #[inline]
+    fn b3sum(&self) -> Arc<Mutex<blake3::Hasher>> {
+        self.b3sum.clone()
     }
 }
 
@@ -384,7 +435,9 @@ impl StreamAtOffset for LocalFileProducer {
         // TODO: support non-0 offset if we implement upload retries
         assert_eq!(offset, 0);
         let async_read = fs::File::open(self.path.clone()).await?;
-        Ok(Box::pin(FramedRead::new(async_read, decoder)))
+        let file_stream = FramedRead::new(async_read, decoder);
+        let hashing_stream = Blake3HashingStream::new(file_stream, self.b3sum());
+        Ok(Box::pin(hashing_stream))
     }
 }
 
@@ -399,13 +452,12 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
     drop(transaction);
 
     let birth = inode::Birth::here_and_now();
-    let file = inode::File {
+    let mut file = inode::File {
         id: next_file_id,
         mtime: metadata.mtime,
         birth,
         size: metadata.size,
         executable: metadata.executable,
-        // TODO: compute and set a b3sum
         b3sum: None,
     };
 
@@ -430,14 +482,25 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
         inline_storages_to_commit.push(storage);
     }
 
+    let mut hash = None;
     if !desired_storage.gdrive.is_empty() {
         for domain in &desired_storage.gdrive {
             let lfp = LocalFileProducer::new(path.clone());
+            let b3sum = lfp.b3sum();
             let (gdrive_file, storage) = write_to_gdrive(lfp, &file, *domain).await?;
+            let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
+            if let Some(h) = hash {
+                if hash_this_upload != h {
+                    bail!("blake3 hash of local file changed when uploading to \
+                           another gdrive domain, was={:?} now={:?}", h, hash_this_upload);
+                }
+            }
+            hash = Some(hash_this_upload);
             gdrive_files_to_commit.push(gdrive_file);
             gdrive_storages_to_commit.push(storage);
         }
     }
+    file.b3sum = Some(*hash.unwrap().as_bytes());
 
     let mut transaction = pool.begin().await?;
     file.create(&mut transaction).await?;
