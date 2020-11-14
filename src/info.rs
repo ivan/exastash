@@ -5,6 +5,7 @@ use serde::Serialize;
 use chrono::DateTime;
 use chrono::Utc;
 use sqlx::{Postgres, Transaction};
+use serde_hex::{SerHexOpt, Strict};
 use crate::db::inode::{Inode, Dir, Symlink, Birth};
 use crate::db::storage::{Storage, get_storages};
 
@@ -16,6 +17,8 @@ struct FileWithStorages<'a> {
     size: i64,
     executable: bool,
     storages: Vec<Storage>,
+    #[serde(with = "SerHexOpt::<Strict>")]
+    b3sum: Option<[u8; 32]>,
 }
 
 #[derive(Serialize)]
@@ -42,6 +45,7 @@ pub async fn json_info(transaction: &mut Transaction<'_, Postgres>, inode: &Inod
                 size: file.size,
                 executable: file.executable,
                 storages,
+                b3sum: file.b3sum,
             };
             InodeWithStorages::File(&fws)
         }
