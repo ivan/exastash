@@ -441,6 +441,12 @@ impl StreamAtOffset for LocalFileProducer {
     }
 }
 
+fn b3sum_bytes(bytes: &[u8]) -> blake3::Hash {
+    let mut b3sum = blake3::Hasher::new();
+    b3sum.update(bytes);
+    blake3::Hasher::finalize(&b3sum)
+}
+
 /// Write a file to storage and return the new file id
 pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storage: &DesiredStorage) -> Result<i64> {
     let pool = db::pgpool().await;
@@ -469,8 +475,11 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
     let mut gdrive_files_to_commit: Vec<GdriveFile> = vec![];
     let mut gdrive_storages_to_commit: Vec<gdrive::Storage> = vec![];
 
+    let mut hash = None;
+
     if desired_storage.inline {
         let content = fs::read(path.clone()).await?;
+        hash = Some(b3sum_bytes(&content));
         ensure!(
             content.len() as i64 == metadata.size,
             "read {} bytes from file but file size was read as {}", content.len(), file.size
@@ -482,7 +491,6 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
         inline_storages_to_commit.push(storage);
     }
 
-    let mut hash = None;
     if !desired_storage.gdrive.is_empty() {
         for domain in &desired_storage.gdrive {
             let lfp = LocalFileProducer::new(path.clone());
@@ -491,8 +499,8 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
             let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
             if let Some(h) = hash {
                 if hash_this_upload != h {
-                    bail!("blake3 hash of local file changed when uploading to \
-                           another gdrive domain, was={:?} now={:?}", h, hash_this_upload);
+                    bail!("blake3 hash of local file changed during upload into \
+                           multiple storages, was={:?} now={:?}", h, hash_this_upload);
                 }
             }
             hash = Some(hash_this_upload);
