@@ -19,7 +19,7 @@ pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Con
     let mut idx = path_components.len();
     // Need a Vec<String> to query the HashMap, can't use &[&str]
     let mut candidate: Vec<String> = path_components
-        .into_iter()
+        .iter()
         .cloned()
         .map(|s| s.to_string())
         .collect();

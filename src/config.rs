@@ -105,7 +105,7 @@ impl Policy {
         let mut properties: HashMap<String, JsValue> = HashMap::new();
         let stash_path_js = stash_path
             .iter()
-            .map(|s| JsValue::String(s.clone().into()))
+            .map(|&s| JsValue::String(s.into()))
             .collect();
         properties.insert("stashPath".into(),  JsValue::Array(stash_path_js));
         properties.insert("size".into(),       JsValue::BigInt(metadata.size.into()));

@@ -847,7 +847,7 @@ async fn main() -> Result<()> {
                                         Ok(attr) => {
                                             let metadata: storage_write::RelevantFileMetadata = (&attr).try_into()?;
                                             let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
-                                            let file = files.iter().next().ok_or_else(|| {
+                                            let file = files.get(0).ok_or_else(|| {
                                                 anyhow!("database unexpectedly missing file id={}", file_id)
                                             })?;
                                             if file.mtime == metadata.mtime && file.size == metadata.size {

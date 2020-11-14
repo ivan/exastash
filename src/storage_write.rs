@@ -249,7 +249,7 @@ impl StreamAtOffset for EncryptedFileProducer {
         let stream = unencrypted.map_ok(move |bytes| -> Bytes {
             assert!(bytes.len() <= block_size, "single read from file must be shorter or same length as block size {}, was {}", block_size, bytes.len());
             let mut out = BytesMut::new();
-            encoder.encode(bytes.into(), &mut out).unwrap();
+            encoder.encode(bytes, &mut out).unwrap();
             out.into()
         }).chain(
             stream::iter(RandomPadding::new(padding_size))
