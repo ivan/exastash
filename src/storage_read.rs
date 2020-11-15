@@ -13,6 +13,8 @@ use aes_ctr::Aes128Ctr;
 use futures_async_stream::try_stream;
 use aes_ctr::cipher::generic_array::GenericArray;
 use aes_ctr::cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
+use std::sync::Arc;
+use parking_lot::Mutex;
 use crate::blake3::{Blake3HashingStream, b3sum_bytes};
 use crate::db;
 use crate::db::inode;
@@ -255,19 +257,41 @@ pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadS
             // All files with inline storage should have been created with a b3sum
             ensure!(file.b3sum.is_some(), "file (id={}) with inline storage is unexpectedly missing b3sum", file.id);
 
-            let computed_b3sum = b3sum_bytes(&content);
-            let file_b3sum = &file.b3sum.unwrap();
+            let computed_hash = b3sum_bytes(&content);
+            let db_hash = &file.b3sum.unwrap();
             ensure!(
-                computed_b3sum.as_bytes() == file_b3sum,
-                "computed b3sum for inline content is {:?} but file has b3sum={:?}",
-                hex::encode(computed_b3sum.as_bytes()), hex::encode(file_b3sum)
+                computed_hash.as_bytes() == db_hash,
+                "computed b3sum for content is {:?} but file has b3sum={:?}",
+                hex::encode(computed_hash.as_bytes()), hex::encode(db_hash)
             );
             let mut bytes = BytesMut::new();
             bytes.put(&content[..]);
             Box::pin(stream::iter::<_>(vec![Ok(bytes.to_bytes())]))
         }
         Storage::Gdrive(gdrive_storage) => {
-            stream_gdrive_files(file, gdrive_storage)
+            let file_b3sum = file.b3sum;
+            let decrypted_stream = stream_gdrive_files(&file, gdrive_storage);
+            let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
+            let hashing_stream = Blake3HashingStream::new(decrypted_stream, b3sum);
+            let b3sum = hashing_stream.b3sum().clone();
+
+            Box::pin(
+                #[try_stream]
+                async move {
+                    #[for_await]
+                    for frame in hashing_stream {
+                        yield frame?;
+                    }
+                    if let Some(db_hash) = file_b3sum {
+                        let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
+                        ensure!(
+                            computed_hash.as_bytes() == &db_hash,
+                            "computed b3sum for content is {:?} but file has b3sum={:?}",
+                            hex::encode(computed_hash.as_bytes()), hex::encode(db_hash)
+                        );
+                    }
+                }
+            )
         }
         Storage::InternetArchive(internetarchive::Storage { .. }) => {
             unimplemented!()

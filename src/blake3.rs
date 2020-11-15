@@ -28,7 +28,6 @@ impl<S> Blake3HashingStream<S> {
 impl<S, O, E> Stream for Blake3HashingStream<S>
 where
     O: AsRef<[u8]>,
-    E: std::error::Error,
     S: Stream<Item = Result<O, E>>,
 {
     type Item = Result<O, E>;
