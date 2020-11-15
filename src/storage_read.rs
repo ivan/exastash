@@ -314,7 +314,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     drop(transaction);
     let stream = match storages.get(0) {
         Some(storage) => read_storage(&file, &storage).await?,
-        None          => bail!("file with id={} has no storage", file_id)
+        None => bail!("file with id={} has no storage", file_id)
     };
     Ok((stream, file))
 }
