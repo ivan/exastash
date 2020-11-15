@@ -17,9 +17,10 @@ use crate::db;
 use crate::db::inode;
 use crate::db::storage::{get_storages, Storage, inline, gdrive, internetarchive};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
+use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
-use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
+use crate::util;
 
 
 /// Return a Vec of access tokens potentially suitable for read and delete operations
@@ -246,6 +247,16 @@ pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadS
             ensure!(
                 content.len() as i64 == file.size,
                 "length of inline storage for file id={} is {} but file size is {}", file.id, content.len(), file.size
+            );
+
+            // All files with inline storage should have been created with a b3sum
+            ensure!(file.b3sum.is_some(), "file with inline storage is unexpectedly missing b3sum");
+
+            let computed_b3sum = util::b3sum_bytes(&content);
+            let file_b3sum = &file.b3sum.unwrap();
+            ensure!(
+                computed_b3sum.as_bytes() == file_b3sum,
+                "computed b3sum for inline content is {:?} but file has b3sum={:?}", hex::encode(computed_b3sum.as_bytes()), hex::encode(file_b3sum)
             );
             let mut bytes = BytesMut::new();
             bytes.put(&content[..]);

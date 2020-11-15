@@ -441,12 +441,6 @@ impl StreamAtOffset for LocalFileProducer {
     }
 }
 
-fn b3sum_bytes(bytes: &[u8]) -> blake3::Hash {
-    let mut b3sum = blake3::Hasher::new();
-    b3sum.update(bytes);
-    blake3::Hasher::finalize(&b3sum)
-}
-
 /// Write a file to storage and return the new file id
 pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storage: &DesiredStorage) -> Result<i64> {
     let pool = db::pgpool().await;
@@ -479,7 +473,7 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
 
     if desired_storage.inline {
         let content = fs::read(path.clone()).await?;
-        hash = Some(b3sum_bytes(&content));
+        hash = Some(util::b3sum_bytes(&content));
         ensure!(
             content.len() as i64 == metadata.size,
             "read {} bytes from file but file size was read as {}", content.len(), file.size
