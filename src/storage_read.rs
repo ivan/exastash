@@ -250,7 +250,7 @@ pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadS
             );
 
             // All files with inline storage should have been created with a b3sum
-            ensure!(file.b3sum.is_some(), "file with inline storage is unexpectedly missing b3sum");
+            ensure!(file.b3sum.is_some(), "file (id={}) with inline storage is unexpectedly missing b3sum", file.id);
 
             let computed_b3sum = b3sum_bytes(&content);
             let file_b3sum = &file.b3sum.unwrap();
