@@ -71,7 +71,7 @@ fn stream_add_validation(
     stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + 'static,
 ) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
     let expected_crc = gdrive_file.crc32c;
-    let expected_size = gdrive_file.size as u64;    
+    let expected_size = gdrive_file.size as u64;
     let mut crc = 0;
     let mut size = 0;
     Box::pin(

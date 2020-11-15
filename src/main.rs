@@ -252,7 +252,7 @@ enum DirentCommand {
         /// Dir id of root dir from which to resolve paths
         #[structopt(name = "ROOT_DIR_ID")]
         root: i64,
-       
+
         /// Path consisting only of slash-separated basenames. There is no handling of
         /// '.', '..', duplicate '/', leading '/', or trailing '/'
         #[structopt(name = "PATH")]
@@ -705,7 +705,7 @@ async fn main() -> Result<()> {
                             ResolveKind::dir     => if let InodeId::Dir(id)     = inode { println!("{}", id) },
                             ResolveKind::file    => if let InodeId::File(id)    = inode { println!("{}", id) },
                             ResolveKind::symlink => if let InodeId::Symlink(id) = inode { println!("{}", id) },
-                        }    
+                        }
                     }
                 }
                 DirentCommand::Count => {
@@ -836,7 +836,7 @@ async fn main() -> Result<()> {
                             InodeId::Dir(_) => {
                                 unimplemented!();
                             }
-                            InodeId::File(file_id) => {                              
+                            InodeId::File(file_id) => {
                                 if *skip_if_exists {
                                     match fs::metadata(path_arg).await {
                                         Err(err) => {

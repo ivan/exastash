@@ -242,7 +242,7 @@ impl StreamAtOffset for EncryptedFileProducer {
 
         let key = gcm_create_key(self.cipher_key).unwrap();
         let mut encoder = GcmEncoder::new(self.block_size, key, 0);
-        
+
         let block_size = self.block_size;
         let padding_size = self.padding_size;
         let stream = unencrypted.map_ok(move |bytes| -> Bytes {

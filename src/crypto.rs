@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(in_out, [3, 136, 218, 206, 96, 182, 163, 146, 243, 40]);
         Ok(())
     }
-    
+
     #[test]
 	fn test_gcm_decrypt_block() -> Result<()> {
         let key = gcm_create_key([0; 16])?;

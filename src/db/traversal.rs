@@ -68,7 +68,7 @@ pub async fn get_path_segments_from_root_to_dir(transaction: &mut Transaction<'_
         let dirent = Dirent::find_by_child_dir(transaction, target_dir).await?
             .ok_or_else(|| anyhow!("no dirent with child dir {}", target_dir))?;
         segments.push(dirent.basename.clone());
-        target_dir = dirent.parent;   
+        target_dir = dirent.parent;
     }
     segments.reverse();
     Ok(segments)

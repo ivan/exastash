@@ -150,7 +150,7 @@ mod tests {
                 # Not a good idea, but test the parse
                 "/" = 3
             "#)?;
-            
+
             let expected_path_roots = hmap!{
                 vec!["some".into(), "path".into()] => 1,
                 vec!["other".into(), "path".into()] => 2,

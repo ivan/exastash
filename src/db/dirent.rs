@@ -244,7 +244,7 @@ pub(crate) mod tests {
             let pool = new_primary_pool().await;
 
             let birth  = inode::Birth::here_and_now();
-            
+
             let mut transaction = pool.begin().await?;
             let test = inode::NewDir { mtime: Utc::now(), birth: birth.clone() }.create(&mut transaction).await?;
             Dirent::new(1, make_basename("test_cannot_create_dirents_cycle"), InodeId::Dir(test.id)).create(&mut transaction).await?;

@@ -131,7 +131,7 @@ impl<'c> sqlx::FromRow<'c, PgRow> for GsuiteServiceAccount {
                     client_x509_cert_url:        row.get("client_x509_cert_url"),
                     key_type:                    Some("service_account".into())
                 }
-            }            
+            }
         )
     }
 }
@@ -202,7 +202,7 @@ mod tests {
         fn test_debug_elision() {
             let secret = GsuiteApplicationSecret { domain_id: 1, secret: serde_json::Value::String("".into()) };
             assert_eq!(format!("{:?}", secret), "GsuiteApplicationSecret { domain_id: 1, secret: ... }");
-        }    
+        }
 
         /// If there is no gsuite_application_secret for a domain, find_by_domain_ids returns an empty Vec
         #[tokio::test]
@@ -290,7 +290,7 @@ mod tests {
 
             token.delete(&mut transaction).await?;
             assert_eq!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![]);
-            assert_eq!(GsuiteAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![]);            
+            assert_eq!(GsuiteAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![]);
 
             Ok(())
         }
@@ -356,6 +356,6 @@ mod tests {
         fn test_debug_elision() {
             let account = GsuiteServiceAccount { owner_id: 1, key: dummy_service_account_key() };
             assert_eq!(format!("{:?}", account), "GsuiteServiceAccount { owner_id: 1, key: ... }");
-        }    
+        }
     }
 }
