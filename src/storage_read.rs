@@ -256,7 +256,8 @@ pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadS
             let file_b3sum = &file.b3sum.unwrap();
             ensure!(
                 computed_b3sum.as_bytes() == file_b3sum,
-                "computed b3sum for inline content is {:?} but file has b3sum={:?}", hex::encode(computed_b3sum.as_bytes()), hex::encode(file_b3sum)
+                "computed b3sum for inline content is {:?} but file has b3sum={:?}",
+                hex::encode(computed_b3sum.as_bytes()), hex::encode(file_b3sum)
             );
             let mut bytes = BytesMut::new();
             bytes.put(&content[..]);
