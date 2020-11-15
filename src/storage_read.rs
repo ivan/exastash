@@ -15,7 +15,7 @@ use aes_ctr::cipher::generic_array::GenericArray;
 use aes_ctr::cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
 use std::sync::Arc;
 use parking_lot::Mutex;
-use crate::blake3::{Blake3HashingStream, b3sum_bytes};
+use crate::blake3::Blake3HashingStream;
 use crate::db;
 use crate::db::inode;
 use crate::db::storage::{get_storages, Storage, inline, gdrive, internetarchive};
@@ -244,7 +244,7 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> ReadStr
 }
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`
-pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
+async fn read_storage_(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
     info!(id = file.id, "reading file");
     Ok(match storage {
         Storage::Inline(inline::Storage { content_zstd, .. }) => {
@@ -254,49 +254,46 @@ pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadS
                 "length of inline storage for file id={} is {} but file size is {}", file.id, content.len(), file.size
             );
 
-            // All files with inline storage should have been created with a b3sum
-            ensure!(file.b3sum.is_some(), "file (id={}) with inline storage is unexpectedly missing b3sum", file.id);
-
-            let computed_hash = b3sum_bytes(&content);
-            let db_hash = &file.b3sum.unwrap();
-            ensure!(
-                computed_hash.as_bytes() == db_hash,
-                "computed b3sum for content is {:?} but file has b3sum={:?}",
-                hex::encode(computed_hash.as_bytes()), hex::encode(db_hash)
-            );
             let mut bytes = BytesMut::new();
             bytes.put(&content[..]);
             Box::pin(stream::iter::<_>(vec![Ok(bytes.to_bytes())]))
         }
         Storage::Gdrive(gdrive_storage) => {
-            let file_b3sum = file.b3sum;
-            let decrypted_stream = stream_gdrive_files(&file, gdrive_storage);
-            let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
-            let hashing_stream = Blake3HashingStream::new(decrypted_stream, b3sum);
-            let b3sum = hashing_stream.b3sum().clone();
-
-            Box::pin(
-                #[try_stream]
-                async move {
-                    #[for_await]
-                    for frame in hashing_stream {
-                        yield frame?;
-                    }
-                    if let Some(db_hash) = file_b3sum {
-                        let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
-                        ensure!(
-                            computed_hash.as_bytes() == &db_hash,
-                            "computed b3sum for content is {:?} but file has b3sum={:?}",
-                            hex::encode(computed_hash.as_bytes()), hex::encode(db_hash)
-                        );
-                    }
-                }
-            )
+            stream_gdrive_files(&file, gdrive_storage)
         }
         Storage::InternetArchive(internetarchive::Storage { .. }) => {
             unimplemented!()
         }
     })
+}
+
+/// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`,
+/// while also verifying the b3sum of the file.
+pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
+    let underlying_stream = read_storage_(file, storage).await?;
+    let file_b3sum = file.b3sum;
+    let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
+    let hashing_stream = Blake3HashingStream::new(underlying_stream, b3sum);
+    let b3sum = hashing_stream.b3sum().clone();
+    Ok(
+        Box::pin(
+            #[try_stream]
+            async move {
+                #[for_await]
+                for frame in hashing_stream {
+                    yield frame?;
+                }
+                if let Some(db_hash) = file_b3sum {
+                    let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
+                    ensure!(
+                        computed_hash.as_bytes() == &db_hash,
+                        "computed b3sum for content is {:?} but file has b3sum={:?}",
+                        hex::encode(computed_hash.as_bytes()), hex::encode(db_hash)
+                    );
+                }
+            }
+        )
+    )
 }
 
 /// Return the content of a file as a pinned boxed Stream on which caller can call `.into_async_read()`
