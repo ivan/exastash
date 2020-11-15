@@ -222,6 +222,16 @@ impl File {
         db::nextval(transaction, "files_id_seq").await
     }
 
+    /// Set the b3sum for a file that may not have one already
+    pub async fn set_b3sum(transaction: &mut Transaction<'_, Postgres>, file_id: i64, b3sum: &[u8; 32]) -> Result<()> {
+        let query = "UPDATE files SET b3sum = $1::bytea WHERE id = $2::bigint";
+        sqlx::query(query)
+            .bind(b3sum.as_ref())
+            .bind(file_id)
+            .execute(transaction).await?;
+        Ok(())
+    }
+
     /// Create an entry for a file in the database and return self.
     /// This is very similar to `NewFile::create` but creates a file with a specific `id`.
     /// Does not commit the transaction, you must do so yourself.

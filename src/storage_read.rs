@@ -268,35 +268,32 @@ async fn read_storage_(file: &inode::File, storage: &Storage) -> Result<ReadStre
 }
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`,
-/// while also verifying the b3sum of the file.
-pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
+/// while also verifying the b3sum of the file (if it has a known b3sum).
+pub async fn read_storage(file: &inode::File, storage: &Storage, b3sum: Arc<Mutex<blake3::Hasher>>) -> Result<ReadStream> {
     let underlying_stream = read_storage_(file, storage).await?;
     let file_b3sum = file.b3sum;
-    let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
-    let hashing_stream = Blake3HashingStream::new(underlying_stream, b3sum);
-    let b3sum = hashing_stream.b3sum().clone();
-    Ok(
-        Box::pin(
-            #[try_stream]
-            async move {
-                #[for_await]
-                for frame in hashing_stream {
-                    yield frame?;
-                }
-                if let Some(db_hash) = file_b3sum {
-                    let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
-                    ensure!(
-                        computed_hash.as_bytes() == &db_hash,
-                        "computed b3sum for content is {:?} but file has b3sum={:?}",
-                        hex::encode(computed_hash.as_bytes()), hex::encode(db_hash)
-                    );
-                }
+    let hashing_stream = Blake3HashingStream::new(underlying_stream, b3sum.clone());
+    Ok(Box::pin(
+        #[try_stream]
+        async move {
+            #[for_await]
+            for frame in hashing_stream {
+                yield frame?;
             }
-        )
-    )
+            let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
+            if let Some(db_hash) = file_b3sum {
+                ensure!(
+                    computed_hash.as_bytes() == &db_hash,
+                    "computed b3sum for content is {:?} but file has b3sum={:?}",
+                    hex::encode(computed_hash.as_bytes()), hex::encode(db_hash)
+                );
+            }
+        }
+    ))
 }
 
 /// Return the content of a file as a pinned boxed Stream on which caller can call `.into_async_read()`
+/// If the file is missing a b3sum but was otherwise read without error, add the b3sum to the database.
 pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
@@ -312,9 +309,29 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
 
     let storages = get_storages(&mut transaction, &[file_id]).await?;
     drop(transaction);
-    let stream = match storages.get(0) {
-        Some(storage) => read_storage(&file, &storage).await?,
+    let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
+    let underlying_stream = match storages.get(0) {
+        Some(storage) => read_storage(&file, &storage, b3sum.clone()).await?,
         None => bail!("file with id={} has no storage", file_id)
     };
+
+    let file_b3sum = file.b3sum;
+    let stream = Box::pin(
+        #[try_stream]
+        async move {
+            #[for_await]
+            for frame in underlying_stream {
+                yield frame?;
+            }
+            if file_b3sum.is_none() {
+                let mut transaction = pool.begin().await?;
+                let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
+                info!("fixing unset b3sum on file id={} to {:?}", file_id, hex::encode(computed_hash.as_bytes()));
+                inode::File::set_b3sum(&mut transaction, file_id, computed_hash.as_bytes()).await?;
+                transaction.commit().await?;
+            }
+        }
+    );
+
     Ok((stream, file))
 }
