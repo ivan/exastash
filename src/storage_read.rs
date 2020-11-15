@@ -107,7 +107,9 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
         debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
         match response.status() {
             StatusCode::OK => {
-                let content_length = response.content_length().ok_or_else(|| anyhow!("Google responded without a Content-Length"))?;
+                let content_length = response.content_length().ok_or_else(|| {
+                    anyhow!("Google responded without a Content-Length")
+                })?;
                 if content_length != gdrive_file.size as u64 {
                     bail!("Google responded with Content-Length {}, expected {}", content_length, gdrive_file.size);
                 }
@@ -119,7 +121,8 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
                 break;
             },
             StatusCode::UNAUTHORIZED => {
-                debug!("Google responded with HTTP status code {} for file_id={:?}, trying another access token if available", response.status(), gdrive_file.id);
+                debug!("Google responded with HTTP status code {} for file_id={:?}, \
+                        trying another access token if available", response.status(), gdrive_file.id);
                 continue;
             }
             _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
