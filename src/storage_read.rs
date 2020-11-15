@@ -4,15 +4,16 @@ use std::pin::Pin;
 use anyhow::{Result, Error, anyhow, bail, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::{info, debug};
-use futures::stream::{self, Stream, TryStreamExt};
+use futures::{stream::{self, Stream, TryStreamExt}};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
-use futures_async_stream::try_stream;
 use tokio::io::AsyncReadExt;
 use tokio_util::codec::FramedRead;
 use reqwest::StatusCode;
 use aes_ctr::Aes128Ctr;
+use futures_async_stream::try_stream;
 use aes_ctr::cipher::generic_array::GenericArray;
 use aes_ctr::cipher::{NewStreamCipher, SyncStreamCipher, SyncStreamCipherSeek};
+use crate::blake3::{Blake3HashingStream, b3sum_bytes};
 use crate::db;
 use crate::db::inode;
 use crate::db::storage::{get_storages, Storage, inline, gdrive, internetarchive};
@@ -20,7 +21,6 @@ use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
-use crate::util;
 
 
 /// Return a Vec of access tokens potentially suitable for read and delete operations
@@ -252,7 +252,7 @@ pub async fn read_storage(file: &inode::File, storage: &Storage) -> Result<ReadS
             // All files with inline storage should have been created with a b3sum
             ensure!(file.b3sum.is_some(), "file with inline storage is unexpectedly missing b3sum");
 
-            let computed_b3sum = util::b3sum_bytes(&content);
+            let computed_b3sum = b3sum_bytes(&content);
             let file_b3sum = &file.b3sum.unwrap();
             ensure!(
                 computed_b3sum.as_bytes() == file_b3sum,

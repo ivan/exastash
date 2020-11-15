@@ -19,14 +19,14 @@ use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use tokio::fs;
 use tokio_util::codec::{Encoder, FramedRead};
-use crate::db;
-use crate::db::inode;
-use crate::db::storage::inline;
-use crate::db::storage::gdrive::{self, file::GdriveFile};
-use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
-use crate::gdrive::create_gdrive_file;
 use crate::crypto::{FixedReadSizeDecoder, GcmEncoder, gcm_create_key};
 use crate::conceal_size::conceal_size;
+use crate::db;
+use crate::db::inode;
+use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}};
+use crate::blake3::{Blake3HashingStream, b3sum_bytes};
+use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
+use crate::gdrive::create_gdrive_file;
 use crate::util::{self, elide};
 use custom_debug_derive::Debug as CustomDebug;
 use pin_project::pin_project;
@@ -358,46 +358,6 @@ impl TryFrom<Metadata> for RelevantFileMetadata {
     }
 }
 
-#[pin_project]
-struct Blake3HashingStream<S> {
-    #[pin]
-    stream: S,
-    b3sum: Arc<Mutex<blake3::Hasher>>,
-}
-
-impl<S> Blake3HashingStream<S> {
-    fn new(stream: S, b3sum: Arc<Mutex<blake3::Hasher>>) -> Blake3HashingStream<S> {
-        Blake3HashingStream { stream, b3sum }
-    }
-
-    /// Returns an `Arc` which can be derefenced to get the blake3 Hasher
-    #[inline]
-    fn b3sum(&self) -> Arc<Mutex<blake3::Hasher>> {
-        self.b3sum.clone()
-    }
-}
-
-impl<S, O, E> Stream for Blake3HashingStream<S>
-where
-    O: AsRef<[u8]>,
-    E: std::error::Error,
-    S: Stream<Item = Result<O, E>>,
-{
-    type Item = Result<O, E>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let b3sum = self.b3sum();
-        if let Some(res) = ready!(self.project().stream.poll_next(cx)) {
-            if let Ok(bytes) = &res {
-                b3sum.lock().update(bytes.as_ref());
-            }
-            Poll::Ready(Some(res))
-        } else {
-            Poll::Ready(None)
-        }
-    }
-}
-
 /// Provide a Stream for a local file and compute a b3sum of the complete file contents
 #[derive(Debug, Clone)]
 pub struct LocalFileProducer {
@@ -473,7 +433,7 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
 
     if desired_storage.inline {
         let content = fs::read(path.clone()).await?;
-        hash = Some(util::b3sum_bytes(&content));
+        hash = Some(b3sum_bytes(&content));
         ensure!(
             content.len() as i64 == metadata.size,
             "read {} bytes from file but file size was read as {}", content.len(), file.size

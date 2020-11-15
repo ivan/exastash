@@ -105,12 +105,6 @@ pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "...")
 }
 
-pub(crate) fn b3sum_bytes(bytes: &[u8]) -> blake3::Hash {
-    let mut b3sum = blake3::Hasher::new();
-    b3sum.update(bytes);
-    blake3::Hasher::finalize(&b3sum)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,13 +119,5 @@ mod tests {
 
         assert_eq!(without_nanos(dt001_999), dt001_000);
         assert_eq!(without_nanos(dt001_000), dt001_000);
-    }
-
-    #[test]
-    fn test_b3sum_bytes() {
-        assert_eq!(
-            b3sum_bytes(b"hello world").as_bytes().as_ref(),
-            &hex::decode("d74981efa70a0c880b8d8c1985d075dbcbf679b99a5f9914e5aaf96b831a9e24").unwrap()[..]
-        );
     }
 }
