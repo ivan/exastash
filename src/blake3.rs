@@ -45,7 +45,8 @@ where
     }
 }
 
-pub(crate) fn b3sum_bytes(bytes: &[u8]) -> blake3::Hash {
+/// Return the BLAKE3 hash for a slice of bytes.
+pub fn b3sum_bytes(bytes: &[u8]) -> blake3::Hash {
     let mut b3sum = blake3::Hasher::new();
     b3sum.update(bytes);
     blake3::Hasher::finalize(&b3sum)

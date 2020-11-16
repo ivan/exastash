@@ -36,7 +36,7 @@ pub mod db;
 //pub mod fuse;
 
 pub mod path;
-pub(crate) mod blake3;
+pub mod blake3;
 pub mod config;
 pub(crate) mod gdrive;
 pub(crate) mod crypto;
