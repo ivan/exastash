@@ -316,22 +316,26 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     };
 
     let file_b3sum = file.b3sum;
-    let stream = Box::pin(
-        #[try_stream]
-        async move {
-            #[for_await]
-            for frame in underlying_stream {
-                yield frame?;
-            }
-            if file_b3sum.is_none() {
+    // We only need to wrap the stream with this stream if file.b3sum is unset
+    let stream = if file_b3sum.is_none() {
+        Box::pin(
+            #[try_stream]
+            async move {
+                #[for_await]
+                for frame in underlying_stream {
+                    yield frame?;
+                }
+                
                 let mut transaction = pool.begin().await?;
                 let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
                 info!("fixing unset b3sum on file id={} to {:?}", file_id, hex::encode(computed_hash.as_bytes()));
                 inode::File::set_b3sum(&mut transaction, file_id, computed_hash.as_bytes()).await?;
                 transaction.commit().await?;
             }
-        }
-    );
+        )
+    } else {
+        underlying_stream
+    };
 
     Ok((stream, file))
 }
