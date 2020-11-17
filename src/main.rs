@@ -1,6 +1,6 @@
 #![feature(format_args_capture)]
 
-use tracing::{info, warn};
+use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
 use clap::arg_enum;
@@ -919,7 +919,7 @@ async fn main() -> Result<()> {
                             let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
                             if let Some(existing) = Dirent::find_by_parent_and_basename(&mut transaction, dir_id, basename).await? {
                                 if *continue_on_exists {
-                                    warn!("{:?} already exists as {:?}", stash_path, existing);
+                                    eprintln!("{:?} already exists as {:?}", stash_path, existing);
                                     continue;
                                 } else {
                                     bail!("{:?} already exists as {:?}", stash_path, existing);
