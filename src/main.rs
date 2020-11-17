@@ -413,8 +413,8 @@ enum PathCommand {
         skip_if_exists: bool,
     },
 
-    /// Add a dir, file, or symlink.
-    /// Not recursive.
+    /// Create a stash file based on a local file. This also makes local file
+    /// read-only to make it more obviously immutable like the stash file.
     #[structopt(name = "add")]
     Add {
         /// Path to add to stash, relative to cwd
@@ -928,6 +928,13 @@ async fn main() -> Result<()> {
                             drop(transaction);
 
                             let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
+
+                            // Remove write permissions from the local file so that it's more obviously
+                            // "immutable" like the file in the stash.
+                            let mut permissions = fs::metadata(&path_arg).await?.permissions();
+                            permissions.set_readonly(true);
+                            fs::set_permissions(&path_arg, permissions).await?;
+
                             let file_id = storage_write::write(path_arg.clone(), &metadata, &desired_storage).await?;
 
                             transaction = pool.begin().await?;
