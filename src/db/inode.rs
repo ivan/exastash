@@ -294,8 +294,8 @@ impl NewFile {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
         assert!(self.size >= 0, "size must be >= 0");
-        let query = "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname)
-                     VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text)
+        let query = "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
+                     VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text, $7::bytea)
                      RETURNING id";
         let row = sqlx::query(query)
             .bind(self.mtime)
@@ -304,6 +304,7 @@ impl NewFile {
             .bind(self.birth.time)
             .bind(self.birth.version)
             .bind(&self.birth.hostname)
+            .bind(self.b3sum.map(Vec::from))
             .fetch_one(transaction).await?;
         let id: i64 = row.get(0);
         assert!(id >= 1);
@@ -562,7 +563,7 @@ pub(crate) mod tests {
         async fn test_file_find_by_ids_nonempty() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
-            let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now(), b3sum: None }
+            let file = NewFile { executable: false, size: 0, mtime: util::now_no_nanos(), birth: Birth::here_and_now(), b3sum: Some([1; 32]) }
                 .create(&mut transaction).await?;
             let nonexistent_id = 0;
             let files = File::find_by_ids(&mut transaction, &[file.id, nonexistent_id]).await?;
