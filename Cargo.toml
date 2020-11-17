@@ -30,6 +30,7 @@ hyper = "0.13"
 hyper-rustls = "0.21"
 libc = "0.2"
 literally = "0.1"
+log = "0.4"
 md-5 = "0.9"
 blake3 = "0.3"
 mimalloc = { version = "0.1", default-features = false } # Turn off the default secure mode

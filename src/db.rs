@@ -8,8 +8,9 @@ pub mod google_auth;
 
 use anyhow::Result;
 use sqlx::Executor;
-use sqlx::postgres::{PgPool, PgPoolOptions};
-use sqlx::{Postgres, Transaction, Row};
+use log::LevelFilter;
+use sqlx::postgres::{PgPool, PgPoolOptions, PgConnectOptions};
+use sqlx::{ConnectOptions, Postgres, Transaction, Row};
 use futures::future::{FutureExt, Shared};
 use once_cell::sync::Lazy;
 use std::pin::Pin;
@@ -22,6 +23,9 @@ use crate::util::env_var;
 /// and starts all transactions in `search_path` = `stash` and with
 /// isolation level `REPEATABLE READ`.
 pub async fn new_pgpool(uri: &str, max_connections: u32) -> Result<PgPool> {
+    let mut options: PgConnectOptions = uri.parse()?;
+    // By default, sqlx logs statements that take > 1 sec as a warning
+    options.log_slow_statements(LevelFilter::Info, Duration::from_secs(5));
     Ok(
         PgPoolOptions::new()
         .after_connect(|conn| Box::pin(async move {
@@ -34,7 +38,7 @@ pub async fn new_pgpool(uri: &str, max_connections: u32) -> Result<PgPool> {
         }))
         .connect_timeout(Duration::from_secs(30))
         .max_connections(max_connections)
-        .connect(&uri).await?
+        .connect_with(options).await?
     )
 }
 

@@ -547,6 +547,7 @@ dependencies = [
  "hyper-rustls 0.21.0",
  "libc",
  "literally",
+ "log",
  "md-5",
  "mimalloc",
  "num",
