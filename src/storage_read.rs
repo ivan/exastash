@@ -122,7 +122,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
                 out = Ok(stream_add_validation(gdrive_file, response.bytes_stream()));
                 break;
             },
-            StatusCode::UNAUTHORIZED => {
+            StatusCode::UNAUTHORIZED | StatusCode::NOT_FOUND => {
                 debug!("Google responded with HTTP status code {} for file_id={:?}, \
                         trying another access token if available", response.status(), gdrive_file.id);
                 continue;
