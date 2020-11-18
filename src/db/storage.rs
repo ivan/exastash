@@ -90,7 +90,7 @@ mod tests {
             let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             gdrive_file.create(&mut transaction).await?;
             let domain = gdrive::tests::create_dummy_domain(&mut transaction).await?;
-            let storage3 = gdrive::Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![gdrive_file.id.clone()] };
+            let storage3 = gdrive::Storage { file_id: dummy.id, google_domain: domain.id, cipher: gdrive::Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![gdrive_file.id.clone()] };
             storage3.create(&mut transaction).await?;
 
             // inline

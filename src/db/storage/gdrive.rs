@@ -61,7 +61,7 @@ impl GdriveParent {
 /// A domain where Google Drive files are stored
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
-pub struct GsuiteDomain {
+pub struct GoogleDomain {
     /// ID for this domain
     pub id: i16,
     /// The domain name
@@ -71,28 +71,28 @@ pub struct GsuiteDomain {
 /// A new domain name
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct NewGsuiteDomain {
+pub struct NewGoogleDomain {
     /// The domain name
     pub domain: String,
 }
 
-impl NewGsuiteDomain {
-    /// Create a gsuite_domain in the database.
+impl NewGoogleDomain {
+    /// Create a google_domain in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GsuiteDomain> {
-        let row = sqlx::query("INSERT INTO gsuite_domains (domain) VALUES ($1::text) RETURNING id")
+    pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GoogleDomain> {
+        let row = sqlx::query("INSERT INTO google_domains (domain) VALUES ($1::text) RETURNING id")
             .bind(&self.domain)
             .fetch_one(transaction).await?;
         let id = row.get(0);
-        Ok(GsuiteDomain {
+        Ok(GoogleDomain {
             id,
             domain: self.domain,
         })
     }
 }
 
-/// G Suite domain-specific descriptor that specifies where to place new Google Drive
-/// files, and with which owner.
+/// google_domain-specific descriptor that specifies where to place
+/// new Google Drive files, and with which owner.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct GdriveFilePlacement {
@@ -142,8 +142,8 @@ impl GdriveFilePlacement {
 pub struct Storage {
     /// The id of the exastash file for which this storage exists
     pub file_id: i64,
-    /// The domain for the gsuite account
-    pub gsuite_domain: i16,
+    /// The domain for the google account
+    pub google_domain: i16,
     /// The encryption algorithm used to encrypt the chunks in gdrive
     pub cipher: Cipher,
     /// The cipher key used to encrypt the chunks in gdrive
@@ -158,7 +158,7 @@ impl<'c> sqlx::FromRow<'c, PgRow> for Storage {
         Ok(
             Storage {
                 file_id: row.get("file_id"),
-                gsuite_domain: row.get("gsuite_domain"),
+                google_domain: row.get("google_domain"),
                 cipher: row.get::<Cipher, _>("cipher"),
                 cipher_key: *row.get::<Uuid, _>("cipher_key").as_bytes(),
                 gdrive_ids: row.get("gdrive_ids"),
@@ -169,15 +169,15 @@ impl<'c> sqlx::FromRow<'c, PgRow> for Storage {
 
 impl Storage {
     /// Create an gdrive storage entity in the database.
-    /// Note that the gsuite domain must already exist.
+    /// Note that the google domain must already exist.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query(
-            "INSERT INTO storage_gdrive (file_id, gsuite_domain, cipher, cipher_key, gdrive_ids)
+            "INSERT INTO storage_gdrive (file_id, google_domain, cipher, cipher_key, gdrive_ids)
              VALUES ($1::bigint, $2::smallint, $3::cipher, $4::uuid, $5::text[])"
         )
             .bind(&self.file_id)
-            .bind(&self.gsuite_domain)
+            .bind(&self.google_domain)
             .bind(&self.cipher)
             .bind(Uuid::from_bytes(self.cipher_key))
             .bind(&self.gdrive_ids)
@@ -200,7 +200,7 @@ impl Storage {
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         // Note that we can get more than one row per unique file_id
         let storages = sqlx::query_as::<_, Storage>(
-            "SELECT file_id, gsuite_domain, cipher, cipher_key, gdrive_ids
+            "SELECT file_id, google_domain, cipher, cipher_key, gdrive_ids
              FROM storage_gdrive
              WHERE file_id = ANY($1::bigint[])"
         )
@@ -225,10 +225,10 @@ pub(crate) mod tests {
         RelaxedCounter::new(1)
     });
 
-    pub(crate) async fn create_dummy_domain(mut transaction: &mut Transaction<'_, Postgres>) -> Result<GsuiteDomain> {
+    pub(crate) async fn create_dummy_domain(mut transaction: &mut Transaction<'_, Postgres>) -> Result<GoogleDomain> {
         let num = DOMAIN_COUNTER.inc();
         let domain = format!("{num}.example.com");
-        Ok(NewGsuiteDomain { domain }.create(&mut transaction).await?)
+        Ok(NewGoogleDomain { domain }.create(&mut transaction).await?)
     }
 
     mod api {
@@ -246,7 +246,7 @@ pub(crate) mod tests {
             let file2 = GdriveFile { id: "X".repeat(160), owner_id: None, md5: [0; 16], crc32c: 100, size: 1000, last_probed: None };
             file2.create(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id, file2.id] };
+            let storage = Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id, file2.id] };
             storage.create(&mut transaction).await?;
             transaction.commit().await?;
 
@@ -265,7 +265,7 @@ pub(crate) mod tests {
             let dummy = create_dummy_file(&mut transaction).await?;
             let file = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id] };
+            let storage = Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -286,7 +286,7 @@ pub(crate) mod tests {
             file1.create(&mut transaction).await?;
             let file2 = GdriveFile { id: "FileNeverAddedToDatabase".into(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id, file2.id] };
+            let storage = Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id, file2.id] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -304,7 +304,7 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let dummy = create_dummy_file(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            let storage = Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![] };
+            let storage = Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
                 result.err().expect("expected an error").to_string(),
@@ -333,12 +333,12 @@ pub(crate) mod tests {
             file1.create(&mut transaction).await?;
             GdriveFile { id: id2.clone(), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None }.create(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id] }.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let pairs = [
                 ("file_id", "100"),
-                ("gsuite_domain", "100"),
+                ("google_domain", "100"),
                 ("cipher", "'AES_128_CTR'::cipher"),
                 ("cipher_key", "'1111-1111-1111-1111-1111-1111-1111-1111'::uuid"),
                 ("gdrive_ids", &format!("'{{\"{id1}\",\"{id2}\"}}'::text[]"))
@@ -350,7 +350,7 @@ pub(crate) mod tests {
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
-                    "error returned from database: cannot change file_id, gsuite_domain, cipher, cipher_key, or gdrive_ids"
+                    "error returned from database: cannot change file_id, google_domain, cipher, cipher_key, or gdrive_ids"
                 );
             }
 
@@ -368,7 +368,7 @@ pub(crate) mod tests {
             let file = GdriveFile { id: "T".repeat(28),  owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
             file.create(&mut transaction).await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id] }.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;

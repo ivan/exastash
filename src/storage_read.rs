@@ -20,7 +20,7 @@ use crate::db;
 use crate::db::inode;
 use crate::db::storage::{get_storages, Storage, inline, gdrive, internetarchive};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
-use crate::db::google_auth::{GsuiteAccessToken, GsuiteServiceAccount};
+use crate::db::google_auth::{GoogleAccessToken, GoogleServiceAccount};
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
@@ -50,14 +50,14 @@ pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> 
     // Always try a random service account first, because we have more service
     // accounts than regular accounts, thus making us less likely to run into daily
     // per-account transfer limits.
-    for service_account in GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(1)).await? {
+    for service_account in GoogleServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(1)).await? {
         let auth = yup_oauth2::ServiceAccountAuthenticator::builder(service_account.key).build().await?;
         let scopes = &["https://www.googleapis.com/auth/drive"];
         let token = auth.token(scopes).await?;
         tokens.push(token.as_str().to_string());
     }
 
-    for token in GsuiteAccessToken::find_by_owner_ids(&mut transaction, &owner_ids).await? {
+    for token in GoogleAccessToken::find_by_owner_ids(&mut transaction, &owner_ids).await? {
         tokens.push(token.access_token);
     }
 
@@ -148,7 +148,7 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
             drop(transaction);
             for gdrive_file in gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
-                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await?;
+                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.google_domain).await?;
                 let key = GenericArray::from_slice(&storage.cipher_key);
                 let nonce = GenericArray::from_slice(&[0; 16]);
                 let mut cipher = Aes128Ctr::new(key, nonce);
@@ -203,7 +203,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Re
             let mut gcm_stream_bytes = 0;
             for gdrive_file in gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
-                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.gsuite_domain).await?;
+                let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.google_domain).await?;
                 let encrypted_read = encrypted_stream
                     .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
                     .into_async_read()

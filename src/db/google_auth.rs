@@ -7,21 +7,21 @@ use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
 use custom_debug_derive::Debug as CustomDebug;
 use crate::util::elide;
 
-/// A gsuite_application_secret entity
+/// A google_application_secret entity
 #[derive(Clone, CustomDebug, sqlx::FromRow)]
-pub struct GsuiteApplicationSecret {
-    /// The gsuite_domain this secret is for
+pub struct GoogleApplicationSecret {
+    /// The google_domain this secret is for
     pub domain_id: i16,
     /// The secret itself, a JSON object with an "installed" key
     #[debug(with = "elide")]
     pub secret: serde_json::Value
 }
 
-impl GsuiteApplicationSecret {
-    /// Create a gsuite_application_secret in the database.
+impl GoogleApplicationSecret {
+    /// Create a google_application_secret in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "INSERT INTO gsuite_application_secrets (domain_id, secret) VALUES ($1::smallint, $2::jsonb)";
+        let stmt = "INSERT INTO google_application_secrets (domain_id, secret) VALUES ($1::smallint, $2::jsonb)";
         sqlx::query(stmt)
             .bind(&self.domain_id)
             .bind(&self.secret)
@@ -30,23 +30,23 @@ impl GsuiteApplicationSecret {
         Ok(())
     }
 
-    /// Return a `Vec<GsuiteApplicationSecret>` of all gsuite_application_secrets.
-    pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GsuiteApplicationSecret>> {
-        let query = "SELECT domain_id, secret FROM gsuite_application_secrets";
-        Ok(sqlx::query_as::<_, GsuiteApplicationSecret>(query).fetch_all(transaction).await?)
+    /// Return a `Vec<GoogleApplicationSecret>` of all google_application_secrets.
+    pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GoogleApplicationSecret>> {
+        let query = "SELECT domain_id, secret FROM google_application_secrets";
+        Ok(sqlx::query_as::<_, GoogleApplicationSecret>(query).fetch_all(transaction).await?)
     }
 
-    /// Return a `Vec<GsuiteApplicationSecret>` for the corresponding list of `domain_ids`.
+    /// Return a `Vec<GoogleApplicationSecret>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
-    pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GsuiteApplicationSecret>> {
-        let query = "SELECT domain_id, secret FROM gsuite_application_secrets WHERE domain_id = ANY($1::smallint[])";
-        Ok(sqlx::query_as::<_, GsuiteApplicationSecret>(query).bind(domain_ids).fetch_all(transaction).await?)
+    pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GoogleApplicationSecret>> {
+        let query = "SELECT domain_id, secret FROM google_application_secrets WHERE domain_id = ANY($1::smallint[])";
+        Ok(sqlx::query_as::<_, GoogleApplicationSecret>(query).bind(domain_ids).fetch_all(transaction).await?)
     }
 }
 
-/// A gsuite_access_token entity
+/// A google_access_token entity
 #[derive(Clone, CustomDebug, PartialEq, Eq, sqlx::FromRow)]
-pub struct GsuiteAccessToken {
+pub struct GoogleAccessToken {
     /// The gdrive_owner this access token is for
     pub owner_id: i32,
     /// The OAuth 2.0 access token
@@ -59,11 +59,11 @@ pub struct GsuiteAccessToken {
     pub expires_at: DateTime<Utc>,
 }
 
-impl GsuiteAccessToken {
-    /// Create a gsuite_access_token in the database.
+impl GoogleAccessToken {
+    /// Create a google_access_token in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "INSERT INTO gsuite_access_tokens (owner_id, access_token, refresh_token, expires_at)
+        let stmt = "INSERT INTO google_access_tokens (owner_id, access_token, refresh_token, expires_at)
                     VALUES ($1::int, $2::text, $3::text, $4::timestamptz)";
         sqlx::query(stmt)
             .bind(&self.owner_id)
@@ -79,34 +79,34 @@ impl GsuiteAccessToken {
     /// There is no error if the owner does not exist.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn delete(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "DELETE FROM gsuite_access_tokens WHERE owner_id = $1::int";
+        let stmt = "DELETE FROM google_access_tokens WHERE owner_id = $1::int";
         sqlx::query(stmt).bind(&self.owner_id).execute(transaction).await?;
         Ok(())
     }
 
-    /// Return a `Vec<GsuiteAccessToken>` of tokens that expire before `expires_at`.
-    pub async fn find_by_expires_at(transaction: &mut Transaction<'_, Postgres>, expires_at: DateTime<Utc>) -> Result<Vec<GsuiteAccessToken>> {
-        Ok(sqlx::query_as::<_, GsuiteAccessToken>(
+    /// Return a `Vec<GoogleAccessToken>` of tokens that expire before `expires_at`.
+    pub async fn find_by_expires_at(transaction: &mut Transaction<'_, Postgres>, expires_at: DateTime<Utc>) -> Result<Vec<GoogleAccessToken>> {
+        Ok(sqlx::query_as::<_, GoogleAccessToken>(
             "SELECT owner_id, access_token, refresh_token, expires_at
-             FROM gsuite_access_tokens
+             FROM google_access_tokens
              WHERE expires_at < $1::timestamptz"
         ).bind(expires_at).fetch_all(transaction).await?)
     }
 
-    /// Return a `Vec<GsuiteAccessToken>` for the corresponding list of `owner_ids`.
+    /// Return a `Vec<GoogleAccessToken>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
-    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GsuiteAccessToken>> {
-        Ok(sqlx::query_as::<_, GsuiteAccessToken>(
+    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GoogleAccessToken>> {
+        Ok(sqlx::query_as::<_, GoogleAccessToken>(
             "SELECT owner_id, access_token, refresh_token, expires_at
-             FROM gsuite_access_tokens
+             FROM google_access_tokens
              WHERE owner_id = ANY($1::int[])"
         ).bind(owner_ids).fetch_all(transaction).await?)
     }
 }
 
-/// A gsuite_service_Account entity
+/// A google_service_account entity
 #[derive(Clone, CustomDebug, PartialEq, Eq)]
-pub struct GsuiteServiceAccount {
+pub struct GoogleServiceAccount {
     /// The gdrive_owner this service account is for
     pub owner_id: i32,
     /// The key for this service account
@@ -114,10 +114,10 @@ pub struct GsuiteServiceAccount {
     pub key: ServiceAccountKey,
 }
 
-impl<'c> sqlx::FromRow<'c, PgRow> for GsuiteServiceAccount {
+impl<'c> sqlx::FromRow<'c, PgRow> for GoogleServiceAccount {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         Ok(
-            GsuiteServiceAccount {
+            GoogleServiceAccount {
                 owner_id:                        row.get("owner_id"),
                 key: ServiceAccountKey {
                     client_email:                row.get("client_email"),
@@ -138,13 +138,13 @@ impl<'c> sqlx::FromRow<'c, PgRow> for GsuiteServiceAccount {
 
 
 
-impl GsuiteServiceAccount {
-    /// Create a gsuite_service_account in the database.
+impl GoogleServiceAccount {
+    /// Create a google_service_account in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         let k = &self.key;
         let stmt =
-            "INSERT INTO gsuite_service_accounts (
+            "INSERT INTO google_service_accounts (
                 owner_id, client_email, client_id, project_id, private_key_id, private_key,
                 auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url)
              VALUES ($1::int, $2::text, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $9::text, $10::text)";
@@ -163,10 +163,10 @@ impl GsuiteServiceAccount {
         Ok(())
     }
 
-    /// Return a `Vec<GsuiteServiceAccount>` for the corresponding list of `owner_ids`.
+    /// Return a `Vec<GoogleServiceAccount>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
     /// If limit is not `None`, returns max `N` random rows.
-    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32], limit: Option<i32>) -> Result<Vec<GsuiteServiceAccount>> {
+    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32], limit: Option<i32>) -> Result<Vec<GoogleServiceAccount>> {
         let limit_sql = match limit {
             None => "".into(),
             Some(num) => format!("ORDER BY random() LIMIT {num}")
@@ -174,12 +174,12 @@ impl GsuiteServiceAccount {
         let query = format!("
             SELECT owner_id, client_email, client_id, project_id, private_key_id, private_key,
                    auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url
-            FROM gsuite_service_accounts
+            FROM google_service_accounts
             WHERE owner_id = ANY($1::int[])
             {limit_sql}
         ");
         Ok(
-            sqlx::query_as::<_, GsuiteServiceAccount>(&query)
+            sqlx::query_as::<_, GoogleServiceAccount>(&query)
             .bind(owner_ids)
             .fetch_all(transaction).await?
         )
@@ -195,18 +195,18 @@ mod tests {
     use crate::db::storage::gdrive::file::tests::create_dummy_owner;
     use crate::util::now_no_nanos;
 
-    mod gsuite_application_secret {
+    mod google_application_secret {
         use super::*;
 
         #[test]
         fn test_debug_elision() {
-            let secret = GsuiteApplicationSecret { domain_id: 1, secret: serde_json::Value::String("".into()) };
-            assert_eq!(format!("{:?}", secret), "GsuiteApplicationSecret { domain_id: 1, secret: ... }");
+            let secret = GoogleApplicationSecret { domain_id: 1, secret: serde_json::Value::String("".into()) };
+            assert_eq!(format!("{:?}", secret), "GoogleApplicationSecret { domain_id: 1, secret: ... }");
         }
 
-        /// If there is no gsuite_application_secret for a domain, find_by_domain_ids returns an empty Vec
+        /// If there is no google_application_secret for a domain, find_by_domain_ids returns an empty Vec
         #[tokio::test]
-        async fn test_no_gsuite_application_secret() -> Result<()> {
+        async fn test_no_google_application_secret() -> Result<()> {
             let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
@@ -214,23 +214,23 @@ mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert!(GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?.is_empty());
+            assert!(GoogleApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?.is_empty());
 
             Ok(())
         }
 
-        /// If we create a gsuite_application_secret, find_by_domain_ids finds it
+        /// If we create a google_application_secret, find_by_domain_ids finds it
         #[tokio::test]
         async fn test_create() -> Result<()> {
             let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
-            GsuiteApplicationSecret { domain_id: domain.id, secret: serde_json::json!({}) }.create(&mut transaction).await?;
+            GoogleApplicationSecret { domain_id: domain.id, secret: serde_json::json!({}) }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            let secrets = GsuiteApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?;
+            let secrets = GoogleApplicationSecret::find_by_domain_ids(&mut transaction, &[domain.id]).await?;
             assert_eq!(secrets.len(), 1);
             assert_eq!(secrets[0].domain_id, domain.id);
 
@@ -238,19 +238,19 @@ mod tests {
         }
     }
 
-    mod gsuite_access_tokens {
+    mod google_access_tokens {
         use super::*;
 
         #[test]
         fn test_debug_elision() {
-            let token = GsuiteAccessToken { owner_id: 1, access_token: "".into(), refresh_token: "".into(), expires_at: Utc::now() };
+            let token = GoogleAccessToken { owner_id: 1, access_token: "".into(), refresh_token: "".into(), expires_at: Utc::now() };
             assert!(format!("{:?}", token).contains("access_token: ..."));
             assert!(format!("{:?}", token).contains("refresh_token: ..."));
         }
 
-        /// If there is no gsuite_access_token for an owner, `find_by_owner_ids` and `find_by_expires_at` return an empty Vec
+        /// If there is no google_access_token for an owner, `find_by_owner_ids` and `find_by_expires_at` return an empty Vec
         #[tokio::test]
-        async fn test_no_gsuite_access_tokens() -> Result<()> {
+        async fn test_no_google_access_tokens() -> Result<()> {
             let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
@@ -259,8 +259,8 @@ mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?.is_empty());
-            let out = GsuiteAccessToken::find_by_expires_at(&mut transaction, Utc::now()).await?;
+            assert!(GoogleAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?.is_empty());
+            let out = GoogleAccessToken::find_by_expires_at(&mut transaction, Utc::now()).await?;
             let tokens: Vec<_> = out
                 .iter()
                 .filter(|token| token.owner_id == owner.id)
@@ -270,7 +270,7 @@ mod tests {
             Ok(())
         }
 
-        /// If we create a gsuite_access_token, `find_by_owner_ids` and `find_by_expires_at` find it.
+        /// If we create a google_access_token, `find_by_owner_ids` and `find_by_expires_at` find it.
         /// If we delete it, it is no longer found.
         #[tokio::test]
         async fn test_create_delete() -> Result<()> {
@@ -280,23 +280,23 @@ mod tests {
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
             let now = now_no_nanos();
-            let token = GsuiteAccessToken { owner_id: owner.id, access_token: "A".into(), refresh_token: "R".into(), expires_at: now };
+            let token = GoogleAccessToken { owner_id: owner.id, access_token: "A".into(), refresh_token: "R".into(), expires_at: now };
             token.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert_eq!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![token.clone()]);
-            assert_eq!(GsuiteAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![token.clone()]);
+            assert_eq!(GoogleAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![token.clone()]);
+            assert_eq!(GoogleAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![token.clone()]);
 
             token.delete(&mut transaction).await?;
-            assert_eq!(GsuiteAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![]);
-            assert_eq!(GsuiteAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![]);
+            assert_eq!(GoogleAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![]);
+            assert_eq!(GoogleAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![]);
 
             Ok(())
         }
     }
 
-    mod gsuite_service_account {
+    mod google_service_account {
         use super::*;
 
         fn dummy_service_account_key() -> ServiceAccountKey {
@@ -314,9 +314,9 @@ mod tests {
             }
         }
 
-        /// If there is no gsuite_service_account for an owner, find_by_owner_ids returns an empty Vec
+        /// If there is no google_service_account for an owner, find_by_owner_ids returns an empty Vec
         #[tokio::test]
-        async fn test_no_gsuite_access_tokens() -> Result<()> {
+        async fn test_no_google_access_tokens() -> Result<()> {
             let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
@@ -325,13 +325,13 @@ mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert!(GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], None).await?.is_empty());
-            assert!(GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], Some(1)).await?.is_empty());
+            assert!(GoogleServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], None).await?.is_empty());
+            assert!(GoogleServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], Some(1)).await?.is_empty());
 
             Ok(())
         }
 
-        /// If we create a gsuite_service_account, find_by_owner_ids finds it
+        /// If we create a google_service_account, find_by_owner_ids finds it
         #[tokio::test]
         async fn test_create() -> Result<()> {
             let pool = new_primary_pool().await;
@@ -339,13 +339,13 @@ mod tests {
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let account = GsuiteServiceAccount { owner_id: owner.id, key: dummy_service_account_key() };
+            let account = GoogleServiceAccount { owner_id: owner.id, key: dummy_service_account_key() };
             account.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
             for limit in &[None, Some(1_i32)] {
-                let accounts = GsuiteServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], *limit).await?;
+                let accounts = GoogleServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], *limit).await?;
                 assert_eq!(accounts, vec![account.clone()]);
             }
 
@@ -354,8 +354,8 @@ mod tests {
 
         #[test]
         fn test_debug_elision() {
-            let account = GsuiteServiceAccount { owner_id: 1, key: dummy_service_account_key() };
-            assert_eq!(format!("{:?}", account), "GsuiteServiceAccount { owner_id: 1, key: ... }");
+            let account = GoogleServiceAccount { owner_id: 1, key: dummy_service_account_key() };
+            assert_eq!(format!("{:?}", account), "GoogleServiceAccount { owner_id: 1, key: ... }");
         }
     }
 }

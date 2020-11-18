@@ -7,7 +7,7 @@ function newFileStorages({ stashPath, size, mtime, executable }) {
     }
 
     if (fileSize > remoteStorageThreshold || stashPath.endsWith(".jpg")) {
-        // 1 is the gsuite_domain
+        // 1 is the google_domain
         return {gdrive: [1]};
     } else {
         return {inline: true};

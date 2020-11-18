@@ -133,7 +133,7 @@ impl<SAO: StreamAtOffset> StreamAtOffset for GdriveFileProducer<SAO> {
 ///  containing the content to upload.
 /// `size` is the length of the `Stream` and the resulting Google Drive file.
 /// `owner_id` is the gdrive_owner for the file.
-/// `domain_id` is the gsuite_domain for the file.
+/// `domain_id` is the google_domain for the file.
 /// `parent` is the Google Drive folder in which to create a file.
 /// `filename` is the name of the file to create in Google Drive.
 pub async fn create_gdrive_file_on_domain<SAO: StreamAtOffset>(
@@ -258,7 +258,7 @@ impl StreamAtOffset for EncryptedFileProducer {
     }
 }
 
-/// Write the content of a file to a G Suite domain.
+/// Write the content of a file to a google domain.
 /// Returns a `(GdriveFile, gdrive::Storage)` that caller must `.create()` and commit the themselves.
 pub async fn write_to_gdrive(
     lfp: LocalFileProducer,
@@ -294,7 +294,7 @@ pub async fn write_to_gdrive(
 
     let storage = gdrive::Storage {
         file_id: file.id,
-        gsuite_domain: domain_id,
+        google_domain: domain_id,
         cipher: gdrive::Cipher::Aes128Gcm,
         cipher_key,
         gdrive_ids: vec![gdrive_file.id.clone()],
@@ -319,7 +319,7 @@ pub fn paranoid_zstd_encode_all(bytes: &[u8], level: i32) -> Result<Vec<u8>> {
 pub struct DesiredStorage {
     /// Whether to store inline in the database
     pub inline: bool,
-    /// A list of gsuite_domain ids in which to store the file
+    /// A list of google_domain ids in which to store the file
     pub gdrive: Vec<i16>,
 }
 

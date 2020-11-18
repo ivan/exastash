@@ -18,7 +18,7 @@ use exastash::db;
 use exastash::db::storage::gdrive::file::GdriveFile;
 use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::dirent::{Dirent, InodeTuple};
-use exastash::db::google_auth::{GsuiteApplicationSecret, GsuiteServiceAccount};
+use exastash::db::google_auth::{GoogleApplicationSecret, GoogleServiceAccount};
 use exastash::db::traversal;
 use exastash::path;
 use exastash::config;
@@ -54,9 +54,9 @@ enum ExastashCommand {
     #[structopt(name = "dirent")]
     Dirent(DirentCommand),
 
-    /// Commands to work with G Suite
-    #[structopt(name = "gsuite")]
-    Gsuite(GsuiteCommand),
+    /// Commands to work with Google tokens and secrets
+    #[structopt(name = "google")]
+    Google(GoogleCommand),
 
     /// Internal commands for debugging
     #[structopt(name = "internal")]
@@ -117,7 +117,7 @@ enum FileCommand {
         #[structopt(long)]
         store_inline: bool,
 
-        /// Store the file data in some gsuite domain (specified by id).
+        /// Store the file data in some google domain (specified by id).
         /// Can be specified multiple times and with other --store-* options.
         #[structopt(long)]
         store_gdrive: Vec<i16>,
@@ -302,7 +302,7 @@ enum ServiceAccountCommand {
 }
 
 #[derive(StructOpt, Debug)]
-enum GsuiteCommand {
+enum GoogleCommand {
     /// Manage OAuth 2.0 application secrets (used with the "installed" application flow)
     #[structopt(name = "app-secret")]
     ApplicationSecret(ApplicationSecretCommand),
@@ -331,7 +331,7 @@ enum InternalCommand {
         #[structopt(name = "PATH")]
         path: PathBuf,
 
-        /// gsuite_domain to upload to
+        /// google_domain to upload to
         #[structopt(name = "DOMAIN_ID")]
         domain_id: i16,
 
@@ -351,7 +351,7 @@ enum InternalCommand {
     /// Read the contents of a sequence of Google Drive files to stdout.
     #[structopt(name = "read-gdrive-files")]
     ReadGdriveFiles {
-        /// gsuite_domain to read from
+        /// google_domain to read from
         #[structopt(name = "DOMAIN_ID")]
         domain_id: i16,
 
@@ -714,37 +714,37 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        ExastashCommand::Gsuite(command) => {
+        ExastashCommand::Google(command) => {
             match &command {
-                GsuiteCommand::ApplicationSecret(command) => {
+                GoogleCommand::ApplicationSecret(command) => {
                     match command {
                         ApplicationSecretCommand::Import { domain_id, json_file } => {
                             let content = fs::read(json_file).await?;
                             let json = serde_json::from_slice(&content)?;
-                            GsuiteApplicationSecret { domain_id: *domain_id, secret: json }.create(&mut transaction).await?;
+                            GoogleApplicationSecret { domain_id: *domain_id, secret: json }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }
                 }
-                GsuiteCommand::AccessToken(command) => {
+                GoogleCommand::AccessToken(command) => {
                     match command {
                         AccessTokenCommand::Create { owner_id } => {
                             oauth::create_access_token(transaction, *owner_id).await?;
                         }
                     }
                 }
-                GsuiteCommand::ServiceAccount(command) => {
+                GoogleCommand::ServiceAccount(command) => {
                     match command {
                         ServiceAccountCommand::Import { owner_id, json_file } => {
                             let content = fs::read(json_file).await?;
                             let key: ServiceAccountKey = serde_json::from_slice(&content)?;
                             assert_eq!(key.key_type, Some("service_account".into()));
-                            GsuiteServiceAccount { owner_id: *owner_id, key }.create(&mut transaction).await?;
+                            GoogleServiceAccount { owner_id: *owner_id, key }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }
                 }
-                GsuiteCommand::TokenService => {
+                GoogleCommand::TokenService => {
                     drop(transaction);
                     let interval_sec = 305;
                     info!("will check access tokens every {} seconds", interval_sec);

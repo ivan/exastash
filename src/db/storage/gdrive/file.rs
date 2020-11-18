@@ -17,7 +17,7 @@ use uuid::Uuid;
 pub struct GdriveOwner {
     /// ID for this owner
     pub id: i32,
-    /// The G Suite domain this owner is associated with
+    /// The google domain this owner is associated with
     pub domain: i16,
     /// Email or other identifying string
     pub owner: String,
@@ -57,7 +57,7 @@ impl GdriveOwner {
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct NewGdriveOwner {
-    /// The G Suite domain this owner is associated with
+    /// The google domain this owner is associated with
     pub domain: i16,
     /// Email or other identifying string
     pub owner: String,
@@ -252,7 +252,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            Storage { file_id: dummy.id, gsuite_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id.clone()] }.create(&mut transaction).await?;
+            Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id.clone()] }.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
