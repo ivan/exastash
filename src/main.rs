@@ -58,9 +58,9 @@ enum ExastashCommand {
     #[structopt(name = "google")]
     Google(GoogleCommand),
 
-    /// Internal commands for debugging
-    #[structopt(name = "internal")]
-    Internal(InternalCommand),
+    /// Commands to work with storage methods
+    #[structopt(name = "storage")]
+    Storage(StorageCommand),
 
     /// (nonfunctional) FUSE server
     #[structopt(name = "fuse")]
@@ -321,12 +321,26 @@ enum GoogleCommand {
 }
 
 #[derive(StructOpt, Debug)]
+enum StorageCommand {
+    /// gdrive storage
+    #[structopt(name = "gdrive")]
+    Gdrive(GdriveStorageCommand),
+}
+
+#[derive(StructOpt, Debug)]
+enum GdriveStorageCommand {
+    /// Internal commands for debugging
+    #[structopt(name = "internal")]
+    Internal(InternalCommand),
+}
+
+#[derive(StructOpt, Debug)]
 enum InternalCommand {
     /// Create an unencrypted/unaltered Google Drive file based on some local
     /// file and record it in the database. Output the info of the new gdrive
     /// file to stdout as JSON.
-    #[structopt(name = "create-gdrive-file")]
-    CreateGdriveFile {
+    #[structopt(name = "create-file")]
+    CreateFile {
         /// Path to the local file to upload
         #[structopt(name = "PATH")]
         path: PathBuf,
@@ -349,8 +363,8 @@ enum InternalCommand {
     },
 
     /// Read the contents of a sequence of Google Drive files to stdout.
-    #[structopt(name = "read-gdrive-files")]
-    ReadGdriveFiles {
+    #[structopt(name = "read-files")]
+    ReadFiles {
         /// google_domain to read from
         #[structopt(name = "DOMAIN_ID")]
         domain_id: i16,
@@ -755,29 +769,37 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        ExastashCommand::Internal(command) => {
+        ExastashCommand::Storage(command) => {
             match &command {
-                InternalCommand::CreateGdriveFile { path, domain_id, owner_id, parent, filename } => {
-                    let attr = fs::metadata(&path).await?;
-                    let size = attr.len();
+                StorageCommand::Gdrive(command) => {
+                    match &command {
+                        GdriveStorageCommand::Internal(command) => {
+                            match &command {
+                                InternalCommand::CreateFile { path, domain_id, owner_id, parent, filename } => {
+                                    let attr = fs::metadata(&path).await?;
+                                    let size = attr.len();
 
-                    let mut lfp = storage_write::LocalFileProducer::new(path.clone());
-                    lfp.set_read_size(65536);
-                    let gdrive_file = storage_write::create_gdrive_file_on_domain(
-                        lfp, size, *domain_id, *owner_id, parent, filename
-                    ).await?;
-                    gdrive_file.create(&mut transaction).await?;
-                    transaction.commit().await?;
-                    let j = serde_json::to_string_pretty(&gdrive_file)?;
-                    println!("{j}");
-                }
-                InternalCommand::ReadGdriveFiles { domain_id, file_ids } => {
-                    let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
-                    let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
-                    for gdrive_file in &gdrive_files {
-                        let stream = Box::pin(storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?);
-                        let mut stdout = tokio::io::stdout();
-                        write_stream_to_sink(stream, &mut stdout).await?;
+                                    let mut lfp = storage_write::LocalFileProducer::new(path.clone());
+                                    lfp.set_read_size(65536);
+                                    let gdrive_file = storage_write::create_gdrive_file_on_domain(
+                                        lfp, size, *domain_id, *owner_id, parent, filename
+                                    ).await?;
+                                    gdrive_file.create(&mut transaction).await?;
+                                    transaction.commit().await?;
+                                    let j = serde_json::to_string_pretty(&gdrive_file)?;
+                                    println!("{j}");
+                                }
+                                InternalCommand::ReadFiles { domain_id, file_ids } => {
+                                    let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
+                                    let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
+                                    for gdrive_file in &gdrive_files {
+                                        let stream = Box::pin(storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?);
+                                        let mut stdout = tokio::io::stdout();
+                                        write_stream_to_sink(stream, &mut stdout).await?;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
