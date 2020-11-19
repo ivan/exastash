@@ -1,7 +1,8 @@
 # This goes in ~/.config/exastash/config.toml
 
 [path_roots]
-"/entire/stash" = 1
+"/entire/stash" = { dir_id = 1, new_dirent_requirements = ["windows_compatible"] }
 # just another example of mapping a more-specific directory
-"/home/you/Stuff" = 3
-"/home/them/Stuff" = 3
+"/home/you/Stuff" = { dir_id = 3, new_dirent_requirements = ["windows_compatible"] }
+# without the windows_compatible requirement
+"/home/them/Stuff" = { dir_id = 3 }

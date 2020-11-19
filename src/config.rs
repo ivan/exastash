@@ -12,17 +12,27 @@ use custom_debug_derive::Debug as CustomDebug;
 use crate::util::{self, elide};
 use crate::storage_write::{DesiredStorage, RelevantFileMetadata};
 
+/// A value in the [path_roots] section of config.toml
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+pub struct PathRootsValue {
+    /// The dir_id to use as the root at this path
+    pub dir_id: i64,
+    /// A list of additional requirements to impose on only _new_ dirents
+    #[serde(default)]
+    pub new_dirent_requirements: Vec<String>,
+}
+
 #[derive(Deserialize, Debug)]
 struct RawConfig {
-    /// map of paths -> dir id
-    path_roots: HashMap<String, i64>,
+    /// A map of local paths -> PathRootsValue containing a dir_id to use as the root
+    path_roots: HashMap<String, PathRootsValue>,
 }
 
 /// Machine-local exastash configuration
 #[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct Config {
     /// map of path components -> dir id
-    pub path_roots: HashMap<Vec<String>, i64>,
+    pub path_roots: HashMap<Vec<String>, PathRootsValue>,
 }
 
 impl From<RawConfig> for Config {
@@ -145,16 +155,16 @@ mod tests {
         fn test_parse_config() -> Result<()> {
             let config = parse_config(r#"
                 [path_roots]
-                "/some/path" = 1
-                "/other/path" = 2
+                "/some/path" = { dir_id = 1 }
+                "/other/path" = { dir_id = 2, new_dirent_requirements = ["windows_compatible"] }
                 # Not a good idea, but test the parse
-                "/" = 3
+                "/" = { dir_id = 3 }
             "#)?;
 
             let expected_path_roots = hmap!{
-                vec!["some".into(), "path".into()] => 1,
-                vec!["other".into(), "path".into()] => 2,
-                vec![] => 3,
+                vec!["some".into(), "path".into()] => PathRootsValue { dir_id: 1, new_dirent_requirements: vec![] },
+                vec!["other".into(), "path".into()] => PathRootsValue { dir_id: 2, new_dirent_requirements: vec![String::from("windows_compatible")] },
+                vec![] => PathRootsValue { dir_id: 3, new_dirent_requirements: vec![] },
             };
 
             assert_eq!(config, Config { path_roots: expected_path_roots });

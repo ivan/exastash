@@ -25,8 +25,9 @@ pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Con
         .collect();
     let path_components_joinable = candidate.clone();
     loop {
-        if let Some(dir_id) = config.path_roots.get(&candidate) {
-            return Ok((*dir_id, idx));
+        if let Some(path_value) = config.path_roots.get(&candidate) {
+            let dir_id = path_value.dir_id;
+            return Ok((dir_id, idx));
         }
         if candidate.len() == 0 {
             break;
