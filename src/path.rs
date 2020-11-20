@@ -17,7 +17,10 @@ mod windows_compatible;
 /// Example:
 /// path_roots has /a/b -> 1
 /// resolve_root_of_local_path(config, ["a", "b", "c", "d"]) -> (PathRootsValue { dir_id: 1, ... }, idx 2 - indicating ["c", "d"])
-pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Config, path_components: &[S]) -> Result<(PathRootsValue, usize)> {
+pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(
+    config: &Config,
+    path_components: &[S]
+) -> Result<(PathRootsValue, usize)> {
     let mut idx = path_components.len();
     // Need a Vec<String> to query the HashMap, can't use &[&str]
     let mut candidate: Vec<String> = path_components
@@ -41,7 +44,12 @@ pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(config: &Con
 }
 
 /// Resolve some local absolute path to its exastash equivalent
-pub async fn resolve_local_absolute_path<S: AsRef<str> + ToString + Clone>(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[S]) -> Result<InodeId> {
+pub async fn resolve_local_absolute_path<S: AsRef<str> + ToString + Clone>(
+    config: &Config,
+    transaction: &mut Transaction<'_, Postgres>,
+    path_components: &[S]
+) -> Result<InodeId>
+{
     let (path_roots_value, idx) = resolve_root_of_local_path(config, path_components)?;
     let root_dir = path_roots_value.dir_id;
     traversal::resolve_inode(transaction, root_dir, &path_components[idx..]).await
@@ -62,12 +70,20 @@ pub fn resolve_local_path_to_path_components(path_arg: Option<&str>) -> Result<V
 }
 
 /// Resolve normalized path components to its exastash equivalent inode
-pub async fn resolve_path_components<S: AsRef<str> + ToString + Clone>(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_components: &[S]) -> Result<InodeId> {
+pub async fn resolve_path_components<S: AsRef<str> + ToString + Clone>(
+    config: &Config,
+    transaction: &mut Transaction<'_, Postgres>,
+    path_components: &[S]
+) -> Result<InodeId> {
     resolve_local_absolute_path(&config, transaction, path_components).await
 }
 
 /// Resolve some local relative path argument to its exastash equivalent inode
-pub async fn resolve_local_path_arg(config: &Config, transaction: &mut Transaction<'_, Postgres>, path_arg: Option<&str>) -> Result<InodeId> {
+pub async fn resolve_local_path_arg(
+    config: &Config,
+    transaction: &mut Transaction<'_, Postgres>,
+    path_arg: Option<&str>
+) -> Result<InodeId> {
     let path_components = resolve_local_path_to_path_components(path_arg)?;
     resolve_path_components(config, transaction, &path_components).await
 }
