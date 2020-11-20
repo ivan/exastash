@@ -40,7 +40,6 @@ pub mod blake3;
 pub mod config;
 pub(crate) mod gdrive;
 pub(crate) mod crypto;
-pub(crate) mod windows_compat;
 pub mod info;
 pub mod oauth;
 pub mod storage_read;

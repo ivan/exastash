@@ -20,7 +20,7 @@ pub enum PathError {
 
 /// Check whether a UTF-8 path segment is valid without doing any validation that
 /// would be redundant with path-normalization code or the CHECK in PostgreSQL.
-fn check_segment(segment: &str) -> Result<(), PathError> {
+pub(crate) fn check_segment(segment: &str) -> Result<(), PathError> {
     check_windows_special_characters(segment)?;
     check_windows_segment_ending(segment)?;
     check_windows_device_name(segment)?;

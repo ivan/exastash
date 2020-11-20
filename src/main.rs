@@ -925,7 +925,8 @@ async fn main() -> Result<()> {
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
                         let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
-                        let (base_dir, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
+                        let (path_roots_value, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
+                        let base_dir = path_roots_value.dir_id;
                         let remaining_components = &path_components[idx..];
                         let components_to_base_dir = traversal::get_path_segments_from_root_to_dir(&mut transaction, base_dir).await?;
                         let stash_path = [&components_to_base_dir, remaining_components].concat();
@@ -936,9 +937,10 @@ async fn main() -> Result<()> {
                             let stash_path: Vec<&str> = stash_path.iter().map(String::as_str).collect();
 
                             let basename = remaining_components.last().unwrap();
+                            path::validate_path_components(&[basename], &path_roots_value.new_dirent_requirements)?;
                             let dir_components = &remaining_components[..remaining_components.len() - 1];
                             // TODO: do this properly and use the mtimes of the local dirs
-                            let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
+                            let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components, &path_roots_value.new_dirent_requirements).await?.dir_id()?;
                             if let Some(existing) = Dirent::find_by_parent_and_basename(&mut transaction, dir_id, basename).await? {
                                 if *continue_on_exists {
                                     eprintln!("{:?} already exists as {:?}", stash_path, existing);
@@ -1053,9 +1055,10 @@ async fn main() -> Result<()> {
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
                         let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
-                        let (base_dir, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
+                        let (path_roots_value, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
+                        let base_dir = path_roots_value.dir_id;
                         let remaining_components = &path_components[idx..];
-                        traversal::make_dirs(&mut transaction, base_dir, remaining_components).await?;
+                        traversal::make_dirs(&mut transaction, base_dir, remaining_components, &path_roots_value.new_dirent_requirements).await?;
                         transaction.commit().await?;
 
                         // For convenience, also create the corresponding directory on the local filesystem
@@ -1071,7 +1074,8 @@ async fn main() -> Result<()> {
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
                         let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
-                        let (base_dir, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
+                        let (path_roots_value, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
+                        let base_dir = path_roots_value.dir_id;
                         let remaining_components = &path_components[idx..];
 
                         let dirent = traversal::resolve_dirent(&mut transaction, base_dir, remaining_components).await?;

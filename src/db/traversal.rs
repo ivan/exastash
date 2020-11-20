@@ -5,6 +5,7 @@ use anyhow::{anyhow, bail, Result};
 use sqlx::{Postgres, Transaction};
 use crate::db::dirent::Dirent;
 use crate::db::inode::{InodeId, NewDir, Birth};
+use crate::path;
 use crate::Error;
 
 /// Returns the inode referenced by the last path segment, starting from some base directory.
@@ -41,8 +42,9 @@ pub async fn resolve_dirent<S: AsRef<str> + ToString + Clone>(transaction: &mut 
 
 /// Resolve path_components but also create new directories as needed, like `mkdir -p`.
 /// Does not commit the transaction, you must do so yourself.
-pub async fn make_dirs<S: AsRef<str> + ToString + Clone>(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[S]) -> Result<InodeId> {
+pub async fn make_dirs<S: AsRef<str> + ToString + Clone>(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[S], validators: &[String]) -> Result<InodeId> {
     let mut current_inode = InodeId::Dir(base_dir);
+    path::validate_path_components(path_components, validators)?;
     for component in path_components {
         let dir_id = current_inode.dir_id()?;
         if let Some(dirent) = Dirent::find_by_parent_and_basename(transaction, dir_id, component.as_ref()).await? {

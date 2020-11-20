@@ -13,7 +13,7 @@ use crate::util::{self, elide};
 use crate::storage_write::{DesiredStorage, RelevantFileMetadata};
 
 /// A value in the [path_roots] section of config.toml
-#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Deserialize, Debug, PartialEq, Eq)]
 pub struct PathRootsValue {
     /// The dir_id to use as the root at this path
     pub dir_id: i64,
