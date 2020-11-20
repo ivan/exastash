@@ -605,21 +605,21 @@ async fn main() -> Result<()> {
         .init();
 
     // Do this first for --help to work without a database connection
-    let cmd = ExastashCommand::from_args();
+    let command = ExastashCommand::from_args();
 
-    if let ExastashCommand::License = cmd {
+    if let ExastashCommand::License = command {
         print!("{}", include_str!("../LICENSE"));
         return Ok(())
     }
 
     let mut pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
-    match cmd {
+    match command {
         ExastashCommand::License => {
             unreachable!();
         },
-        ExastashCommand::Dir(dir) => {
-            match dir {
+        ExastashCommand::Dir(command) => {
+            match command {
                 DirCommand::Create { parent_dir_id, basename } => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
@@ -647,8 +647,8 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        ExastashCommand::File(file) => {
-            match file {
+        ExastashCommand::File(command) => {
+            match command {
                 FileCommand::Create { path, store_inline, store_gdrive } => {
                     drop(transaction);
                     let desired_storage = storage_write::DesiredStorage { inline: store_inline, gdrive: store_gdrive };
@@ -685,8 +685,8 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        ExastashCommand::Symlink(symlink) => {
-            match symlink {
+        ExastashCommand::Symlink(command) => {
+            match command {
                 SymlinkCommand::Create { target } => {
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
@@ -712,8 +712,8 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        ExastashCommand::Dirent(dirent) => {
-            match dirent {
+        ExastashCommand::Dirent(command) => {
+            match command {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
                     let child = InodeTuple(child_dir, child_file, child_symlink).try_into()?;
                     Dirent::new(parent_dir_id, basename, child).create(&mut transaction).await?;
