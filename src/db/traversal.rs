@@ -40,6 +40,7 @@ pub async fn resolve_dirent<S: AsRef<str> + ToString + Clone>(transaction: &mut 
 }
 
 /// Resolve path_components but also create new dirs as needed, like `mkdir -p`.
+/// Returns the `InodeId` of the dir created by the last path segment.
 /// Sets `stash.unsafe_internal_dirent_creation` to `1` on the transaction.
 /// Does not commit the transaction, you must do so yourself.
 pub async fn make_dirs<S: AsRef<str> + ToString + Clone>(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[S]) -> Result<InodeId> {

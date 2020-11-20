@@ -949,7 +949,7 @@ async fn main() -> Result<()> {
                                     bail!("{:?} already exists as {:?}", stash_path, existing);
                                 }
                             }
-                            drop(transaction);
+                            transaction.commit().await?;
 
                             let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
 
