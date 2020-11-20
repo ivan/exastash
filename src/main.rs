@@ -197,7 +197,7 @@ arg_enum! {
 
 #[derive(StructOpt, Debug)]
 enum DirentCommand {
-    /// Create a dirent
+    /// Create a dirent. This does not follow the new_dirent_requirements set in config.toml.
     #[structopt(name = "create")]
     Create {
         #[structopt(name = "PARENT_DIR_ID")]
@@ -472,7 +472,7 @@ enum PathCommand {
         null_sep: bool,
     },
 
-    /// Create a directory
+    /// Create a directory. This does not follow the new_dirent_requirements set in config.toml.
     #[structopt(name = "mkdir")]
     Mkdir {
         /// Directory path to create, relative to cwd. Parent directories are
