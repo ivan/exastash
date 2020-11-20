@@ -39,9 +39,13 @@ pub async fn resolve_dirent<S: AsRef<str> + ToString + Clone>(transaction: &mut 
     Ok(last_dirent.ok_or_else(|| anyhow!("resolve_dirent: need at least one path segment to traverse"))?)
 }
 
-/// Resolve path_components but also create new directories as needed, like `mkdir -p`.
+/// Resolve path_components but also create new dirs as needed, like `mkdir -p`.
+/// Sets `stash.unsafe_internal_dirent_creation` to `1` on the transaction.
 /// Does not commit the transaction, you must do so yourself.
 pub async fn make_dirs<S: AsRef<str> + ToString + Clone>(transaction: &mut Transaction<'_, Postgres>, base_dir: i64, path_components: &[S]) -> Result<InodeId> {
+    // We trust ourselves to not create circular references here
+    sqlx::query("SET stash.unsafe_internal_dirent_creation = 1;").execute(&mut *transaction).await?;
+
     let mut current_inode = InodeId::Dir(base_dir);
     for component in path_components {
         let dir_id = current_inode.dir_id()?;
