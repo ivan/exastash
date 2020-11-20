@@ -15,7 +15,7 @@ use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing_subscriber::EnvFilter;
 use serde_json::json;
 use exastash::db;
-use exastash::db::storage::gdrive::file::GdriveFile;
+use exastash::db::storage::gdrive::{file::GdriveFile, GdriveFilePlacement};
 use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GoogleApplicationSecret, GoogleServiceAccount};
@@ -335,6 +335,10 @@ enum GdriveStorageCommand {
     /// Internal commands for debugging
     #[structopt(name = "internal")]
     Internal(InternalCommand),
+
+    /// gdrive file placement commands
+    #[structopt(name = "placement")]
+    Placement(PlacementCommand),
 }
 
 #[derive(StructOpt, Debug)]
@@ -375,6 +379,17 @@ enum InternalCommand {
         /// ID of the Google Drive file to read
         #[structopt(name = "FILE_ID")]
         file_ids: Vec<String>,
+    },
+}
+
+#[derive(StructOpt, Debug)]
+enum PlacementCommand {
+    /// Print file placement info in JSON format
+    #[structopt(name = "list")]
+    List {
+        /// google_domain for which to list file placement information
+        #[structopt(name = "DOMAIN_ID")]
+        domain_id: i16,
     },
 }
 
@@ -785,6 +800,17 @@ async fn main() -> Result<()> {
             match &command {
                 StorageCommand::Gdrive(command) => {
                     match &command {
+                        GdriveStorageCommand::Placement(command) => {
+                            match &command {
+                                PlacementCommand::List { domain_id } => {
+                                    let placements = GdriveFilePlacement::find_by_domain(&mut transaction, *domain_id, None).await?;
+                                    for placement in placements {
+                                        let j = serde_json::to_string(&placement)?;
+                                        println!("{j}");
+                                    }
+                                }
+                            }
+                        }
                         GdriveStorageCommand::Internal(command) => {
                             match &command {
                                 InternalCommand::CreateFile { path, domain_id, owner_id, parent, filename } => {
