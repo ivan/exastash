@@ -8,13 +8,13 @@ use thiserror::Error;
 #[allow(variant_size_differences)]
 #[derive(Debug, Eq, Error, PartialEq)]
 pub enum PathError {
-    #[error("the path contains the character `{0}`, which is not allowed on Windows")]
+    #[error("the path contains the character {0:?}, which is not allowed on Windows")]
     ContainsInvalidWindowsCharacter(char),
 
-    #[error("the path ends with `{0}`, which is not allowed on Windows")]
+    #[error("the path ends with {0:?}, which is not allowed on Windows")]
     InvalidWindowsNameEnding(char),
 
-    #[error("the name `{0}` is a reserved device name on Windows")]
+    #[error("the name {0:?} is a reserved device name on Windows")]
     ReservedWindowsDeviceName(&'static str),
 }
 
