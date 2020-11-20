@@ -756,13 +756,13 @@ async fn main() -> Result<()> {
             }
         }
         ExastashCommand::Google(command) => {
-            match &command {
+            match command {
                 GoogleCommand::ApplicationSecret(command) => {
                     match command {
                         ApplicationSecretCommand::Import { domain_id, json_file } => {
                             let content = fs::read(json_file).await?;
                             let json = serde_json::from_slice(&content)?;
-                            GoogleApplicationSecret { domain_id: *domain_id, secret: json }.create(&mut transaction).await?;
+                            GoogleApplicationSecret { domain_id, secret: json }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }
@@ -770,7 +770,7 @@ async fn main() -> Result<()> {
                 GoogleCommand::AccessToken(command) => {
                     match command {
                         AccessTokenCommand::Create { owner_id } => {
-                            oauth::create_access_token(transaction, *owner_id).await?;
+                            oauth::create_access_token(transaction, owner_id).await?;
                         }
                     }
                 }
@@ -780,7 +780,7 @@ async fn main() -> Result<()> {
                             let content = fs::read(json_file).await?;
                             let key: ServiceAccountKey = serde_json::from_slice(&content)?;
                             assert_eq!(key.key_type, Some("service_account".into()));
-                            GoogleServiceAccount { owner_id: *owner_id, key }.create(&mut transaction).await?;
+                            GoogleServiceAccount { owner_id, key }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }
@@ -797,13 +797,13 @@ async fn main() -> Result<()> {
             }
         }
         ExastashCommand::Storage(command) => {
-            match &command {
+            match command {
                 StorageCommand::Gdrive(command) => {
-                    match &command {
+                    match command {
                         GdriveStorageCommand::Placement(command) => {
-                            match &command {
+                            match command {
                                 PlacementCommand::List { domain_id } => {
-                                    let placements = GdriveFilePlacement::find_by_domain(&mut transaction, *domain_id, None).await?;
+                                    let placements = GdriveFilePlacement::find_by_domain(&mut transaction, domain_id, None).await?;
                                     for placement in placements {
                                         let j = serde_json::to_string(&placement)?;
                                         println!("{j}");
@@ -812,7 +812,7 @@ async fn main() -> Result<()> {
                             }
                         }
                         GdriveStorageCommand::Internal(command) => {
-                            match &command {
+                            match command {
                                 InternalCommand::CreateFile { path, domain_id, owner_id, parent, filename } => {
                                     let attr = fs::metadata(&path).await?;
                                     let size = attr.len();
@@ -820,7 +820,7 @@ async fn main() -> Result<()> {
                                     let mut lfp = storage_write::LocalFileProducer::new(path.clone());
                                     lfp.set_read_size(65536);
                                     let gdrive_file = storage_write::create_gdrive_file_on_domain(
-                                        lfp, size, *domain_id, *owner_id, parent, filename
+                                        lfp, size, domain_id, owner_id, &parent, &filename
                                     ).await?;
                                     gdrive_file.create(&mut transaction).await?;
                                     transaction.commit().await?;
@@ -831,7 +831,7 @@ async fn main() -> Result<()> {
                                     let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
                                     let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
                                     for gdrive_file in &gdrive_files {
-                                        let stream = Box::pin(storage_read::stream_gdrive_file(gdrive_file, *domain_id).await?);
+                                        let stream = Box::pin(storage_read::stream_gdrive_file(gdrive_file, domain_id).await?);
                                         let mut stdout = tokio::io::stdout();
                                         write_stream_to_sink(stream, &mut stdout).await?;
                                     }
@@ -843,7 +843,7 @@ async fn main() -> Result<()> {
             }
         }
         ExastashCommand::Fuse(command) => {
-            match &command {
+            match command {
                 FuseCommand::Run { mountpoint: _ } => {
                     panic!("FUSE server was not built");
                     //fuse::run(mountpoint.into()).await?;
@@ -851,12 +851,12 @@ async fn main() -> Result<()> {
             }
         }
         ExastashCommand::Path(command) => {
-            match &command {
+            match command {
                 PathCommand::Info { paths: path_args } => {
                     let config = config::get_config()?;
                     let mut inode_ids = vec![];
                     for path_arg in path_args {
-                        let inode_id = path::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
+                        let inode_id = path::resolve_local_path_arg(&config, &mut transaction, Some(&path_arg)).await?;
                         inode_ids.push(inode_id);
                     }
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
@@ -871,7 +871,7 @@ async fn main() -> Result<()> {
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
                     // during which files could be renamed.
                     for path_arg in path_args {
-                        let file_id = path::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?.file_id()?;
+                        let file_id = path::resolve_local_path_arg(&config, &mut transaction, Some(&path_arg)).await?.file_id()?;
                         file_ids.push(file_id);
                     }
                     for file_id in file_ids {
@@ -887,7 +887,7 @@ async fn main() -> Result<()> {
                     let mut retrievals = vec![];
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
                     // during which files could be renamed.
-                    for path_arg in path_args {
+                    for path_arg in &path_args {
                         let inode_id = path::resolve_local_path_arg(&config, &mut transaction, Some(path_arg)).await?;
                         retrievals.push((inode_id, path_arg));
                     }
@@ -897,7 +897,7 @@ async fn main() -> Result<()> {
                                 unimplemented!();
                             }
                             InodeId::File(file_id) => {
-                                if *skip_if_exists {
+                                if skip_if_exists {
                                     match fs::metadata(path_arg).await {
                                         Err(err) => {
                                             if err.kind() != std::io::ErrorKind::NotFound {
@@ -960,7 +960,7 @@ async fn main() -> Result<()> {
 
                     let config = config::get_config()?;
                     let policy = config::get_policy()?;
-                    for path_arg in path_args {
+                    for path_arg in &path_args {
                         let mut transaction = pool.begin().await?;
                         let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
                         let (path_roots_value, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
@@ -980,7 +980,7 @@ async fn main() -> Result<()> {
                             // TODO: do this properly and use the mtimes of the local dirs
                             let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
                             if let Some(existing) = Dirent::find_by_parent_and_basename(&mut transaction, dir_id, basename).await? {
-                                if *continue_on_exists {
+                                if continue_on_exists {
                                     eprintln!("{:?} already exists as {:?}", stash_path, existing);
                                     continue;
                                 } else {
@@ -993,9 +993,9 @@ async fn main() -> Result<()> {
 
                             // Remove write permissions from the local file so that it's more obviously
                             // "immutable" like the file in the stash.
-                            let mut permissions = fs::metadata(&path_arg).await?.permissions();
+                            let mut permissions = fs::metadata(path_arg).await?.permissions();
                             permissions.set_readonly(true);
-                            fs::set_permissions(&path_arg, permissions).await?;
+                            fs::set_permissions(path_arg, permissions).await?;
 
                             let file_id = storage_write::write(path_arg.clone(), &metadata, &desired_storage).await?;
 
@@ -1008,7 +1008,7 @@ async fn main() -> Result<()> {
 
                         transaction.commit().await?;
 
-                        if *remove_local_files {
+                        if remove_local_files {
                             info!("removing local file {:?} after committing to database", path_arg);
                             fs::remove_file(path_arg).await?;
                         }
@@ -1018,7 +1018,7 @@ async fn main() -> Result<()> {
                     let config = config::get_config()?;
                     let inode_id = path::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
                     let dir_id = inode_id.dir_id()?;
-                    if *just_names {
+                    if just_names {
                         let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
                         for dirent in dirents {
                             println!("{}", dirent.basename);
@@ -1075,13 +1075,13 @@ async fn main() -> Result<()> {
                         roots.push((dir_id, path_arg));
                     }
 
-                    let terminator = if *null_sep { '\0' } else { '\n' };
+                    let terminator = if null_sep { '\0' } else { '\n' };
                     for (dir_id, path_arg) in roots {
-                        if r#type.is_none() || *r#type == Some(FindKind::d) {
+                        if r#type.is_none() || r#type == Some(FindKind::d) {
                             // Print the top-level dir like findutils find
                             print!("{}{}", path_arg, terminator);
                         }
-                        ts_find(&mut transaction, &[&path_arg], dir_id, *r#type, terminator).await?;
+                        ts_find(&mut transaction, &[&path_arg], dir_id, r#type, terminator).await?;
                     }
                 }
                 PathCommand::Mkdir { paths: path_args } => {
@@ -1092,7 +1092,7 @@ async fn main() -> Result<()> {
 
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
-                        let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
+                        let path_components = path::resolve_local_path_to_path_components(Some(&path_arg))?;
                         let (path_roots_value, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
                         let base_dir = path_roots_value.dir_id;
                         let remaining_components = &path_components[idx..];
@@ -1112,7 +1112,7 @@ async fn main() -> Result<()> {
 
                     for path_arg in path_args {
                         let mut transaction = pool.begin().await?;
-                        let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;
+                        let path_components = path::resolve_local_path_to_path_components(Some(&path_arg))?;
                         let (path_roots_value, idx) = path::resolve_root_of_local_path(&config, &path_components)?;
                         let base_dir = path_roots_value.dir_id;
                         let remaining_components = &path_components[idx..];
