@@ -71,6 +71,9 @@ enum ExastashCommand {
     /// dir inode. Root directories can be configured in ~/.config/exastash/config.toml
     #[structopt(name = "x")]
     Path(PathCommand),
+
+    /// Print license information
+    License,
 }
 
 #[derive(StructOpt, Debug)]
@@ -588,9 +591,18 @@ async fn main() -> Result<()> {
 
     // Do this first for --help to work without a database connection
     let cmd = ExastashCommand::from_args();
+
+    if let ExastashCommand::License = cmd {
+        print!("{}", include_str!("../LICENSE"));
+        return Ok(())
+    }
+
     let mut pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
     match cmd {
+        ExastashCommand::License => {
+            unreachable!();
+        },
         ExastashCommand::Dir(dir) => {
             match dir {
                 DirCommand::Create { parent_dir_id, basename } => {
