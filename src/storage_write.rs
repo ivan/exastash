@@ -8,7 +8,7 @@ use std::convert::{TryFrom, TryInto};
 use std::fs::Metadata;
 use std::path::PathBuf;
 use chrono::{DateTime, Utc};
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use futures::{
     ready,
     stream::{self, Stream, StreamExt, TryStreamExt},
@@ -278,11 +278,10 @@ async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlaceme
     // TODO: if someone else just locked it, ignore and return
 
     // Find a non-full parent
-    let new_parent = gdrive::GdriveParent::find_first_non_full(&mut transaction).await?;
-    if new_parent.is_none() {
-        bail!("cannot replace placement {:?} because there are no non-full gdrive_parents", old_placement);
-    }
-    let new_parent = new_parent.unwrap();
+    let new_parent = gdrive::GdriveParent::find_first_non_full(&mut transaction).await?
+        .ok_or_else(|| {
+            anyhow!("cannot replace placement {:?} because there are no non-full gdrive_parents", old_placement)
+        })?;
 
     // Remove the original placement
     old_placement.remove(&mut transaction).await?;
