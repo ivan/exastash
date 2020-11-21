@@ -52,15 +52,13 @@ impl Storage {
     /// Entities which are not found will not be included in the resulting `Vec`.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         // Note that we can get more than one row per unique file_id
-        Ok(
-            sqlx::query_as::<_, Storage>(
+        Ok(sqlx::query_as::<_, Storage>(
                 "SELECT file_id, ia_item, pathname, darked, last_probed
                  FROM storage_internetarchive
                  WHERE file_id = ANY($1::bigint[])"
             )
             .bind(file_ids)
-            .fetch_all(transaction).await?
-        )
+            .fetch_all(transaction).await?)
     }
 }
 

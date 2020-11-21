@@ -203,15 +203,13 @@ pub struct Storage {
 
 impl<'c> sqlx::FromRow<'c, PgRow> for Storage {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        Ok(
-            Storage {
-                file_id: row.get("file_id"),
-                google_domain: row.get("google_domain"),
-                cipher: row.get::<Cipher, _>("cipher"),
-                cipher_key: *row.get::<Uuid, _>("cipher_key").as_bytes(),
-                gdrive_ids: row.get("gdrive_ids"),
-            }
-        )
+        Ok(Storage {
+            file_id: row.get("file_id"),
+            google_domain: row.get("google_domain"),
+            cipher: row.get::<Cipher, _>("cipher"),
+            cipher_key: *row.get::<Uuid, _>("cipher_key").as_bytes(),
+            gdrive_ids: row.get("gdrive_ids"),
+        })
     }
 }
 

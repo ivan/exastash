@@ -83,17 +83,15 @@ impl<'c> sqlx::FromRow<'c, PgRow> for Dir {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         let mtime = row.get("mtime");
         util::assert_without_nanos(mtime);
-        Ok(
-            Dir {
-                id: row.get("id"),
-                mtime,
-                birth: Birth {
-                    time: row.get("birth_time"),
-                    version: row.get("birth_version"),
-                    hostname: row.get("birth_hostname"),
-                }
+        Ok(Dir {
+            id: row.get("id"),
+            mtime,
+            birth: Birth {
+                time: row.get("birth_time"),
+                version: row.get("birth_version"),
+                hostname: row.get("birth_hostname"),
             }
-        )
+        })
     }
 }
 
@@ -189,20 +187,18 @@ impl<'c> sqlx::FromRow<'c, PgRow> for File {
         util::assert_without_nanos(mtime);
         let b3sum = row.get::<Option<Vec<u8>>, _>("b3sum")
             .map(|o| o.try_into().expect("b3sum from postgres wasn't 32 bytes?"));
-        Ok(
-            File {
-                id: row.get("id"),
-                mtime,
-                birth: Birth {
-                    time: row.get("birth_time"),
-                    version: row.get("birth_version"),
-                    hostname: row.get("birth_hostname"),
-                },
-                size: row.get("size"),
-                executable: row.get("executable"),
-                b3sum,
-            }
-        )
+        Ok(File {
+            id: row.get("id"),
+            mtime,
+            birth: Birth {
+                time: row.get("birth_time"),
+                version: row.get("birth_version"),
+                hostname: row.get("birth_hostname"),
+            },
+            size: row.get("size"),
+            executable: row.get("executable"),
+            b3sum,
+        })
     }
 }
 
@@ -337,18 +333,16 @@ impl<'c> sqlx::FromRow<'c, PgRow> for Symlink {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         let mtime = row.get("mtime");
         util::assert_without_nanos(mtime);
-        Ok(
-            Symlink {
-                id: row.get("id"),
-                mtime,
-                birth: Birth {
-                    time: row.get("birth_time"),
-                    version: row.get("birth_version"),
-                    hostname: row.get("birth_hostname"),
-                },
-                target: row.get("target"),
-            }
-        )
+        Ok(Symlink {
+            id: row.get("id"),
+            mtime,
+            birth: Birth {
+                time: row.get("birth_time"),
+                version: row.get("birth_version"),
+                hostname: row.get("birth_hostname"),
+            },
+            target: row.get("target"),
+        })
     }
 }
 

@@ -116,23 +116,21 @@ pub struct GoogleServiceAccount {
 
 impl<'c> sqlx::FromRow<'c, PgRow> for GoogleServiceAccount {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        Ok(
-            GoogleServiceAccount {
-                owner_id:                        row.get("owner_id"),
-                key: ServiceAccountKey {
-                    client_email:                row.get("client_email"),
-                    client_id:                   row.get("client_id"),
-                    project_id:                  row.get("project_id"),
-                    private_key_id:              row.get("private_key_id"),
-                    private_key:                 row.get("private_key"),
-                    auth_uri:                    row.get("auth_uri"),
-                    token_uri:                   row.get("token_uri"),
-                    auth_provider_x509_cert_url: row.get("auth_provider_x509_cert_url"),
-                    client_x509_cert_url:        row.get("client_x509_cert_url"),
-                    key_type:                    Some("service_account".into())
-                }
+        Ok(GoogleServiceAccount {
+            owner_id:                        row.get("owner_id"),
+            key: ServiceAccountKey {
+                client_email:                row.get("client_email"),
+                client_id:                   row.get("client_id"),
+                project_id:                  row.get("project_id"),
+                private_key_id:              row.get("private_key_id"),
+                private_key:                 row.get("private_key"),
+                auth_uri:                    row.get("auth_uri"),
+                token_uri:                   row.get("token_uri"),
+                auth_provider_x509_cert_url: row.get("auth_provider_x509_cert_url"),
+                client_x509_cert_url:        row.get("client_x509_cert_url"),
+                key_type:                    Some("service_account".into())
             }
-        )
+        })
     }
 }
 
@@ -178,11 +176,9 @@ impl GoogleServiceAccount {
             WHERE owner_id = ANY($1::int[])
             {limit_sql}
         ");
-        Ok(
-            sqlx::query_as::<_, GoogleServiceAccount>(&query)
+        Ok(sqlx::query_as::<_, GoogleServiceAccount>(&query)
             .bind(owner_ids)
-            .fetch_all(transaction).await?
-        )
+            .fetch_all(transaction).await?)
     }
 }
 
