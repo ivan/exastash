@@ -78,14 +78,17 @@ pub(crate) struct GdriveUploadResponse {
 #[allow(variant_size_differences)]
 #[derive(Debug, Eq, thiserror::Error, PartialEq)]
 pub enum GdriveUploadError {
-    #[error("expected status 200 in response to initial upload request, got {0}")]
-    InitialUploadRequestNotOk(StatusCode),
+    #[error("expected status 200 in response to initial upload request, got {0} with body {}", .1.to_string())]
+    InitialUploadRequestNotOk(StatusCode, serde_json::Value),
 
     #[error("did not get Location header in response to initial upload request: {0:#?}")]
     InitialUploadRequestMissingLocationHeader(HeaderMap),
 
-    #[error("expected status 200 in response to upload request, got {0}")]
-    UploadRequestNotOk(StatusCode),
+    #[error("parent is full: {0}")]
+    ParentIsFull(String),
+
+    #[error("expected status 200 in response to upload request, got {0} with body {}", .1.to_string())]
+    UploadRequestNotOk(StatusCode, serde_json::Value),
 
     #[error("expected Google to create object with kind=drive#file, got {0:?}")]
     CreatedFileHasWrongKind(String),
@@ -98,6 +101,45 @@ pub enum GdriveUploadError {
 
     #[error("expected Google to create file with name={0:?}, got {1:?}")]
     CreatedFileHasWrongName(String, String),
+}
+
+/// Return `true` if the given JSON response indicates that the shared drive
+/// file limit has been exceeded.
+///
+/// ```
+/// {
+///   "error": {
+///     "errors": [
+///       {
+///         "domain": "global",
+///         "reason": "teamDriveFileLimitExceeded",
+///         "message": "The file limit for this shared drive has been exceeded."
+///       }
+///     ],
+///     "code": 403,
+///     "message": "The file limit for this shared drive has been exceeded."
+///   }
+/// }
+/// ```
+fn is_shared_drive_full_response(json: &serde_json::Value) -> bool {
+    let matching_reason = serde_json::Value::String("teamDriveFileLimitExceeded".into());
+
+    if let serde_json::Value::Object(_) = json {
+        let error = &json["error"];
+        if let serde_json::Value::Object(_) = error {
+            let errors = &error["errors"];
+            if let serde_json::Value::Array(arr) = errors {
+                for e in arr.iter() {
+                    if let serde_json::Value::Object(props) = e {
+                        if props["reason"] == matching_reason {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 pub(crate) async fn create_gdrive_file<SAO: StreamAtOffset, A>(
@@ -132,7 +174,9 @@ where
 
     let status = initial_response.status();
     if status != 200 {
-        bail!(GdriveUploadError::InitialUploadRequestNotOk(status));
+        let body = initial_response.text().await?;
+        let json = serde_json::from_str(&body)?;
+        bail!(GdriveUploadError::InitialUploadRequestNotOk(status, json));
     }
     let headers = initial_response.headers();
     let upload_url = headers.get("Location")
@@ -150,7 +194,13 @@ where
 
     let status = upload_response.status();
     if status != 200 {
-        bail!(GdriveUploadError::UploadRequestNotOk(status));
+        let body = upload_response.text().await?;
+        let json = serde_json::from_str(&body)?;
+        if is_shared_drive_full_response(&json) {
+            let message = json["error"]["message"].to_string();
+            bail!(GdriveUploadError::ParentIsFull(message));
+        }
+        bail!(GdriveUploadError::UploadRequestNotOk(status, json));
     }
     let response: GdriveUploadResponse = upload_response.json().await?;
 
