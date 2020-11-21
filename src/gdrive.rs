@@ -106,7 +106,7 @@ pub enum GdriveUploadError {
 /// Return `true` if the given JSON response indicates that the shared drive
 /// file limit has been exceeded.
 ///
-/// ```
+/// ```ignore
 /// {
 ///   "error": {
 ///     "errors": [
