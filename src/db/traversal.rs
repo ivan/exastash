@@ -5,7 +5,19 @@ use anyhow::{anyhow, bail, Result};
 use sqlx::{Postgres, Transaction};
 use crate::db::dirent::Dirent;
 use crate::db::inode::{InodeId, NewDir, Birth};
-use crate::Error;
+
+/// Error traversing a path
+#[derive(thiserror::Error, Debug)]
+pub enum TraversalError {
+    /// A directory entry was expected but could not be found
+    #[error("no such dirent {basename:?} under dir {parent:?}")]
+    NoDirent {
+        /// The parent for the expected directory entry
+        parent: i64,
+        /// The basename for the expected directory entry
+        basename: String,
+    },
+}
 
 /// Returns the inode referenced by the last path segment, starting from some base directory.
 /// Does not resolve symlinks.
@@ -16,7 +28,7 @@ pub async fn resolve_inode<S: AsRef<str> + ToString + Clone>(transaction: &mut T
         if let Some(dirent) = Dirent::find_by_parent_and_basename(transaction, dir_id, component.as_ref()).await? {
             current_inode = dirent.child;
         } else {
-            bail!(Error::NoDirent { parent: dir_id, basename: component.to_string() });
+            bail!(TraversalError::NoDirent { parent: dir_id, basename: component.to_string() });
         }
     }
     Ok(current_inode)
@@ -33,7 +45,7 @@ pub async fn resolve_dirent<S: AsRef<str> + ToString + Clone>(transaction: &mut 
             current_inode = dirent.child;
             last_dirent = Some(dirent);
         } else {
-            bail!(Error::NoDirent { parent: dir_id, basename: component.to_string() });
+            bail!(TraversalError::NoDirent { parent: dir_id, basename: component.to_string() });
         }
     }
     Ok(last_dirent.ok_or_else(|| anyhow!("resolve_dirent: need at least one path segment to traverse"))?)
