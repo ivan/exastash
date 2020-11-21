@@ -85,10 +85,10 @@ fn stream_add_validation(
                 yield bytes;
             }
             if size != expected_size {
-                bail!("expected response body with {} bytes but got {}", expected_size, size);
+                bail!("expected response body with {} bytes but got {} bytes", expected_size, size);
             }
             if crc != expected_crc {
-                bail!("expected response body to crc32c to {} but got {}", expected_crc, crc);
+                bail!("expected response body with crc32c of {} but got data with crc32c of {}", expected_crc, crc);
             }
         }
     )
