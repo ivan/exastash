@@ -2,11 +2,9 @@
 
 use std::result::Result;
 
-use thiserror::Error;
-
 /// Reasons why a path segment cannot be used on Windows.
 #[allow(variant_size_differences)]
-#[derive(Debug, Eq, Error, PartialEq)]
+#[derive(Debug, Eq, thiserror::Error, PartialEq)]
 pub enum PathError {
     #[error("the path contains the character {0:?}, which is not allowed on Windows")]
     ContainsInvalidWindowsCharacter(char),
