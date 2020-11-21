@@ -10,6 +10,8 @@ use serde_json::json;
 use std::io::Cursor;
 use std::future::Future;
 use byteorder::{BigEndian, ReadBytesExt};
+use reqwest::StatusCode;
+use reqwest::header::HeaderMap;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 use crate::storage_write::StreamAtOffset;
@@ -72,6 +74,32 @@ pub(crate) struct GdriveUploadResponse {
     pub(crate) md5: [u8; 16],
 }
 
+/// Reasons why the upload to Google Drive failed.
+#[allow(variant_size_differences)]
+#[derive(Debug, Eq, thiserror::Error, PartialEq)]
+pub enum GdriveUploadError {
+    #[error("expected status 200 in response to initial upload request, got {0}")]
+    InitialUploadRequestNotOk(StatusCode),
+
+    #[error("did not get Location header in response to initial upload request: {0:#?}")]
+    InitialUploadRequestMissingLocationHeader(HeaderMap),
+
+    #[error("expected status 200 in response to upload request, got {0}")]
+    UploadRequestNotOk(StatusCode),
+
+    #[error("expected Google to create object with kind=drive#file, got {0:?}")]
+    CreatedFileHasWrongKind(String),
+
+    #[error("expected Google to create file with size={0:?}, got {1:?}")]
+    CreatedFileHasWrongSize(String, String),
+
+    #[error("expected Google to create file with parents={0:?}, got {1:?}")]
+    CreatedFileHasWrongParents(Vec<String>, Vec<String>),
+
+    #[error("expected Google to create file with name={0:?}, got {1:?}")]
+    CreatedFileHasWrongName(String, String),
+}
+
 pub(crate) async fn create_gdrive_file<SAO: StreamAtOffset, A>(
     mut producer: SAO,
     access_token_fn: impl Fn() -> A,
@@ -104,11 +132,11 @@ where
 
     let status = initial_response.status();
     if status != 200 {
-        bail!("expected status 200 in response to initial upload request, got {}", status);
+        bail!(GdriveUploadError::InitialUploadRequestNotOk(status));
     }
     let headers = initial_response.headers();
     let upload_url = headers.get("Location")
-        .ok_or_else(|| anyhow!("did not get Location header in response to initial upload request: {:#?}", headers))?
+        .ok_or_else(|| anyhow!(GdriveUploadError::InitialUploadRequestMissingLocationHeader(headers.clone())))?
         .to_str()?;
     let offset = 0;
     let stream = producer.stream(offset).await?;
@@ -122,21 +150,21 @@ where
 
     let status = upload_response.status();
     if status != 200 {
-        bail!("expected status 200 in response to upload request, got {}", status);
+        bail!(GdriveUploadError::UploadRequestNotOk(status));
     }
     let response: GdriveUploadResponse = upload_response.json().await?;
 
     if response.kind != "drive#file" {
-        bail!("expected Google to create object with kind=drive#file, got {:?}", response.kind);
+        bail!(GdriveUploadError::CreatedFileHasWrongKind(response.kind));
     }
     if response.size != size.to_string() {
-        bail!("expected Google to create file with size={}, got {}", size, response.size);
+        bail!(GdriveUploadError::CreatedFileHasWrongSize(size.to_string(), response.size));
     }
     if response.parents != vec![parent] {
-        bail!("expected Google to create file with parents={:?}, got {:?}", vec![parent], response.parents);
+        bail!(GdriveUploadError::CreatedFileHasWrongParents(vec![parent.into()], response.parents));
     }
     if response.name != filename {
-        bail!("expected Google to create file with name={:?}, got {:?}", filename, response.name);
+        bail!(GdriveUploadError::CreatedFileHasWrongName(filename.into(), response.name));
     }
 
     Ok(response)
