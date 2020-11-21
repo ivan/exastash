@@ -26,30 +26,24 @@ pub struct GdriveOwner {
 impl GdriveOwner {
     /// Return a `Vec<GdriveOwner>` for all gdrive_owners.
     pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GdriveOwner>> {
-        Ok(
-            sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners")
-            .fetch_all(transaction).await?
-        )
+        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners")
+            .fetch_all(transaction).await?)
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
-        Ok(
-            sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners WHERE id = ANY($1)")
+        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners WHERE id = ANY($1)")
             .bind(owner_ids)
-            .fetch_all(transaction).await?
-        )
+            .fetch_all(transaction).await?)
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
     pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GdriveOwner>> {
-        Ok(
-            sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners WHERE domain = ANY($1)")
+        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners WHERE domain = ANY($1)")
             .bind(domain_ids)
-            .fetch_all(transaction).await?
-        )
+            .fetch_all(transaction).await?)
     }
 }
 
@@ -101,16 +95,14 @@ pub struct GdriveFile {
 
 impl<'c> sqlx::FromRow<'c, PgRow> for GdriveFile {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        Ok(
-            GdriveFile {
-                id: row.get("id"),
-                owner_id: row.get("owner"),
-                md5: *row.get::<Uuid, _>("md5").as_bytes(),
-                crc32c: row.get::<i32, _>("crc32c") as u32,
-                size: row.get("size"),
-                last_probed: row.get("last_probed"),
-            }
-        )
+        Ok(GdriveFile {
+            id: row.get("id"),
+            owner_id: row.get("owner"),
+            md5: *row.get::<Uuid, _>("md5").as_bytes(),
+            crc32c: row.get::<i32, _>("crc32c") as u32,
+            size: row.get("size"),
+            last_probed: row.get("last_probed"),
+        })
     }
 }
 
