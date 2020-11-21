@@ -999,25 +999,26 @@ async fn main() -> Result<()> {
                             permissions.set_readonly(true);
                             fs::set_permissions(path_arg, permissions).await?;
 
-                            let mut file_id = None;
-                            let mut tries = 20;
                             let initial_delay = std::time::Duration::new(5, 0);
                             let maximum_delay = std::time::Duration::new(1800, 0);
                             let mut decayer = Decayer::new(initial_delay, Ratio::new(3, 2), maximum_delay);
-                            while tries > 0 {
-                                tries -= 1;
+                            let mut tries = 30;
+                            let file_id = loop {
                                 match storage_write::write(path_arg.clone(), &metadata, &desired_storage).await {
-                                    Ok(id) => { file_id = Some(id); break; },
+                                    Ok(id) => break id,
                                     Err(err) => {
+                                        tries -= 1;
+                                        if tries == 0 {
+                                            bail!(err);
+                                        }
                                         let delay = decayer.decay();
                                         eprintln!("storage_write::write({:?}, ...) failed, {} tries left \
                                                    (next in {} sec): {:?}", path_arg, tries, delay.as_secs(), err);
                                         tokio::time::delay_for(delay).await;
                                     }
                                 }
-                            }
+                            };
 
-                            let file_id = file_id.ok_or_else(|| anyhow!("storage_write::write failed"))?;
                             let child = InodeId::File(file_id);
                             transaction = pool.begin().await?;
                             Dirent::new(dir_id, basename, child).create(&mut transaction).await?;
