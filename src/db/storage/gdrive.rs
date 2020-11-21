@@ -56,6 +56,16 @@ impl GdriveParent {
             .fetch_all(transaction).await?;
         Ok(parents.pop())
     }
+
+    /// Set whether a parent is full or not
+    pub async fn set_full(transaction: &mut Transaction<'_, Postgres>, name: &str, full: bool) -> Result<()> {
+        let query = r#"UPDATE gdrive_parents SET "full" = $1::boolean WHERE name = $2::text"#;
+        sqlx::query(query)
+            .bind(full)
+            .bind(name)
+            .execute(transaction).await?;
+        Ok(())
+    }
 }
 
 /// A domain where Google Drive files are stored
@@ -233,6 +243,40 @@ pub(crate) mod tests {
 
     mod api {
         use super::*;
+
+        /// Test GdriveParent
+        #[tokio::test]
+        async fn test_gdrive_parent() -> Result<()> {
+            let pool = new_primary_pool().await;
+
+            // Can create a gdrive_parent
+            let mut transaction = pool.begin().await?;
+            let gdrive_parent = GdriveParent { name: "test_gdrive_parent".into(), parent: "this_is_not_a_real_gdrive_id".into(), full: false };
+            gdrive_parent.create(&mut transaction).await?;
+            transaction.commit().await?;
+
+            // Can get the gdrive_parent we just created
+            let mut transaction = pool.begin().await?;
+            let maybe_gdrive_parent = GdriveParent::find_by_name(&mut transaction, "test_gdrive_parent").await?;
+            assert_eq!(maybe_gdrive_parent, Some(gdrive_parent.clone()));
+
+            // Can set the gdrive_parent to full = true
+            let mut transaction = pool.begin().await?;
+            GdriveParent::set_full(&mut transaction, "test_gdrive_parent", true).await?;
+            let maybe_gdrive_parent = GdriveParent::find_by_name(&mut transaction, "test_gdrive_parent").await?;
+            transaction.commit().await?;
+            let gdrive_parent_full = GdriveParent { name: "test_gdrive_parent".into(), parent: "this_is_not_a_real_gdrive_id".into(), full: true };
+            assert_eq!(maybe_gdrive_parent, Some(gdrive_parent_full));
+
+            // Can set the gdrive_parent back to full = false
+            let mut transaction = pool.begin().await?;
+            GdriveParent::set_full(&mut transaction, "test_gdrive_parent", false).await?;
+            let maybe_gdrive_parent = GdriveParent::find_by_name(&mut transaction, "test_gdrive_parent").await?;
+            transaction.commit().await?;
+            assert_eq!(maybe_gdrive_parent, Some(gdrive_parent.clone()));
+
+            Ok(())
+        }
 
         /// If we add a gdrive storage for a file, get_storages returns that storage
         #[tokio::test]
