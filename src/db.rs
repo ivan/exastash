@@ -26,8 +26,7 @@ pub async fn new_pgpool(uri: &str, max_connections: u32) -> Result<PgPool> {
     let mut options: PgConnectOptions = uri.parse()?;
     // By default, sqlx logs statements that take > 1 sec as a warning
     options.log_slow_statements(LevelFilter::Info, Duration::from_secs(5));
-    Ok(
-        PgPoolOptions::new()
+    let pool = PgPoolOptions::new()
         .after_connect(|conn| Box::pin(async move {
             conn.execute("SET search_path TO stash").await?;
             // We generally want point-in-time consistency, e.g. when we do separate
@@ -38,8 +37,8 @@ pub async fn new_pgpool(uri: &str, max_connections: u32) -> Result<PgPool> {
         }))
         .connect_timeout(Duration::from_secs(30))
         .max_connections(max_connections)
-        .connect_with(options).await?
-    )
+        .connect_with(options).await?;
+    Ok(pool)
 }
 
 /// PgPool Future initialized once by the first caller
