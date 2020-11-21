@@ -294,8 +294,9 @@ async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlaceme
     };
     new_placement.create(&mut transaction).await?;
 
-    info!("replacing gdrive_file_placement: {:?} -> {:?}", old_placement, new_placement);
+    info!("about to replace {:?} with {:?}", old_placement, new_placement);
     transaction.commit().await?;
+    info!("successfully replaced gdrive_file_placement");
 
     Ok(())
 }

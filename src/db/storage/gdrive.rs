@@ -1,5 +1,6 @@
 //! CRUD operations for storage_gdrive entities in PostgreSQL
 
+use tracing::info;
 use anyhow::Result;
 use sqlx::{Postgres, Transaction, Row};
 use sqlx::postgres::PgRow;
@@ -66,6 +67,7 @@ impl GdriveParent {
 
     /// Set whether a parent is full or not
     pub async fn set_full(transaction: &mut Transaction<'_, Postgres>, name: &str, full: bool) -> Result<()> {
+        info!("setting full = {} on gdrive_parent name = {:?}", full, name);
         let query = r#"UPDATE gdrive_parents SET "full" = $1::boolean WHERE name = $2::text"#;
         sqlx::query(query)
             .bind(full)
