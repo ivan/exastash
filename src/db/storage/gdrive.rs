@@ -57,6 +57,13 @@ impl GdriveParent {
         Ok(parents.pop())
     }
 
+    /// Find the first gdrive_parent that is not full.
+    pub async fn find_first_non_full(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<GdriveParent>> {
+        let query = r#"SELECT name, parent, "full" FROM gdrive_parents WHERE "full" = false"#;
+        Ok(sqlx::query_as::<_, GdriveParent>(query)
+            .fetch_optional(transaction).await?)
+    }
+
     /// Set whether a parent is full or not
     pub async fn set_full(transaction: &mut Transaction<'_, Postgres>, name: &str, full: bool) -> Result<()> {
         let query = r#"UPDATE gdrive_parents SET "full" = $1::boolean WHERE name = $2::text"#;
@@ -106,11 +113,11 @@ impl NewGoogleDomain {
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct GdriveFilePlacement {
-    /// Domain ID
+    /// id of a google_domain
     pub domain: i16,
-    /// Owner ID
+    /// id of a gdrive_owner
     pub owner: i32,
-    /// Google Drive folder id
+    /// name of a gdrive_parent
     pub parent: String,
 }
 
@@ -125,6 +132,19 @@ impl GdriveFilePlacement {
             .bind(&self.parent)
             .execute(transaction)
             .await?;
+        Ok(())
+    }
+
+    /// Remove this gdrive_file_placement from the database.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn remove(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
+        let stmt = "DELETE FROM gdrive_file_placement 
+                    WHERE domain = $1::smallint AND owner = $2::int AND parent = $3::text";
+        sqlx::query(stmt)
+            .bind(self.domain)
+            .bind(self.owner)
+            .bind(&self.parent)
+            .execute(transaction).await?;
         Ok(())
     }
 
@@ -144,6 +164,22 @@ impl GdriveFilePlacement {
         Ok(sqlx::query_as::<_, GdriveFilePlacement>(&query)
             .bind(domain)
             .fetch_all(transaction).await?)
+    }
+
+    /// Return a `Vec<GdriveFilePlacement>` if one exists in the database for this placement,
+    /// and lock the row for update.
+    pub async fn find_self_and_lock(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+    ) -> Result<Option<GdriveFilePlacement>> {
+        let query = "SELECT domain, owner, parent FROM gdrive_file_placement
+                     WHERE domain = $1::smallint AND owner = $2::int AND parent = $3::text
+                     FOR UPDATE";
+        Ok(sqlx::query_as::<_, GdriveFilePlacement>(&query)
+            .bind(self.domain)
+            .bind(self.owner)
+            .bind(&self.parent)
+            .fetch_optional(transaction).await?)
     }
 }
 

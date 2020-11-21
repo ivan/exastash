@@ -259,7 +259,45 @@ impl StreamAtOffset for EncryptedFileProducer {
     }
 }
 
-async fn replace_parent_in_gdrive_file_placement() -> Result<()> {
+async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlacement) -> Result<()> {
+    let pool = db::pgpool().await;
+
+    // Mark current parent as full
+    let mut transaction = pool.begin().await?;
+    gdrive::GdriveParent::set_full(&mut transaction, &old_placement.parent, true).await?;
+    transaction.commit().await?;
+
+    let mut transaction = pool.begin().await?;
+
+    // Select the current placement and lock the row
+    let found_placement = old_placement.find_self_and_lock(&mut transaction).await?;
+    if found_placement.is_none() {
+        info!("the gdrive_file_placement we wanted to replace is missing, maybe it was replaced by another process?");
+        return Ok(());
+    }
+    // TODO: if someone else just locked it, ignore and return
+
+    // Find a non-full parent
+    let new_parent = gdrive::GdriveParent::find_first_non_full(&mut transaction).await?;
+    if new_parent.is_none() {
+        bail!("cannot replace placement {:?} because there are no non-full gdrive_parents", old_placement);
+    }
+    let new_parent = new_parent.unwrap();
+
+    // Remove the original placement
+    old_placement.remove(&mut transaction).await?;
+
+    // Add the new placement
+    let new_placement = gdrive::GdriveFilePlacement {
+        domain: old_placement.domain,
+        owner: old_placement.owner,
+        parent: new_parent.name
+    };
+    new_placement.create(&mut transaction).await?;
+
+    info!("replacing gdrive_file_placement: {:?} -> {:?}", old_placement, new_placement);
+    transaction.commit().await?;
+
     Ok(())
 }
 
@@ -305,7 +343,7 @@ pub async fn write_to_gdrive(
         let err = err.downcast_ref::<GdriveUploadError>();
         if let Some(GdriveUploadError::ParentIsFull(_)) = err {
             info!("Google Drive indicates that parent in placement {:?} is full", placement);
-            replace_parent_in_gdrive_file_placement().await?;
+            replace_gdrive_file_placement(&placement).await?;
         }
     }
 
