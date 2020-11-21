@@ -39,7 +39,7 @@ pub struct GdriveParent {
 impl GdriveParent {
     /// Create an gdrive_parent entity in the database.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query("INSERT INTO gdrive_parents (name, parent, \"full\") VALUES ($1::text, $2::text, $3::boolean)")
+        sqlx::query(r#"INSERT INTO gdrive_parents (name, parent, "full") VALUES ($1::text, $2::text, $3::boolean)"#)
             .bind(&self.name)
             .bind(&self.parent)
             .bind(&self.full)
@@ -50,7 +50,7 @@ impl GdriveParent {
 
     /// Find a gdrive_parent entity by name.
     pub async fn find_by_name(transaction: &mut Transaction<'_, Postgres>, name: &str) -> Result<Option<GdriveParent>> {
-        let query = "SELECT name, parent, \"full\" FROM gdrive_parents WHERE name = $1::text";
+        let query = r#"SELECT name, parent, "full" FROM gdrive_parents WHERE name = $1::text"#;
         let mut parents = sqlx::query_as::<_, GdriveParent>(query)
             .bind(name)
             .fetch_all(transaction).await?;
