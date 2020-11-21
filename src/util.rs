@@ -32,8 +32,8 @@ pub(crate) fn assert_without_nanos<T: chrono::TimeZone>(dt: DateTime<T>) {
     assert_eq!(dt.timestamp_subsec_nanos() % 1000, 0, "DateTime with unexpected nanoseconds");
 }
 
-/// chrono::Utc::now() but with the nanoseconds rounded off to microsecond
-/// precision, suitable for round-tripping through PostgreSQL's timestamptz.
+/// `chrono::Utc::now()` but merely microsecond-precise, making it suitable for
+/// round-tripping through PostgreSQL's timestamptz.
 #[inline]
 pub(crate) fn now_no_nanos() -> DateTime<Utc> {
     without_nanos(Utc::now())
