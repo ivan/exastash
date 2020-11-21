@@ -1,3 +1,6 @@
+//! Range will be used later to support reads from the middle of a file
+#![allow(dead_code)]
+
 use std::cmp::{min, max};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

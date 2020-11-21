@@ -24,8 +24,6 @@
 )]
 #![allow(
     clippy::len_zero,
-    // TODO: remove after initial development
-    dead_code,
 )]
 
 pub(crate) mod conceal_size;
