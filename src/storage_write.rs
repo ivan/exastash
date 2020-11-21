@@ -14,6 +14,7 @@ use futures::{
     stream::{self, Stream, StreamExt, TryStreamExt},
     task::{Context, Poll},
 };
+use tracing::info;
 use anyhow::{ensure, Result};
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
@@ -26,7 +27,7 @@ use crate::db::inode;
 use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}};
 use crate::blake3::{Blake3HashingStream, b3sum_bytes};
 use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
-use crate::gdrive::create_gdrive_file;
+use crate::gdrive::{create_gdrive_file, GdriveUploadError};
 use crate::util::{self, elide};
 use custom_debug_derive::Debug as CustomDebug;
 use pin_project::pin_project;
@@ -258,8 +259,14 @@ impl StreamAtOffset for EncryptedFileProducer {
     }
 }
 
+async fn replace_parent_in_gdrive_file_placement() -> Result<()> {
+    Ok(())
+}
+
 /// Write the content of a file to a google domain.
-/// Returns a `(GdriveFile, gdrive::Storage)` that caller must `.create()` and commit the themselves.
+/// Returns a `(GdriveFile, gdrive::Storage)` on which caller must `.create()` to commit.
+/// If the gdrive parent into which we are uploading is full, replaces the parent in gdrive_file_placement,
+/// then returns the original error.
 pub async fn write_to_gdrive(
     lfp: LocalFileProducer,
     file: &inode::File,
@@ -288,9 +295,21 @@ pub async fn write_to_gdrive(
     let efp = EncryptedFileProducer::new(lfp, block_size, cipher_key, padding_size);
 
     let filename = new_chunk_filename();
-    // terastash uploaded large files as multi-chunk files; exastash currently uploads all files as one chunk
-    let gdrive_file =
-        create_gdrive_file_on_domain(efp, gdrive_file_size, domain_id, placement.owner, &parent.parent, &filename).await?;
+    // While terastash uploaded large files as multi-chunk files,
+    // exastash currently uploads all files as one chunk.
+    let result = create_gdrive_file_on_domain(efp, gdrive_file_size, domain_id, placement.owner, &parent.parent, &filename).await;
+
+    // If Google indicates the parent is full, replace the parent for the caller,
+    // because they may want to try again.
+    if let Err(err) = &result {
+        let err = err.downcast_ref::<GdriveUploadError>();
+        if let Some(GdriveUploadError::ParentIsFull(_)) = err {
+            info!("Google Drive indicates that parent in placement {:?} is full", placement);
+            replace_parent_in_gdrive_file_placement().await?;
+        }
+    }
+
+    let gdrive_file = result?;
 
     let storage = gdrive::Storage {
         file_id: file.id,
