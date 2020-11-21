@@ -1,25 +1,29 @@
+//! `Decayer` helper used to slow down retries
+
 use std::time::Duration;
 use std::cmp::min;
 use std::ops::Mul;
 use num::rational::Ratio;
 
-// We need to be able to multiply a std::time::Duration by a
-// num::rational:Ratio, so we need our own Mul trait.
-pub(crate) trait MyMul<RHS=Self> {
+/// We need to be able to multiply a std::time::Duration by a num::rational:Ratio,
+/// so we need our own Mul trait because of coherence rules.
+pub trait MyMul<RHS=Self> {
+    /// Output type
     type Output;
-    fn mymul(self, rhs: RHS) -> Self::Output;
+    /// Multiply by some other value
+    fn my_mul(self, rhs: RHS) -> Self::Output;
 }
 
 impl MyMul<u32> for Duration {
     type Output = Duration;
-    fn mymul(self, rhs: u32) -> Duration {
+    fn my_mul(self, rhs: u32) -> Duration {
         self * rhs
     }
 }
 
 impl MyMul<Ratio<u32>> for Duration {
     type Output = Duration;
-    fn mymul(self, rhs: Ratio<u32>) -> Duration {
+    fn my_mul(self, rhs: Ratio<u32>) -> Duration {
         (self * *rhs.numer()) / *rhs.denom()
     }
 }
@@ -27,12 +31,14 @@ impl MyMul<Ratio<u32>> for Duration {
 // Implement MyMul for Mul's
 impl<T> MyMul for T where T: Mul<Output = T> {
     type Output = T;
-    fn mymul(self, rhs: T) -> T {
+    fn my_mul(self, rhs: T) -> T {
         self * rhs
     }
 }
 
-pub(crate) struct Decayer<N: MyMul<M, Output=N> + Ord + Copy, M: Copy> {
+/// Helper for geometrically increasing a value up to some maximum
+#[derive(Debug)]
+pub struct Decayer<N: MyMul<M, Output=N> + Ord + Copy, M: Copy> {
     /// initial number to return
     initial: N,
     /// multiply number by this value after each call to decay()
@@ -46,7 +52,8 @@ pub(crate) struct Decayer<N: MyMul<M, Output=N> + Ord + Copy, M: Copy> {
 }
 
 impl <N: MyMul<M, Output=N> + Ord + Copy, M: Copy> Decayer<N, M> {
-    pub(crate) fn new(initial: N, multiplier: M, max: N) -> Decayer<N, M> {
+    /// Return a new `Decayer`
+    pub fn new(initial: N, multiplier: M, max: N) -> Decayer<N, M> {
         Decayer {
             initial,
             multiplier,
@@ -56,17 +63,20 @@ impl <N: MyMul<M, Output=N> + Ord + Copy, M: Copy> Decayer<N, M> {
         }
     }
 
-    pub(crate) fn reset(&mut self) -> N {
+    /// Reset this `Decayer` to its initial value.
+    pub fn reset(&mut self) -> N {
         self.first = true;
         self.current = self.initial;
         self.current
     }
 
-    pub(crate) fn decay(&mut self) -> N {
+    /// Multiply this `Decayer`'s current value by the multiplier, and return
+    /// the new value.
+    pub fn decay(&mut self) -> N {
         if self.first {
             self.first = false;
         } else {
-            self.current = min(self.current.mymul(self.multiplier), self.max);
+            self.current = min(self.current.my_mul(self.multiplier), self.max);
         }
         self.current
     }

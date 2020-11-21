@@ -10,6 +10,7 @@ use chrono::Utc;
 use tokio::fs;
 use std::convert::TryInto;
 use std::path::PathBuf;
+use num::rational::Ratio;
 use sqlx::{Postgres, Transaction};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing_subscriber::EnvFilter;
@@ -24,6 +25,7 @@ use exastash::path;
 use exastash::config;
 use exastash::info::json_info;
 use exastash::oauth;
+use exastash::retry::Decayer;
 use exastash::{storage_read, storage_write};
 use futures::stream::TryStreamExt;
 use yup_oauth2::ServiceAccountKey;
@@ -997,10 +999,27 @@ async fn main() -> Result<()> {
                             permissions.set_readonly(true);
                             fs::set_permissions(path_arg, permissions).await?;
 
-                            let file_id = storage_write::write(path_arg.clone(), &metadata, &desired_storage).await?;
+                            let mut file_id = None;
+                            let mut tries = 20;
+                            let initial_delay = std::time::Duration::new(5, 0);
+                            let maximum_delay = std::time::Duration::new(1800, 0);
+                            let mut decayer = Decayer::new(initial_delay, Ratio::new(3, 2), maximum_delay);
+                            while tries > 0 {
+                                tries -= 1;
+                                match storage_write::write(path_arg.clone(), &metadata, &desired_storage).await {
+                                    Ok(id) => { file_id = Some(id); break; },
+                                    Err(err) => {
+                                        let delay = decayer.decay();
+                                        eprintln!("storage_write::write({:?}, ...) failed, {} tries left \
+                                                   (next in {} sec): {:?}", path_arg, tries, delay.as_secs(), err);
+                                        tokio::time::delay_for(delay).await;
+                                    }
+                                }
+                            }
 
-                            transaction = pool.begin().await?;
+                            let file_id = file_id.ok_or_else(|| anyhow!("storage_write::write failed"))?;
                             let child = InodeId::File(file_id);
+                            transaction = pool.begin().await?;
                             Dirent::new(dir_id, basename, child).create(&mut transaction).await?;
                         } else {
                             bail!("can only add a file right now")

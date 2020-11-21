@@ -30,7 +30,7 @@
 
 pub(crate) mod conceal_size;
 pub(crate) mod ranges;
-pub(crate) mod retry;
+pub mod retry;
 pub mod util;
 pub mod db;
 //pub mod fuse;
