@@ -497,7 +497,7 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
             content.len() as i64 == metadata.size,
             "read {} bytes from file but file size was read as {}", content.len(), file.size
         );
-        let compression_level = 22;
+        let compression_level = 19; // levels > 19 use a lot more memory to decompress
         let content_zstd = paranoid_zstd_encode_all(content, compression_level).await?;
 
         let storage = inline::Storage { file_id: file.id, content_zstd };
