@@ -37,6 +37,8 @@ CREATE TABLE dirents (
 
     PRIMARY KEY (parent, basename)
 );
+SELECT periods.add_system_time_period('dirents', 'row_start', 'row_end');
+SELECT periods.add_system_versioning('dirents');
 INSERT INTO dirents VALUES (1, 1, NULL, NULL, 'the root directory is its own parent in dirents because the dirs table requires all dirs to be a child_dir of some dir');
 
 -- dirents REFERENCES dirs/files/symlinks tables and we may want to delete rows
