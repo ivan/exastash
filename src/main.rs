@@ -416,6 +416,16 @@ arg_enum! {
     }
 }
 
+arg_enum! {
+    #[derive(Debug, PartialEq, Eq)]
+    #[allow(non_camel_case_types)]
+    enum AlreadyExistsBehavior {
+        stop,
+        skip,
+        replace,
+    }
+}
+
 #[derive(StructOpt, Debug)]
 enum PathCommand {
     /// Print info in JSON format for a path's inode
@@ -455,9 +465,9 @@ enum PathCommand {
         #[structopt(name = "PATH")]
         paths: Vec<String>,
 
-        /// Continue to the next file if for the current file some inode already exists at the stash path
-        #[structopt(long, short = "c")]
-        continue_on_exists: bool,
+        /// What to do if a directory entry already exists at the corresponding stash path
+        #[structopt(long, short = "e", default_value = "stop")]
+        already_exists_behavior: AlreadyExistsBehavior,
 
         /// Remove each local file after successfully storing it and creating a dirent
         #[structopt(long)]
@@ -956,7 +966,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                PathCommand::Add { paths: path_args, continue_on_exists, remove_local_files } => {
+                PathCommand::Add { paths: path_args, already_exists_behavior, remove_local_files } => {
                     // We need one transaction per new directory below.
                     drop(transaction);
 
@@ -982,11 +992,18 @@ async fn main() -> Result<()> {
                             // TODO: do this properly and use the mtimes of the local dirs
                             let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
                             if let Some(existing) = Dirent::find_by_parent_and_basename(&mut transaction, dir_id, basename).await? {
-                                if continue_on_exists {
-                                    eprintln!("{:?} already exists as {:?}", stash_path, existing);
-                                    continue;
-                                } else {
-                                    bail!("{:?} already exists as {:?}", stash_path, existing);
+                                match already_exists_behavior {
+                                    AlreadyExistsBehavior::stop => {
+                                        bail!("{:?} already exists as {:?}", stash_path, existing);
+                                    }
+                                    AlreadyExistsBehavior::skip => {
+                                        eprintln!("{:?} already exists as {:?}", stash_path, existing);
+                                        continue;
+                                    }
+                                    AlreadyExistsBehavior::replace => {
+                                        eprintln!("{:?} already exists as {:?} but replacing as requested", stash_path, existing);
+                                        existing.remove(&mut transaction).await?;
+                                    }
                                 }
                             }
                             transaction.commit().await?;
