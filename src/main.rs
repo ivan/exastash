@@ -596,7 +596,8 @@ async fn ts_find(
 }
 
 async fn write_stream_to_sink<S>(stream: storage_read::ReadStream, sink: &mut S) -> Result<()>
-where S: tokio::io::AsyncWrite + Unpin
+where
+    S: tokio::io::AsyncWrite + Unpin
 {
     let mut read = stream
         .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
