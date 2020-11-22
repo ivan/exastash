@@ -360,15 +360,17 @@ pub async fn write_to_gdrive(
     Ok((gdrive_file, storage))
 }
 
-/// Like `zstd::stream::encode_all`, but first check that the compressed data
-/// decodes to the input data.
-pub fn paranoid_zstd_encode_all(bytes: &[u8], level: i32) -> Result<Vec<u8>> {
-    let content_zstd = zstd::stream::encode_all(bytes, level)?;
-    let content = zstd::stream::decode_all(content_zstd.as_slice())?;
-    if content != bytes {
-        bail!("zstd-compressed data failed to round-trip back to input data");
-    }
-    Ok(content_zstd)
+/// Like `zstd::stream::encode_all`, but async, and also ensuring that the
+/// compressed data decodes to the input data.
+pub async fn paranoid_zstd_encode_all(bytes: Vec<u8>, level: i32) -> Result<Vec<u8>> {
+    tokio::task::spawn_blocking(move || {
+        let content_zstd = zstd::stream::encode_all(bytes.as_slice(), level)?;
+        let content = zstd::stream::decode_all(content_zstd.as_slice())?;
+        if content != bytes {
+            bail!("zstd-compressed data failed to round-trip back to input data");
+        }
+        Ok(content_zstd)
+    }).await?
 }
 
 /// Descriptor indicating which storages should be used for a new file
@@ -496,7 +498,7 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
             "read {} bytes from file but file size was read as {}", content.len(), file.size
         );
         let compression_level = 22;
-        let content_zstd = paranoid_zstd_encode_all(content.as_slice(), compression_level)?;
+        let content_zstd = paranoid_zstd_encode_all(content, compression_level).await?;
 
         let storage = inline::Storage { file_id: file.id, content_zstd };
         inline_storages_to_commit.push(storage);
