@@ -1,0 +1,1 @@
+Apply to your nixpkgs to get a pg_tmp that is suitable for exastash's `cargo test`

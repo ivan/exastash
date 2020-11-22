@@ -1,0 +1,38 @@
+From d3c18d471aa68fd18bee631cd0dfe7a497ef09d4 Mon Sep 17 00:00:00 2001
+From: Ivan Kozik <ivan@ludios.org>
+Date: Sun, 22 Nov 2020 02:14:24 +0000
+Subject: [PATCH] ephemeralpg: make the periods extension available
+
+---
+ .../development/tools/database/ephemeralpg/default.nix | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/pkgs/development/tools/database/ephemeralpg/default.nix b/pkgs/development/tools/database/ephemeralpg/default.nix
+index 8fbb6ff789b..0dc68271545 100644
+--- a/pkgs/development/tools/database/ephemeralpg/default.nix
++++ b/pkgs/development/tools/database/ephemeralpg/default.nix
+@@ -1,5 +1,11 @@
+ { stdenv, fetchurl, postgresql, getopt, makeWrapper }:
+-stdenv.mkDerivation rec {
++
++let
++  postgresql_custom = postgresql.withPackages (ps: [
++    ps.periods
++  ]);
++
++in stdenv.mkDerivation rec {
+   pname = "ephemeralpg";
+   version = "3.1";
+   src = fetchurl {
+@@ -10,7 +16,7 @@ stdenv.mkDerivation rec {
+   installPhase = ''
+     mkdir -p $out
+     PREFIX=$out make install
+-    wrapProgram $out/bin/pg_tmp --prefix PATH : ${stdenv.lib.makeBinPath [ postgresql getopt ]}
++    wrapProgram $out/bin/pg_tmp --prefix PATH : ${stdenv.lib.makeBinPath [ postgresql_custom getopt ]}
+   '';
+   meta = with stdenv.lib; {
+     description = ''Run tests on an isolated, temporary PostgreSQL database.'';
+-- 
+2.28.0
+

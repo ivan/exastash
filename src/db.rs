@@ -98,6 +98,7 @@ mod tests {
 
     static PRIMARY_POOL_URI: Lazy<String> = Lazy::new(|| {
         let uri = postgres_temp_instance_uri();
+        apply_ddl(&uri, "schema/extensions.sql");
         apply_ddl(&uri, "schema/schema.sql");
         uri
     });
@@ -111,6 +112,7 @@ mod tests {
     /// PgPool Future initialized once by the first caller
     static SECONDARY_POOL_URI: Lazy<String> = Lazy::new(|| {
         let uri = postgres_temp_instance_uri();
+        apply_ddl(&uri, "schema/extensions.sql");
         apply_ddl(&uri, "schema/schema.sql");
         uri
     });

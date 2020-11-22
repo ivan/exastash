@@ -12,6 +12,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- A superuser should apply extensions.sql first
+
 \ir exastash_versions.sql
 \ir inodes.sql
 \ir storage_inline.sql
