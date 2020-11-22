@@ -419,7 +419,7 @@ arg_enum! {
 arg_enum! {
     #[derive(Debug, PartialEq, Eq)]
     #[allow(non_camel_case_types)]
-    enum AlreadyExistsBehavior {
+    enum ExistingFileBehavior {
         stop,
         skip,
         replace,
@@ -467,7 +467,7 @@ enum PathCommand {
 
         /// What to do if a directory entry already exists at the corresponding stash path
         #[structopt(long, short = "e", default_value = "stop")]
-        already_exists_behavior: AlreadyExistsBehavior,
+        existing_file_behavior: ExistingFileBehavior,
 
         /// Remove each local file after successfully storing it and creating a dirent
         #[structopt(long)]
@@ -966,7 +966,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                PathCommand::Add { paths: path_args, already_exists_behavior, remove_local_files } => {
+                PathCommand::Add { paths: path_args, existing_file_behavior: already_exists_behavior, remove_local_files } => {
                     // We need one transaction per new directory below.
                     drop(transaction);
 
@@ -993,14 +993,14 @@ async fn main() -> Result<()> {
                             let dir_id = traversal::make_dirs(&mut transaction, base_dir, dir_components).await?.dir_id()?;
                             if let Some(existing) = Dirent::find_by_parent_and_basename(&mut transaction, dir_id, basename).await? {
                                 match already_exists_behavior {
-                                    AlreadyExistsBehavior::stop => {
+                                    ExistingFileBehavior::stop => {
                                         bail!("{:?} already exists as {:?}", stash_path, existing);
                                     }
-                                    AlreadyExistsBehavior::skip => {
+                                    ExistingFileBehavior::skip => {
                                         eprintln!("{:?} already exists as {:?}", stash_path, existing);
                                         continue;
                                     }
-                                    AlreadyExistsBehavior::replace => {
+                                    ExistingFileBehavior::replace => {
                                         eprintln!("{:?} already exists as {:?} but replacing as requested", stash_path, existing);
                                         existing.remove(&mut transaction).await?;
                                     }
