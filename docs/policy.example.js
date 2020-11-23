@@ -1,4 +1,8 @@
 function newFileStorages({ stashPath, size, mtime, executable }) {
+    if (size == 0) {
+        return {};
+    }
+
     let remoteStorageThreshold;
     if (stashPath.length && stashPath[0] == "Stuff") {
         remoteStorageThreshold = 204800;
