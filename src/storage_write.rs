@@ -521,7 +521,16 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
             gdrive_storages_to_commit.push(storage);
         }
     }
-    file.b3sum = Some(*hash.unwrap().as_bytes());
+
+    // Note that for files of size 0 and no storage, we will not have a b3sum
+    // because we do not really need one.
+    if let Some(h) = hash {
+        file.b3sum = Some(*h.as_bytes());
+    }
+
+    if metadata.size > 0 {
+        assert!(file.b3sum.is_some(), "b3sum should have been set");
+    }
 
     let mut transaction = pool.begin().await?;
     file.create(&mut transaction).await?;
