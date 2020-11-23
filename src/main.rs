@@ -1030,12 +1030,6 @@ async fn main() -> Result<()> {
 
                             let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
 
-                            // Remove write permissions from the local file so that it's more obviously
-                            // "immutable" like the file in the stash.
-                            let mut permissions = fs::metadata(path_arg).await?.permissions();
-                            permissions.set_readonly(true);
-                            fs::set_permissions(path_arg, permissions).await?;
-
                             let initial_delay = std::time::Duration::new(5, 0);
                             let maximum_delay = std::time::Duration::new(1800, 0);
                             let mut decayer = Decayer::new(initial_delay, Ratio::new(3, 2), maximum_delay);
