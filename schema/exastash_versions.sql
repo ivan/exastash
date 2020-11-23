@@ -47,4 +47,5 @@ INSERT INTO exastash_versions (id, version) VALUES
     (40, '1.5.0D2019-11-21T13:09:56.828247932Z'),
 
     -- exastash
-    (41, '2.0.0');
+    (41, '2.0.0'),
+    (42, '2.0.1');
