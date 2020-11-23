@@ -8,6 +8,7 @@ use anyhow::{anyhow, bail, Error, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use tokio::fs;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::PathBuf;
 use num::rational::Ratio;
@@ -484,6 +485,14 @@ enum PathCommand {
         /// Whether to print just the filenames
         #[structopt(long, short = "j")]
         just_names: bool,
+
+        /// By which field to sort the output
+        #[structopt(long, default_value = "name")]
+        sort: SortOrder,
+
+        /// Whether to sort in reverse
+        #[structopt(long, short = "r")]
+        reverse: bool,
     },
 
     /// Recursively list a directory like findutils find
@@ -521,6 +530,16 @@ enum PathCommand {
         #[structopt(name = "PATH")]
         paths: Vec<String>,
     },
+}
+
+arg_enum! {
+    #[derive(Debug, PartialEq, Eq)]
+    #[allow(non_camel_case_types)]
+    enum SortOrder {
+        name,
+        mtime,
+        size,
+    }
 }
 
 async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, path: &str) -> Result<InodeId> {
@@ -1052,47 +1071,57 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                PathCommand::Ls { path: path_arg, just_names } => {
+                PathCommand::Ls { path: path_arg, just_names, sort, reverse } => {
                     let config = config::get_config()?;
                     let inode_id = path::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
                     let dir_id = inode_id.dir_id()?;
-                    if just_names {
-                        let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
-                        for dirent in dirents {
-                            println!("{}", dirent.basename);
-                        }
+                    let mut dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
+                    // In this case, there is no need to retrieve the inodes
+                    let inodes = if just_names && sort == SortOrder::name {
+                        HashMap::new()
                     } else {
-                        let dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
                         let children: Vec<InodeId> = dirents.iter().map(|dirent| dirent.child).collect();
-                        let inodes = Inode::find_by_inode_ids(&mut transaction, &children).await?;
-                        for dirent in dirents {
-                            match dirent.child {
-                                inode @ InodeId::Dir(_) => {
-                                    let size = 0;
-                                    // We're in the same transaction, so database should really have
-                                    // returned all the inodes we asked for, therefore .unwrap()
-                                    let dir = inodes.get(&inode).unwrap().dir().unwrap();
-                                    let mtime = dir.mtime.format("%Y-%m-%d %H:%M");
-                                    println!("{:>18} {} {}/", size, mtime, Paint::blue(dirent.basename));
-                                }
-                                inode @ InodeId::File(_) => {
-                                    use num_format::{Locale, ToFormattedString};
+                        Inode::find_by_inode_ids(&mut transaction, &children).await?
+                    };
+                    match sort {
+                        SortOrder::name  => { dirents.sort_by(|d1, d2| d1.basename.cmp(&d2.basename)) },
+                        SortOrder::mtime => { dirents.sort_by_key(|dirent| inodes.get(&dirent.child).unwrap().mtime()) },
+                        SortOrder::size  => { dirents.sort_by_key(|dirent| inodes.get(&dirent.child).unwrap().size()) },
+                    }
+                    if reverse {
+                        dirents.reverse();
+                    }
+                    for dirent in dirents {
+                        if just_names {
+                            println!("{}", dirent.basename);
+                            continue;
+                        }
+                        match dirent.child {
+                            inode @ InodeId::Dir(_) => {
+                                let size = 0;
+                                // We're in the same transaction, so database should really have
+                                // returned all the inodes we asked for, therefore .unwrap()
+                                let dir = inodes.get(&inode).unwrap().dir().unwrap();
+                                let mtime = dir.mtime.format("%Y-%m-%d %H:%M");
+                                println!("{:>18} {} {}/", size, mtime, Paint::blue(dirent.basename));
+                            }
+                            inode @ InodeId::File(_) => {
+                                use num_format::{Locale, ToFormattedString};
 
-                                    let file = inodes.get(&inode).unwrap().file().unwrap();
-                                    let size = file.size.to_formatted_string(&Locale::en);
-                                    let mtime = file.mtime.format("%Y-%m-%d %H:%M");
-                                    if file.executable {
-                                        println!("{:>18} {} {}*", size, mtime, Paint::green(dirent.basename).bold());
-                                    } else {
-                                        println!("{:>18} {} {}", size, mtime, dirent.basename);
-                                    };
-                                }
-                                inode @ InodeId::Symlink(_) => {
-                                    let size = 0;
-                                    let symlink = inodes.get(&inode).unwrap().symlink().unwrap();
-                                    let mtime = symlink.mtime.format("%Y-%m-%d %H:%M");
-                                    println!("{:>18} {} {} -> {}", size, mtime, dirent.basename, symlink.target);
-                                }
+                                let file = inodes.get(&inode).unwrap().file().unwrap();
+                                let size = file.size.to_formatted_string(&Locale::en);
+                                let mtime = file.mtime.format("%Y-%m-%d %H:%M");
+                                if file.executable {
+                                    println!("{:>18} {} {}*", size, mtime, Paint::green(dirent.basename).bold());
+                                } else {
+                                    println!("{:>18} {} {}", size, mtime, dirent.basename);
+                                };
+                            }
+                            inode @ InodeId::Symlink(_) => {
+                                let size = 0;
+                                let symlink = inodes.get(&inode).unwrap().symlink().unwrap();
+                                let mtime = symlink.mtime.format("%Y-%m-%d %H:%M");
+                                println!("{:>18} {} {} -> {}", size, mtime, dirent.basename, symlink.target);
                             }
                         }
                     }

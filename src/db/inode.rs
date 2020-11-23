@@ -450,6 +450,23 @@ impl Inode {
         }
     }
 
+    /// Return the mtime for this inode
+    pub fn mtime(&self) -> DateTime<Utc> {
+        match self {
+            Inode::Dir(dir) => dir.mtime,
+            Inode::File(file) => file.mtime,
+            Inode::Symlink(symlink) => symlink.mtime,
+        }
+    }
+
+    /// Return `Some(size)` for this inode if it is a file, otherwise `None`
+    pub fn size(&self) -> Option<i64> {
+        match self {
+            Inode::File(file) => Some(file.size),
+            _ => None,
+        }
+    }
+
     /// Return HashMaps of InodeId -> Inode for the corresponding list of `InodeId`.
     /// There is no error on missing inodes.
     pub async fn find_by_inode_ids(transaction: &mut Transaction<'_, Postgres>, inode_ids: &[InodeId]) -> Result<HashMap<InodeId, Inode>> {
