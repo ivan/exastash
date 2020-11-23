@@ -44,7 +44,10 @@ CREATE TABLE files (
     birth_version   smallint          NOT NULL REFERENCES exastash_versions (id),
     executable      boolean           NOT NULL,
     birth_hostname  hostname          NOT NULL,
-    -- Ideally this would be a 256-bit type instead of bytea, which wastes 1 byte per row
+    -- Ideally b3sum would be a 256-bit type instead of bytea, which wastes 1 byte per row.
+    --
+    -- This doesn't use 'NOT NULL' because we do not have a b3sum for most of our existing
+    -- files, but we now always add a b3sum except for 0-sized files.
     b3sum           bytea                      CHECK (octet_length(b3sum) = 32)
 );
 
