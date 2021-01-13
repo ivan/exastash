@@ -12,7 +12,7 @@ pub mod file;
 
 /// The encryption algorithm used to encrypt the chunks
 #[must_use]
-#[sqlx(rename = "cipher")]
+#[sqlx(type_name = "cipher")]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::Type, Serialize)]
 pub enum Cipher {
     /// AES-128-CTR
