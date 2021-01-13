@@ -47,6 +47,12 @@ static PGPOOL: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::
     let max_connections = env::var("EXASTASH_POSTGRES_MAX_CONNECTIONS")
         .map(|s| s.parse::<u32>().expect("could not parse EXASTASH_POSTGRES_MAX_CONNECTIONS as a u32"))
         .unwrap_or(16); // default
+
+    // TODO: allow in tests but ensure 1) localhost URL 2) no 'production database' flag in db
+    if cfg!(test) {
+        panic!("Refusing to create pgpool to EXASTASH_POSTGRES_URI={} in tests", database_uri);
+    }
+
     new_pgpool(&database_uri, max_connections).await.unwrap()
 }.boxed().shared());
 
