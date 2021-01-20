@@ -71,7 +71,7 @@ impl Decoder for GcmDecoder {
         let tag = Tag::new(tag.as_ref()).unwrap();
         gcm_decrypt_block(&self.key, self.block_number, &mut data, &tag)?;
         self.block_number += 1;
-        Ok(Some(data.to_bytes()))
+        Ok(Some(data.copy_to_bytes(data.remaining())))
     }
 
     // Last block is not necessarily full-sized
@@ -93,7 +93,7 @@ impl Decoder for GcmDecoder {
         let tag = Tag::new(tag.as_ref()).unwrap();
         gcm_decrypt_block(&self.key, self.block_number, &mut data, &tag)?;
         self.block_number += 1;
-        Ok(Some(data.to_bytes()))
+        Ok(Some(data.copy_to_bytes(data.remaining())))
     }
 }
 /// Encodes a stream of GCM blocks (one `Bytes` per block) to a stream of bytes.
@@ -160,7 +160,7 @@ impl Decoder for FixedReadSizeDecoder {
         }
         let mut data = src.split_to(self.chunk_size);
         src.reserve(self.chunk_size);
-        Ok(Some(data.to_bytes()))
+        Ok(Some(data.copy_to_bytes(data.remaining())))
     }
 
     // Last chunk is not necessarily full-sized
@@ -168,7 +168,7 @@ impl Decoder for FixedReadSizeDecoder {
         if src.is_empty() {
             return Ok(None)
         }
-        Ok(Some(src.to_bytes()))
+        Ok(Some(src.copy_to_bytes(src.remaining())))
     }
 }
 

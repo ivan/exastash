@@ -72,7 +72,7 @@ pub async fn refresh_access_tokens(client: &mut PgPool) -> Result<()> {
         owners_map.insert(owner.id, owner);
     }
 
-    let https = HttpsConnector::new();
+    let https = HttpsConnector::with_webpki_roots();
     let hyper_client = hyper::Client::builder().build::<_, hyper::Body>(https);
 
     let expires_at = Utc::now() + Duration::minutes(expiry_within_minutes);

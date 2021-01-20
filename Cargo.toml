@@ -14,7 +14,7 @@ async-trait = "0.1"
 anyhow = "1.0"
 async-recursion = "0.3"
 byteorder = "1"
-bytes = "0.5"
+bytes = "1"
 chrono = "0.4"
 clap = "2"
 crc32c = "0.5"
@@ -26,8 +26,8 @@ futures = "0.3"
 futures-async-stream = "0.2"
 gethostname = "0.2"
 hex = "0.4"
-hyper = "0.13"
-hyper-rustls = "0.21"
+hyper = { version = "0.14", features = ["client"] }
+hyper-rustls = { version = "0.22", features = ["webpki-roots"] }
 libc = "0.2"
 literally = "0.1"
 log = "0.4"
@@ -42,18 +42,18 @@ pin-project = "1.0"
 quick-js = { version = "0.3", features = ["bigint", "chrono", "log"] }
 rand = "0.8"
 regex = "1"
-reqwest = { version = "0.10", default-features = false, features = ["rustls-tls", "stream", "json"] }
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "stream", "json"] }
 ring = { git = "https://github.com/ludios/ring", branch = "prime" } # Waiting for https://github.com/briansmith/ring/pull/909
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 serde-hex = "0.1"
 serial_test = "0.5"
-sqlx = { git = "https://github.com/launchbadge/sqlx", default-features = false, features = [ "runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "json" ] }
+sqlx = { git = "https://github.com/ludios/sqlx", branch = "prime", default-features = false, features = [ "runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "json" ] } # Waiting for https://github.com/launchbadge/sqlx/pull/983
 structopt = "0.3"
 thiserror = "1.0"
-tokio = { version = "0.2", features = ["macros", "rt-core", "fs", "io-util", "io-driver"] }
-tokio-util = { version = "0.3", features = ["compat"] }
+tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "fs", "io-util"] }
+tokio-util = { version = "0.6", features = ["compat"] }
 toml = "0.5"
 tracing = "0.1"
 tracing-subscriber = "0.2"

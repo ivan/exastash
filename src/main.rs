@@ -823,7 +823,7 @@ async fn main() -> Result<()> {
                     info!("will check access tokens every {} seconds", interval_sec);
                     loop {
                         oauth::refresh_access_tokens(&mut pool).await?;
-                        tokio::time::delay_for(std::time::Duration::new(interval_sec, 0)).await;
+                        tokio::time::sleep(std::time::Duration::new(interval_sec, 0)).await;
                     }
                 }
             }
@@ -1045,7 +1045,7 @@ async fn main() -> Result<()> {
                                         let delay = decayer.decay();
                                         eprintln!("storage_write::write({:?}, ...) failed, {} tries left \
                                                    (next in {} sec): {:?}", path_arg, tries, delay.as_secs(), err);
-                                        tokio::time::delay_for(delay).await;
+                                        tokio::time::sleep(delay).await;
                                     }
                                 }
                             };

@@ -256,7 +256,7 @@ async fn read_storage_(file: &inode::File, storage: &Storage) -> Result<ReadStre
 
             let mut bytes = BytesMut::new();
             bytes.put(&content[..]);
-            Box::pin(stream::iter::<_>(vec![Ok(bytes.to_bytes())]))
+            Box::pin(stream::iter::<_>(vec![Ok(bytes.copy_to_bytes(bytes.remaining()))]))
         }
         Storage::Gdrive(gdrive_storage) => {
             stream_gdrive_files(&file, gdrive_storage)
