@@ -9,8 +9,8 @@ CREATE TABLE storage_inline (
 
 -- EXTERNAL means TOAST but not compressed by PostgreSQL (content_zstd is already compressed)
 ALTER TABLE storage_inline
-  ALTER COLUMN content_zstd
-  SET STORAGE EXTERNAL;
+    ALTER COLUMN content_zstd
+    SET STORAGE EXTERNAL;
 
 CREATE TRIGGER storage_inline_check_update
     BEFORE UPDATE ON storage_inline
