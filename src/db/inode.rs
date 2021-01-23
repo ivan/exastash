@@ -494,15 +494,16 @@ impl Inode {
     }
 }
 
+/// Create a dummy file for use in tests.
+pub async fn create_dummy_file(transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
+    NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(transaction).await
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use crate::db::tests::{new_primary_pool, new_secondary_pool};
     use serial_test::serial;
-
-    pub(crate) async fn create_dummy_file(transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
-        NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(transaction).await
-    }
 
     mod api {
         use super::*;

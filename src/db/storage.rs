@@ -51,7 +51,7 @@ pub async fn remove_storages(transaction: &mut Transaction<'_, Postgres>, file_i
 mod tests {
     use super::*;
     use crate::db::tests::new_primary_pool;
-    use crate::db::inode::tests::create_dummy_file;
+    use crate::db::inode::create_dummy_file;
 
     mod api {
         use super::*;

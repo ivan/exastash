@@ -54,7 +54,7 @@ impl Storage {
 mod tests {
     use super::*;
     use crate::db::tests::{new_primary_pool, new_secondary_pool};
-    use crate::db::inode::tests::create_dummy_file;
+    use crate::db::inode::create_dummy_file;
     use serial_test::serial;
 
     mod api {

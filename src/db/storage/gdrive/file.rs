@@ -156,7 +156,7 @@ impl GdriveFile {
 pub(crate) mod tests {
     use super::*;
     use crate::db::tests::{new_primary_pool, new_secondary_pool};
-    use crate::db::inode::tests::create_dummy_file;
+    use crate::db::inode::create_dummy_file;
     use crate::db::storage::gdrive::tests::create_dummy_domain;
     use crate::db::storage::gdrive::{Storage, Cipher};
     use atomic_counter::{AtomicCounter, RelaxedCounter};
