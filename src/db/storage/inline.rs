@@ -96,7 +96,7 @@ mod tests {
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
-        use crate::db::tests::assert_cannot_truncate;
+        use crate::db::assert_cannot_truncate;
 
         /// Cannot UPDATE file_id on storage_inline table
         #[tokio::test]

@@ -16,6 +16,7 @@ use once_cell::sync::Lazy;
 use std::pin::Pin;
 use std::future::Future;
 use std::time::Duration;
+use std::process::Command;
 use std::env;
 use crate::util::env_var;
 
@@ -68,39 +69,52 @@ pub async fn nextval(transaction: &mut Transaction<'_, Postgres>, sequence: &str
     Ok(id)
 }
 
+// Test helper functions below are also used outside exastash
+
+/// Return a PostgreSQL connection string to an ephemeralpg instance
+pub fn postgres_temp_instance_uri() -> String {
+    let mut command = Command::new("pg_tmp");
+    // "Shut down and remove the database after the specified timeout. If one or more clients
+    // are still connected then pg_tmp sleeps and retries again after the same interval."
+    let timeout = 10;
+    let args = &["-w", &timeout.to_string()];
+    let stdout = command.args(args).output().expect("failed to execute pg_tmp").stdout;
+    let database_uri = String::from_utf8(stdout).expect("could not parse pg_tmp output as UTF-8");
+    // Add a &user= to fix "no PostgreSQL user name specified in startup packet"
+    let user = env_var("USER").unwrap();
+    let database_uri = format!("{database_uri}&user={user}");
+    database_uri
+}
+
+/// Connect to PostgreSQL server at `uri` and apply SQL DDL from file `sql_file`
+pub fn apply_ddl(uri: &str, sql_file: &str) {
+    let mut command = Command::new("psql");
+    let psql = command
+        .arg("--no-psqlrc")
+        .arg("--quiet")
+        .arg("-f").arg(sql_file)
+        .arg(uri);
+    let code = psql.status().expect("failed to execute psql");
+    if !code.success() {
+        panic!("psql exited with code {:?}", code.code());
+    }
+}
+
+/// Note that TRUNCATE tests should be run on the secondary pool because they
+/// will otherwise frequently cause other running transactions to raise
+/// `deadlock detected`. That happens on the non-`TRUNCATE` transaction
+/// frequently because we have a mutual FK set up between dirs and dirents.
+pub async fn assert_cannot_truncate(transaction: &mut Transaction<'_, Postgres>, table: &str) {
+    let statement = format!("TRUNCATE {table} CASCADE");
+    let result = sqlx::query(&statement).execute(transaction).await;
+    let msg = result.err().expect("expected an error").to_string();
+    assert_eq!(msg, "error returned from database: truncate is forbidden");
+}
+
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
-    use std::process::Command;
     use once_cell::sync::Lazy;
-    use sqlx::{Postgres, Transaction};
-
-    fn postgres_temp_instance_uri() -> String {
-        let mut command = Command::new("pg_tmp");
-        // "Shut down and remove the database after the specified timeout. If one or more clients
-        // are still connected then pg_tmp sleeps and retries again after the same interval."
-        let timeout = 10;
-        let args = &["-w", &timeout.to_string()];
-        let stdout = command.args(args).output().expect("failed to execute pg_tmp").stdout;
-        let database_uri = String::from_utf8(stdout).expect("could not parse pg_tmp output as UTF-8");
-        // Add a &user= to fix "no PostgreSQL user name specified in startup packet"
-        let user = env_var("USER").unwrap();
-        let database_uri = format!("{database_uri}&user={user}");
-        database_uri
-    }
-
-    fn apply_ddl(uri: &str, sql_file: &str) {
-        let mut command = Command::new("psql");
-        let psql = command
-            .arg("--no-psqlrc")
-            .arg("--quiet")
-            .arg("-f").arg(sql_file)
-            .arg(uri);
-        let code = psql.status().expect("failed to execute psql");
-        if !code.success() {
-            panic!("psql exited with code {:?}", code.code());
-        }
-    }
 
     static PRIMARY_POOL_URI: Lazy<String> = Lazy::new(|| {
         let uri = postgres_temp_instance_uri();
@@ -127,16 +141,5 @@ mod tests {
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_secondary_pool() -> PgPool {
         new_pgpool(&*SECONDARY_POOL_URI, 4).await.unwrap()
-    }
-
-    /// Note that TRUNCATE tests should be run on the secondary pool because they
-    /// will otherwise frequently cause other running transactions to raise
-    /// `deadlock detected`. That happens on the non-`TRUNCATE` transaction
-    /// frequently because we have a mutual FK set up between dirs and dirents.
-    pub(crate) async fn assert_cannot_truncate(transaction: &mut Transaction<'_, Postgres>, table: &str) {
-        let statement = format!("TRUNCATE {table} CASCADE");
-        let result = sqlx::query(&statement).execute(transaction).await;
-        let msg = result.err().expect("expected an error").to_string();
-        assert_eq!(msg, "error returned from database: truncate is forbidden");
     }
 }

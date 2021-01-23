@@ -398,7 +398,7 @@ pub(crate) mod tests {
     // Testing our .sql from Rust, not testing our Rust
     mod schema_internals {
         use super::*;
-        use crate::db::tests::assert_cannot_truncate;
+        use crate::db::assert_cannot_truncate;
 
         /// Cannot UPDATE any row in storage_gdrive table
         #[tokio::test]
