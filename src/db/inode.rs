@@ -102,7 +102,7 @@ impl Dir {
         if ids.is_empty() {
             return Ok(vec![])
         }
-        let query = "SELECT id, mtime, birth_time, birth_version, birth_hostname FROM dirs WHERE id = ANY($1::bigint[])";
+        let query = "SELECT id, mtime, birth_time, birth_version, birth_hostname FROM stash.dirs WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, Dir>(query).bind(ids).fetch_all(transaction).await?)
     }
 
@@ -113,7 +113,7 @@ impl Dir {
     ///
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
-        let stmt = "DELETE FROM dirs WHERE id = ANY($1::bigint[])";
+        let stmt = "DELETE FROM stash.dirs WHERE id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(ids)
             .execute(transaction).await?;
@@ -122,7 +122,7 @@ impl Dir {
 
     /// Return a count of the number of dirs in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
-        let count: i64 = sqlx::query("SELECT COUNT(id) FROM dirs")
+        let count: i64 = sqlx::query("SELECT COUNT(id) FROM stash.dirs")
             .fetch_one(transaction)
             .await?
             .get(0);
@@ -144,7 +144,7 @@ impl NewDir {
     /// Create an entry for a directory in the database and return a `Dir`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Dir> {
-        let query = "INSERT INTO dirs (mtime, birth_time, birth_version, birth_hostname)
+        let query = "INSERT INTO stash.dirs (mtime, birth_time, birth_version, birth_hostname)
                      VALUES ($1::timestamptz, $2::timestamptz, $3::smallint, $4::text)
                      RETURNING id";
         let row = sqlx::query(query)
@@ -209,7 +209,7 @@ impl File {
         if ids.is_empty() {
             return Ok(vec![])
         }
-        let query = "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum FROM files WHERE id = ANY($1::bigint[])";
+        let query = "SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum FROM stash.files WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, File>(query).bind(ids).fetch_all(transaction).await?)
     }
 
@@ -220,7 +220,7 @@ impl File {
 
     /// Set the b3sum for a file that may not have one already
     pub async fn set_b3sum(transaction: &mut Transaction<'_, Postgres>, file_id: i64, b3sum: &[u8; 32]) -> Result<()> {
-        let query = "UPDATE files SET b3sum = $1::bytea WHERE id = $2::bigint";
+        let query = "UPDATE stash.files SET b3sum = $1::bytea WHERE id = $2::bigint";
         sqlx::query(query)
             .bind(b3sum.as_ref())
             .bind(file_id)
@@ -233,7 +233,7 @@ impl File {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         assert!(self.size >= 0, "size must be >= 0");
-        let query = "INSERT INTO files (id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
+        let query = "INSERT INTO stash.files (id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
                      OVERRIDING SYSTEM VALUE
                      VALUES ($1::bigint, $2::timestamptz, $3::bigint, $4::boolean, $5::timestamptz, $6::smallint, $7::text, $8::bytea)";
         sqlx::query(query)
@@ -252,7 +252,7 @@ impl File {
     /// Remove files with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
-        let stmt = "DELETE FROM files WHERE id = ANY($1::bigint[])";
+        let stmt = "DELETE FROM stash.files WHERE id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(ids)
             .execute(transaction).await?;
@@ -261,7 +261,7 @@ impl File {
 
     /// Return a count of the number of files in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
-        let count: i64 = sqlx::query("SELECT COUNT(id) FROM files")
+        let count: i64 = sqlx::query("SELECT COUNT(id) FROM stash.files")
             .fetch_one(transaction)
             .await?
             .get(0);
@@ -290,7 +290,7 @@ impl NewFile {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
         assert!(self.size >= 0, "size must be >= 0");
-        let query = "INSERT INTO files (mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
+        let query = "INSERT INTO stash.files (mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
                      VALUES ($1::timestamptz, $2::bigint, $3::boolean, $4::timestamptz, $5::smallint, $6::text, $7::bytea)
                      RETURNING id";
         let row = sqlx::query(query)
@@ -353,14 +353,14 @@ impl Symlink {
         if ids.is_empty() {
             return Ok(vec![])
         }
-        let query = "SELECT id, mtime, target, birth_time, birth_version, birth_hostname FROM symlinks WHERE id = ANY($1::bigint[])";
+        let query = "SELECT id, mtime, target, birth_time, birth_version, birth_hostname FROM stash.symlinks WHERE id = ANY($1::bigint[])";
         Ok(sqlx::query_as::<_, Symlink>(query).bind(ids).fetch_all(transaction).await?)
     }
 
     /// Remove symlinks with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
-        let stmt = "DELETE FROM symlinks WHERE id = ANY($1::bigint[])";
+        let stmt = "DELETE FROM stash.symlinks WHERE id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(ids)
             .execute(transaction).await?;
@@ -369,7 +369,7 @@ impl Symlink {
 
     /// Return a count of the number of symlinks in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
-        let count: i64 = sqlx::query("SELECT COUNT(id) FROM symlinks")
+        let count: i64 = sqlx::query("SELECT COUNT(id) FROM stash.symlinks")
             .fetch_one(transaction)
             .await?
             .get(0);
@@ -393,7 +393,7 @@ impl NewSymlink {
     /// Create an entry for a symlink in the database and return a `Symlink`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Symlink> {
-        let query = "INSERT INTO symlinks (mtime, target, birth_time, birth_version, birth_hostname)
+        let query = "INSERT INTO stash.symlinks (mtime, target, birth_time, birth_version, birth_hostname)
                      VALUES ($1::timestamptz, $2::text, $3::timestamptz, $4::smallint, $5::text)
                      RETURNING id";
         let row = sqlx::query(query)
@@ -653,7 +653,7 @@ pub(crate) mod tests {
             let pool = new_secondary_pool().await;
             for table in &["dirs", "files", "symlinks"] {
                 let mut transaction = pool.begin().await?;
-                assert_cannot_truncate(&mut transaction, table).await;
+                assert_cannot_truncate(&mut transaction, &format!("stash.{table}")).await;
             }
             Ok(())
         }
@@ -663,7 +663,7 @@ pub(crate) mod tests {
         async fn test_can_change_dir_mutables() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
-            sqlx::query("UPDATE dirs SET mtime = now() WHERE id = $1::bigint").bind(&1i64).execute(&mut transaction).await?;
+            sqlx::query("UPDATE stash.dirs SET mtime = now() WHERE id = $1::bigint").bind(&1i64).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
         }
@@ -676,7 +676,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE dirs SET {column} = {value} WHERE id = $1::bigint");
+                let query = format!("UPDATE stash.dirs SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&1i64).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {
@@ -696,13 +696,13 @@ pub(crate) mod tests {
             let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(&mut transaction).await?;
             transaction.commit().await?;
             let mut transaction = pool.begin().await?;
-            sqlx::query("UPDATE files SET mtime = now() WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
+            sqlx::query("UPDATE stash.files SET mtime = now() WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
             let mut transaction = pool.begin().await?;
-            sqlx::query("UPDATE files SET size = 100000 WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
+            sqlx::query("UPDATE stash.files SET size = 100000 WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
             let mut transaction = pool.begin().await?;
-            sqlx::query("UPDATE files SET executable = true WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
+            sqlx::query("UPDATE stash.files SET executable = true WHERE id = $1::bigint").bind(&file.id).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
         }
@@ -716,7 +716,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE files SET {column} = {value} WHERE id = $1::bigint");
+                let query = format!("UPDATE stash.files SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {
@@ -736,7 +736,7 @@ pub(crate) mod tests {
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
             let mut transaction = pool.begin().await?;
-            sqlx::query("UPDATE symlinks SET mtime = now() WHERE id = $1::bigint").bind(&symlink.id).execute(&mut transaction).await?;
+            sqlx::query("UPDATE stash.symlinks SET mtime = now() WHERE id = $1::bigint").bind(&symlink.id).execute(&mut transaction).await?;
             transaction.commit().await?;
             Ok(())
         }
@@ -750,7 +750,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
             for (column, value) in &[("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE symlinks SET {column} = {value} WHERE id = $1::bigint");
+                let query = format!("UPDATE stash.symlinks SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&symlink.id).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
                 if *column == "id" {

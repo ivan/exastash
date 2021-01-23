@@ -61,7 +61,7 @@ static PGPOOL: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::
         panic!("Refusing to create pgpool to EXASTASH_POSTGRES_URI={} in tests", database_uri);
     }
 
-    new_pgpool(&database_uri, max_connections, "stash").await.unwrap()
+    new_pgpool(&database_uri, max_connections, "public").await.unwrap()
 }.boxed().shared());
 
 /// Return the global `PgPool`.  It must not be used in more than one tokio runtime.
@@ -138,7 +138,7 @@ pub mod tests {
     /// Return a new `PgPool` connected to the `pg_tmp` for most tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_primary_pool() -> PgPool {
-        new_pgpool(&*PRIMARY_POOL_URI, 4, "stash").await.unwrap()
+        new_pgpool(&*PRIMARY_POOL_URI, 4, "public").await.unwrap()
     }
 
     /// PgPool Future initialized once by the first caller
@@ -151,6 +151,6 @@ pub mod tests {
     /// Return a new `PgPool` connected to the pg_tmp for `TRUNCATE` tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_secondary_pool() -> PgPool {
-        new_pgpool(&*SECONDARY_POOL_URI, 4, "stash").await.unwrap()
+        new_pgpool(&*SECONDARY_POOL_URI, 4, "public").await.unwrap()
     }
 }

@@ -26,14 +26,14 @@ pub struct GdriveOwner {
 impl GdriveOwner {
     /// Return a `Vec<GdriveOwner>` for all gdrive_owners.
     pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners")
+        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM stash.gdrive_owners")
             .fetch_all(transaction).await?)
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners WHERE id = ANY($1)")
+        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM stash.gdrive_owners WHERE id = ANY($1)")
             .bind(owner_ids)
             .fetch_all(transaction).await?)
     }
@@ -41,7 +41,7 @@ impl GdriveOwner {
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
     pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM gdrive_owners WHERE domain = ANY($1)")
+        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM stash.gdrive_owners WHERE domain = ANY($1)")
             .bind(domain_ids)
             .fetch_all(transaction).await?)
     }
@@ -61,7 +61,7 @@ impl NewGdriveOwner {
     /// Create a gdrive_owner in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GdriveOwner> {
-        let row = sqlx::query("INSERT INTO gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id")
+        let row = sqlx::query("INSERT INTO stash.gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id")
             .bind(&self.domain)
             .bind(&self.owner)
             .fetch_one(transaction)
@@ -110,7 +110,7 @@ impl GdriveFile {
     /// Create a gdrive_file in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query("INSERT INTO gdrive_files (id, owner, md5, crc32c, size, last_probed)
+        sqlx::query("INSERT INTO stash.gdrive_files (id, owner, md5, crc32c, size, last_probed)
                      VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)")
             .bind(&self.id)
             .bind(&self.owner_id)
@@ -125,7 +125,7 @@ impl GdriveFile {
     /// Remove gdrive files in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<()> {
-        sqlx::query("DELETE FROM gdrive_files WHERE id = ANY($1::text[])")
+        sqlx::query("DELETE FROM stash.gdrive_files WHERE id = ANY($1::text[])")
             .bind(ids)
             .execute(transaction).await?;
         Ok(())
@@ -133,7 +133,7 @@ impl GdriveFile {
 
     /// Return gdrive files with matching ids, in the same order as the ids.
     pub async fn find_by_ids_in_order(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
-        let query = "SELECT id, owner, md5, crc32c, size, last_probed FROM gdrive_files WHERE id = ANY($1)";
+        let query = "SELECT id, owner, md5, crc32c, size, last_probed FROM stash.gdrive_files WHERE id = ANY($1)";
         let cursor = sqlx::query_as::<_, GdriveFile>(query)
             .bind(ids)
             .fetch(transaction);
@@ -283,7 +283,7 @@ pub(crate) mod tests {
                 ("size", "2")
             ] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE gdrive_files SET {column} = {value} WHERE id = $1");
+                let query = format!("UPDATE stash.gdrive_files SET {column} = {value} WHERE id = $1");
                 let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change id, md5, crc32c, or size");
             }
@@ -304,7 +304,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert_cannot_truncate(&mut transaction, "gdrive_files").await;
+            assert_cannot_truncate(&mut transaction, "stash.gdrive_files").await;
 
             Ok(())
         }

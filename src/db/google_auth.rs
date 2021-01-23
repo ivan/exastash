@@ -21,7 +21,7 @@ impl GoogleApplicationSecret {
     /// Create a google_application_secret in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "INSERT INTO google_application_secrets (domain_id, secret) VALUES ($1::smallint, $2::jsonb)";
+        let stmt = "INSERT INTO stash.google_application_secrets (domain_id, secret) VALUES ($1::smallint, $2::jsonb)";
         sqlx::query(stmt)
             .bind(&self.domain_id)
             .bind(&self.secret)
@@ -32,14 +32,14 @@ impl GoogleApplicationSecret {
 
     /// Return a `Vec<GoogleApplicationSecret>` of all google_application_secrets.
     pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GoogleApplicationSecret>> {
-        let query = "SELECT domain_id, secret FROM google_application_secrets";
+        let query = "SELECT domain_id, secret FROM stash.google_application_secrets";
         Ok(sqlx::query_as::<_, GoogleApplicationSecret>(query).fetch_all(transaction).await?)
     }
 
     /// Return a `Vec<GoogleApplicationSecret>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
     pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GoogleApplicationSecret>> {
-        let query = "SELECT domain_id, secret FROM google_application_secrets WHERE domain_id = ANY($1::smallint[])";
+        let query = "SELECT domain_id, secret FROM stash.google_application_secrets WHERE domain_id = ANY($1::smallint[])";
         Ok(sqlx::query_as::<_, GoogleApplicationSecret>(query).bind(domain_ids).fetch_all(transaction).await?)
     }
 }
@@ -63,7 +63,7 @@ impl GoogleAccessToken {
     /// Create a google_access_token in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "INSERT INTO google_access_tokens (owner_id, access_token, refresh_token, expires_at)
+        let stmt = "INSERT INTO stash.google_access_tokens (owner_id, access_token, refresh_token, expires_at)
                     VALUES ($1::int, $2::text, $3::text, $4::timestamptz)";
         sqlx::query(stmt)
             .bind(&self.owner_id)
@@ -79,7 +79,7 @@ impl GoogleAccessToken {
     /// There is no error if the owner does not exist.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn delete(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "DELETE FROM google_access_tokens WHERE owner_id = $1::int";
+        let stmt = "DELETE FROM stash.google_access_tokens WHERE owner_id = $1::int";
         sqlx::query(stmt).bind(&self.owner_id).execute(transaction).await?;
         Ok(())
     }
@@ -88,7 +88,7 @@ impl GoogleAccessToken {
     pub async fn find_by_expires_at(transaction: &mut Transaction<'_, Postgres>, expires_at: DateTime<Utc>) -> Result<Vec<GoogleAccessToken>> {
         Ok(sqlx::query_as::<_, GoogleAccessToken>(
             "SELECT owner_id, access_token, refresh_token, expires_at
-             FROM google_access_tokens
+             FROM stash.google_access_tokens
              WHERE expires_at < $1::timestamptz"
         ).bind(expires_at).fetch_all(transaction).await?)
     }
@@ -98,7 +98,7 @@ impl GoogleAccessToken {
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GoogleAccessToken>> {
         Ok(sqlx::query_as::<_, GoogleAccessToken>(
             "SELECT owner_id, access_token, refresh_token, expires_at
-             FROM google_access_tokens
+             FROM stash.google_access_tokens
              WHERE owner_id = ANY($1::int[])"
         ).bind(owner_ids).fetch_all(transaction).await?)
     }
@@ -142,7 +142,7 @@ impl GoogleServiceAccount {
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         let k = &self.key;
         let stmt =
-            "INSERT INTO google_service_accounts (
+            "INSERT INTO stash.google_service_accounts (
                 owner_id, client_email, client_id, project_id, private_key_id, private_key,
                 auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url)
              VALUES ($1::int, $2::text, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $9::text, $10::text)";
@@ -172,7 +172,7 @@ impl GoogleServiceAccount {
         let query = format!("
             SELECT owner_id, client_email, client_id, project_id, private_key_id, private_key,
                    auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url
-            FROM google_service_accounts
+            FROM stash.google_service_accounts
             WHERE owner_id = ANY($1::int[])
             {limit_sql}
         ");

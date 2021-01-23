@@ -40,7 +40,7 @@ pub struct GdriveParent {
 impl GdriveParent {
     /// Create an gdrive_parent entity in the database.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query(r#"INSERT INTO gdrive_parents (name, parent, "full") VALUES ($1::text, $2::text, $3::boolean)"#)
+        sqlx::query(r#"INSERT INTO stash.gdrive_parents (name, parent, "full") VALUES ($1::text, $2::text, $3::boolean)"#)
             .bind(&self.name)
             .bind(&self.parent)
             .bind(&self.full)
@@ -51,7 +51,7 @@ impl GdriveParent {
 
     /// Find a gdrive_parent entity by name.
     pub async fn find_by_name(transaction: &mut Transaction<'_, Postgres>, name: &str) -> Result<Option<GdriveParent>> {
-        let query = r#"SELECT name, parent, "full" FROM gdrive_parents WHERE name = $1::text"#;
+        let query = r#"SELECT name, parent, "full" FROM stash.gdrive_parents WHERE name = $1::text"#;
         let mut parents = sqlx::query_as::<_, GdriveParent>(query)
             .bind(name)
             .fetch_all(transaction).await?;
@@ -60,7 +60,7 @@ impl GdriveParent {
 
     /// Find the first gdrive_parent that is not full.
     pub async fn find_first_non_full(transaction: &mut Transaction<'_, Postgres>) -> Result<Option<GdriveParent>> {
-        let query = r#"SELECT name, parent, "full" FROM gdrive_parents WHERE "full" = false"#;
+        let query = r#"SELECT name, parent, "full" FROM stash.gdrive_parents WHERE "full" = false"#;
         Ok(sqlx::query_as::<_, GdriveParent>(query)
             .fetch_optional(transaction).await?)
     }
@@ -68,7 +68,7 @@ impl GdriveParent {
     /// Set whether a parent is full or not
     pub async fn set_full(transaction: &mut Transaction<'_, Postgres>, name: &str, full: bool) -> Result<()> {
         info!("setting full = {} on gdrive_parent name = {:?}", full, name);
-        let query = r#"UPDATE gdrive_parents SET "full" = $1::boolean WHERE name = $2::text"#;
+        let query = r#"UPDATE stash.gdrive_parents SET "full" = $1::boolean WHERE name = $2::text"#;
         sqlx::query(query)
             .bind(full)
             .bind(name)
@@ -99,7 +99,7 @@ impl NewGoogleDomain {
     /// Create a google_domain in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GoogleDomain> {
-        let row = sqlx::query("INSERT INTO google_domains (domain) VALUES ($1::text) RETURNING id")
+        let row = sqlx::query("INSERT INTO stash.google_domains (domain) VALUES ($1::text) RETURNING id")
             .bind(&self.domain)
             .fetch_one(transaction).await?;
         let id = row.get(0);
@@ -127,7 +127,7 @@ impl GdriveFilePlacement {
     /// Create a gdrive_file_placement in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let query = "INSERT INTO gdrive_file_placement (domain, owner, parent) VALUES ($1::smallint, $2::int, $3::text)";
+        let query = "INSERT INTO stash.gdrive_file_placement (domain, owner, parent) VALUES ($1::smallint, $2::int, $3::text)";
         sqlx::query(query)
             .bind(&self.domain)
             .bind(&self.owner)
@@ -140,7 +140,7 @@ impl GdriveFilePlacement {
     /// Remove this gdrive_file_placement from the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "DELETE FROM gdrive_file_placement 
+        let stmt = "DELETE FROM stash.gdrive_file_placement
                     WHERE domain = $1::smallint AND owner = $2::int AND parent = $3::text";
         sqlx::query(stmt)
             .bind(self.domain)
@@ -159,7 +159,7 @@ impl GdriveFilePlacement {
             Some(num) => format!("ORDER BY random() LIMIT {num}")
         };
         let query = format!(
-            "SELECT domain, owner, parent FROM gdrive_file_placement
+            "SELECT domain, owner, parent FROM stash.gdrive_file_placement
              WHERE domain = $1::smallint
              {}", limit_sql
         );
@@ -174,7 +174,7 @@ impl GdriveFilePlacement {
         &self,
         transaction: &mut Transaction<'_, Postgres>,
     ) -> Result<Option<GdriveFilePlacement>> {
-        let query = "SELECT domain, owner, parent FROM gdrive_file_placement
+        let query = "SELECT domain, owner, parent FROM stash.gdrive_file_placement
                      WHERE domain = $1::smallint AND owner = $2::int AND parent = $3::text
                      FOR UPDATE";
         Ok(sqlx::query_as::<_, GdriveFilePlacement>(&query)
@@ -219,8 +219,8 @@ impl Storage {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query(
-            "INSERT INTO storage_gdrive (file_id, google_domain, cipher, cipher_key, gdrive_ids)
-             VALUES ($1::bigint, $2::smallint, $3::cipher, $4::uuid, $5::text[])"
+            "INSERT INTO stash.storage_gdrive (file_id, google_domain, cipher, cipher_key, gdrive_ids)
+             VALUES ($1::bigint, $2::smallint, $3::stash.cipher, $4::uuid, $5::text[])"
         )
             .bind(&self.file_id)
             .bind(&self.google_domain)
@@ -235,7 +235,7 @@ impl Storage {
     /// Remove storages with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
-        let stmt = "DELETE FROM storage_gdrive WHERE file_id = ANY($1::bigint[])";
+        let stmt = "DELETE FROM stash.storage_gdrive WHERE file_id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(file_ids)
             .execute(transaction).await?;
@@ -247,7 +247,7 @@ impl Storage {
         // Note that we can get more than one row per unique file_id
         let storages = sqlx::query_as::<_, Storage>(
             "SELECT file_id, google_domain, cipher, cipher_key, gdrive_ids
-             FROM storage_gdrive
+             FROM stash.storage_gdrive
              WHERE file_id = ANY($1::bigint[])"
         )
             .bind(file_ids)
@@ -419,14 +419,14 @@ pub(crate) mod tests {
             let pairs = [
                 ("file_id", "100"),
                 ("google_domain", "100"),
-                ("cipher", "'AES_128_CTR'::cipher"),
+                ("cipher", "'AES_128_CTR'::stash.cipher"),
                 ("cipher_key", "'1111-1111-1111-1111-1111-1111-1111-1111'::uuid"),
                 ("gdrive_ids", &format!("'{{\"{id1}\",\"{id2}\"}}'::text[]"))
             ];
 
             for (column, value) in &pairs {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE storage_gdrive SET {column} = {value} WHERE file_id = $1::bigint");
+                let query = format!("UPDATE stash.storage_gdrive SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
@@ -452,7 +452,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert_cannot_truncate(&mut transaction, "storage_gdrive").await;
+            assert_cannot_truncate(&mut transaction, "stash.storage_gdrive").await;
 
             Ok(())
         }

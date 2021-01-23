@@ -25,7 +25,7 @@ impl Storage {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query(
-            "INSERT INTO storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
+            "INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
              VALUES ($1::bigint, $2::text, $3::text, $4::boolean, $5::timestamptz)",
         )
             .bind(&self.file_id)
@@ -41,7 +41,7 @@ impl Storage {
     /// Remove storages with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
-        let stmt = "DELETE FROM storage_internetarchive WHERE file_id = ANY($1::bigint[])";
+        let stmt = "DELETE FROM stash.storage_internetarchive WHERE file_id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(file_ids)
             .execute(transaction).await?;
@@ -54,7 +54,7 @@ impl Storage {
         // Note that we can get more than one row per unique file_id
         Ok(sqlx::query_as::<_, Storage>(
                 "SELECT file_id, ia_item, pathname, darked, last_probed
-                 FROM storage_internetarchive
+                 FROM stash.storage_internetarchive
                  WHERE file_id = ANY($1::bigint[])"
             )
             .bind(file_ids)
@@ -142,7 +142,7 @@ mod tests {
 
             for (column, value) in &[("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE storage_internetarchive SET {column} = {value} WHERE file_id = $1::bigint");
+                let query = format!("UPDATE stash.storage_internetarchive SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id, ia_item, or pathname");
             }
@@ -157,7 +157,7 @@ mod tests {
             let pool = new_secondary_pool().await;
 
             let mut transaction = pool.begin().await?;
-            assert_cannot_truncate(&mut transaction, "storage_internetarchive").await;
+            assert_cannot_truncate(&mut transaction, "stash.storage_internetarchive").await;
 
             Ok(())
         }

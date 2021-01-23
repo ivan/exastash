@@ -65,7 +65,7 @@ impl Dirent {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         let InodeTuple(child_dir, child_file, child_symlink) = self.child.into();
-        let stmt = "INSERT INTO dirents (parent, basename, child_dir, child_file, child_symlink)
+        let stmt = "INSERT INTO stash.dirents (parent, basename, child_dir, child_file, child_symlink)
                     VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)";
         sqlx::query(stmt)
             .bind(self.parent)
@@ -80,7 +80,7 @@ impl Dirent {
     /// Remove this directory entry.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "DELETE FROM dirents WHERE parent = $1::bigint AND basename = $2::text";
+        let stmt = "DELETE FROM stash.dirents WHERE parent = $1::bigint AND basename = $2::text";
         sqlx::query(stmt)
             .bind(self.parent)
             .bind(&self.basename)
@@ -91,7 +91,7 @@ impl Dirent {
     /// Remove a directory entry by `parent` and `basename`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_parent_basename(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<()> {
-        let stmt = "DELETE FROM dirents WHERE parent = $1::bigint AND basename = $2::text";
+        let stmt = "DELETE FROM stash.dirents WHERE parent = $1::bigint AND basename = $2::text";
         sqlx::query(stmt)
             .bind(parent)
             .bind(basename)
@@ -102,7 +102,7 @@ impl Dirent {
     /// Remove a directory entry by `child_dir`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_child_dir(transaction: &mut Transaction<'_, Postgres>, child_dir: i64) -> Result<()> {
-        let stmt = "DELETE FROM dirents WHERE child_dir = $1::bigint";
+        let stmt = "DELETE FROM stash.dirents WHERE child_dir = $1::bigint";
         sqlx::query(stmt)
             .bind(child_dir)
             .execute(transaction).await?;
@@ -113,7 +113,7 @@ impl Dirent {
     /// There is no error on missing parents.
     pub async fn find_by_parents(transaction: &mut Transaction<'_, Postgres>, parents: &[i64]) -> Result<Vec<Dirent>> {
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
-        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
+        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
                      WHERE parent = ANY($1::bigint[]) AND child_dir IS DISTINCT FROM 1";
         Ok(sqlx::query_as::<_, Dirent>(query).bind(parents).fetch_all(transaction).await?)
     }
@@ -121,7 +121,7 @@ impl Dirent {
     /// Return an `Option<Dirent>` if a `Dirent` exists with the given `parent` and `basename`.
     pub async fn find_by_parent_and_basename(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<Option<Dirent>> {
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
-        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
+        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
                      WHERE parent = $1::bigint AND child_dir IS DISTINCT FROM 1 AND basename = $2::text";
         let mut out = sqlx::query_as::<_, Dirent>(query).bind(parent).bind(basename).fetch_all(transaction).await?;
         Ok(out.pop())
@@ -129,7 +129,7 @@ impl Dirent {
 
     /// Return an `Option<Dirent>` if a `Dirent` exists with the given `child_dir`.
     pub async fn find_by_child_dir(transaction: &mut Transaction<'_, Postgres>, child_dir: i64) -> Result<Option<Dirent>> {
-        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM dirents
+        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
                      WHERE child_dir = $1::bigint";
         let mut out = sqlx::query_as::<_, Dirent>(query).bind(child_dir).fetch_all(transaction).await?;
         Ok(out.pop())
@@ -137,7 +137,7 @@ impl Dirent {
 
     /// Return a count of the number of dirents in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
-        let count: i64 = sqlx::query("SELECT COUNT(parent) FROM dirents")
+        let count: i64 = sqlx::query("SELECT COUNT(parent) FROM stash.dirents")
             .fetch_one(transaction)
             .await?
             .get(0);
@@ -290,7 +290,7 @@ pub(crate) mod tests {
 
             for (column, value) in &[("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE dirents SET {column} = {value} WHERE parent = $1::bigint AND child_dir = $2::bigint");
+                let query = format!("UPDATE stash.dirents SET {column} = {value} WHERE parent = $1::bigint AND child_dir = $2::bigint");
                 let result = sqlx::query(&query).bind(1i64).bind(child_dir.id).execute(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
@@ -314,7 +314,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            assert_cannot_truncate(&mut transaction, "dirents").await;
+            assert_cannot_truncate(&mut transaction, "stash.dirents").await;
 
             Ok(())
         }
@@ -386,7 +386,7 @@ pub(crate) mod tests {
                 let result = Dirent::new(parent.id, basename.to_string(), InodeId::Dir(child.id)).create(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
-                    "error returned from database: value for domain linux_basename violates check constraint \"linux_basename_check\""
+                    "error returned from database: value for domain stash.linux_basename violates check constraint \"linux_basename_check\""
                 );
             }
 

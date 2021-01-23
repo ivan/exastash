@@ -19,7 +19,7 @@ impl Storage {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query(
-            "INSERT INTO storage_inline (file_id, content_zstd)
+            "INSERT INTO stash.storage_inline (file_id, content_zstd)
              VALUES ($1::bigint, $2::bytea)",
         )
             .bind(&self.file_id)
@@ -32,7 +32,7 @@ impl Storage {
     /// Remove storages with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
-        let stmt = "DELETE FROM storage_inline WHERE file_id = ANY($1::bigint[])";
+        let stmt = "DELETE FROM stash.storage_inline WHERE file_id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(file_ids)
             .execute(transaction).await?;
@@ -42,7 +42,7 @@ impl Storage {
     /// Return a list of inline storage entities containing the data for a file.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         Ok(sqlx::query_as::<_, Storage>(
-            "SELECT file_id, content_zstd FROM storage_inline
+            "SELECT file_id, content_zstd FROM stash.storage_inline
              WHERE file_id = ANY($1::bigint[])"
         )
             .bind(file_ids)
@@ -110,7 +110,7 @@ mod tests {
 
             for (column, value) in &[("file_id", "100")] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE storage_inline SET {column} = {value} WHERE file_id = $1::bigint");
+                let query = format!("UPDATE stash.storage_inline SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id");
             }
@@ -125,7 +125,7 @@ mod tests {
             let pool = new_secondary_pool().await;
 
             let mut transaction = pool.begin().await?;
-            assert_cannot_truncate(&mut transaction, "storage_inline").await;
+            assert_cannot_truncate(&mut transaction, "stash.storage_inline").await;
 
             Ok(())
         }
