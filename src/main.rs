@@ -574,7 +574,7 @@ async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segmen
 }
 
 #[async_recursion]
-async fn ts_find(
+async fn x_find(
     transaction: &mut Transaction<'_, Postgres>,
     segments: &[&str],
     dir_id: i64,
@@ -606,7 +606,7 @@ async fn ts_find(
 
         if let InodeId::Dir(dir_id) = dirent.child {
             let segments = [segments, &[&dirent.basename]].concat();
-            ts_find(transaction, &segments, dir_id, r#type, terminator).await?;
+            x_find(transaction, &segments, dir_id, r#type, terminator).await?;
         }
     }
     Ok(())
@@ -1128,7 +1128,7 @@ async fn main() -> Result<()> {
                             // Print the top-level dir like findutils find
                             print!("{}{}", path_arg, terminator);
                         }
-                        ts_find(&mut transaction, &[&path_arg], dir_id, r#type, terminator).await?;
+                        x_find(&mut transaction, &[&path_arg], dir_id, r#type, terminator).await?;
                     }
                 }
                 PathCommand::Mkdir { paths: path_args } => {
