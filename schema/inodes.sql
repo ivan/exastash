@@ -33,7 +33,7 @@ CREATE TABLE dirs (
     -- A CONSTRAINT is added to this table in dirents.sql
 );
 -- This should always get id=1
-INSERT INTO dirs VALUES (DEFAULT, now(), now(), 44, '');
+INSERT INTO dirs VALUES (DEFAULT, now(), now(), 45, '');
 
 CREATE TABLE files (
     -- Limit of 2T can be raised if needed
