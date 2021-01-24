@@ -339,3 +339,16 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
 
     Ok((stream, file))
 }
+
+/// Helper function for copying a ReadStream to an AsyncWrite
+pub async fn write_stream_to_sink<S>(stream: ReadStream, sink: &mut S) -> Result<()>
+where
+    S: tokio::io::AsyncWrite + Unpin
+{
+    let mut read = stream
+        .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+        .into_async_read()
+        .compat();
+    tokio::io::copy(&mut read, sink).await?;
+    Ok(())
+}

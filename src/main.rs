@@ -4,7 +4,7 @@ use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
 use clap::arg_enum;
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{anyhow, bail, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use tokio::fs;
@@ -13,7 +13,6 @@ use std::convert::TryInto;
 use std::path::PathBuf;
 use num::rational::Ratio;
 use sqlx::{Postgres, Transaction};
-use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tracing_subscriber::EnvFilter;
 use serde_json::json;
 use exastash::db;
@@ -28,7 +27,6 @@ use exastash::info::json_info;
 use exastash::oauth;
 use exastash::retry::Decayer;
 use exastash::{storage_read, storage_write};
-use futures::stream::TryStreamExt;
 use yup_oauth2::ServiceAccountKey;
 use mimalloc::MiMalloc;
 
@@ -614,18 +612,6 @@ async fn ts_find(
     Ok(())
 }
 
-async fn write_stream_to_sink<S>(stream: storage_read::ReadStream, sink: &mut S) -> Result<()>
-where
-    S: tokio::io::AsyncWrite + Unpin
-{
-    let mut read = stream
-        .map_err(|e: Error| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-        .into_async_read()
-        .compat();
-    tokio::io::copy(&mut read, sink).await?;
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env()
@@ -707,7 +693,7 @@ async fn main() -> Result<()> {
                         ContentCommand::Read { id } => {
                             let (stream, _) = storage_read::read(id).await?;
                             let mut stdout = tokio::io::stdout();
-                            write_stream_to_sink(stream, &mut stdout).await?;
+                            storage_read::write_stream_to_sink(stream, &mut stdout).await?;
                         }
                     }
                 }
@@ -865,7 +851,7 @@ async fn main() -> Result<()> {
                                     for gdrive_file in &gdrive_files {
                                         let stream = Box::pin(storage_read::stream_gdrive_file(gdrive_file, domain_id).await?);
                                         let mut stdout = tokio::io::stdout();
-                                        write_stream_to_sink(stream, &mut stdout).await?;
+                                        storage_read::write_stream_to_sink(stream, &mut stdout).await?;
                                     }
                                 }
                             }
@@ -909,7 +895,7 @@ async fn main() -> Result<()> {
                     for file_id in file_ids {
                         let (stream, _) = storage_read::read(file_id).await?;
                         let mut stdout = tokio::io::stdout();
-                        write_stream_to_sink(stream, &mut stdout).await?;
+                        storage_read::write_stream_to_sink(stream, &mut stdout).await?;
                     }
                 }
                 PathCommand::Get { paths: path_args, skip_if_exists } => {
@@ -970,7 +956,7 @@ async fn main() -> Result<()> {
 
                                 let mut local_file = tokio::fs::File::create(&path_arg).await?;
                                 let (stream, file) = storage_read::read(file_id).await?;
-                                write_stream_to_sink(stream, &mut local_file).await?;
+                                storage_read::write_stream_to_sink(stream, &mut local_file).await?;
 
                                 if file.executable {
                                     let permissions = std::fs::Permissions::from_mode(0o770);
