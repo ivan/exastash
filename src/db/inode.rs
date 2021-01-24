@@ -215,7 +215,7 @@ impl File {
 
     /// Return a new, unique id for a file.  Caller can take this id and `create()` a `File` with it later.
     pub async fn next_id(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
-        db::nextval(transaction, "files_id_seq").await
+        db::nextval(transaction, "stash.files_id_seq").await
     }
 
     /// Set the b3sum for a file that may not have one already
