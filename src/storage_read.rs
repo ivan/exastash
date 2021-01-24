@@ -134,7 +134,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
 }
 
 fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
-    let _file = file.clone();
+    let file = file.clone();
     let storage = storage.clone();
 
     Box::pin(
@@ -146,6 +146,9 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
             let gdrive_ids: Vec<&str> = storage.gdrive_ids.iter().map(String::as_str).collect();
             let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
             drop(transaction);
+
+            let mut total_bytes_read: i64 = 0;
+
             for gdrive_file in gdrive_files {
                 info!(id = &*gdrive_file.id, size = gdrive_file.size, "streaming gdrive file");
                 let encrypted_stream = stream_gdrive_file(&gdrive_file, storage.google_domain).await?;
@@ -160,7 +163,14 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
                     let encrypted = frame?;
                     let mut decrypted = encrypted.to_vec();
                     cipher.apply_keystream(&mut decrypted);
-                    let bytes = decrypted.into();
+                    let mut bytes: Bytes = decrypted.into();
+                    // keep_bytes will usually be too large, but there is no harm.
+                    let mut keep_bytes = file.size - total_bytes_read;
+                    if keep_bytes < 0 {
+                        keep_bytes = 0;
+                    }
+                    total_bytes_read += bytes.len() as i64;
+                    bytes.truncate(keep_bytes as usize);
                     yield bytes;
                 }
                 // TODO: on EOF, make sure we got the expected number of bytes
@@ -216,7 +226,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Re
                 // but we actually need to truncate an individual gdrive file.
                 let last_gcm_stream_bytes = gcm_stream_bytes;
                 gcm_stream_bytes += gdrive_file.size as u64;
-                // This will be too large except for the last gdrive file in the sequence, but
+                // keep_bytes will be too large except for the last gdrive file in the sequence, but
                 // there is no harm.
                 let keep_bytes = aes_gcm_length - last_gcm_stream_bytes;
                 let truncated_read = encrypted_read.take(keep_bytes);
