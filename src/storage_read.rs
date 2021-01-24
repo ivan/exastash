@@ -173,7 +173,6 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
                     bytes.truncate(keep_bytes as usize);
                     yield bytes;
                 }
-                // TODO: on EOF, make sure we got the expected number of bytes
             }
         }
     )
@@ -239,7 +238,6 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Re
                 for frame in frame_reader {
                     yield frame?;
                 }
-                // TODO: on EOF, make sure we got the expected number of bytes
             }
         }
     )
