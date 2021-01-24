@@ -301,8 +301,9 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     let mut files = inode::File::find_by_ids(&mut transaction, &[file_id]).await?;
     ensure!(files.len() == 1, "no such file with id={}", file_id);
     let file = files.pop().unwrap();
+    let file_size = file.size;
 
-    if file.size == 0 {
+    if file_size == 0 {
         let bytes = Bytes::new();
         return Ok((Box::pin(stream::iter::<_>(vec![Ok(bytes)])), file));
     }
@@ -321,11 +322,19 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
         Box::pin(
             #[try_stream]
             async move {
+                let mut bytes_read: i64 = 0;
+
                 #[for_await]
                 for frame in underlying_stream {
-                    yield frame?;
+                    let frame = frame?;
+                    bytes_read += frame.len() as i64;
+                    yield frame;
                 }
-                
+
+                if bytes_read != file_size {
+                    bail!("file with id={} should have had {} bytes but read {}", file_id, file_size, bytes_read);
+                }
+
                 let mut transaction = pool.begin().await?;
                 let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
                 info!("fixing unset b3sum on file id={} to {:?}", file_id, hex::encode(computed_hash.as_bytes()));
