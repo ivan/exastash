@@ -244,7 +244,7 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> ReadStr
 }
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`
-async fn read_storage_(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
+async fn read_storage_without_checks(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
     info!(id = file.id, "reading file");
     Ok(match storage {
         Storage::Inline(inline::Storage { content_zstd, .. }) => {
@@ -268,20 +268,29 @@ async fn read_storage_(file: &inode::File, storage: &Storage) -> Result<ReadStre
 }
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`,
-/// while also verifying the b3sum of the file (if it has a known b3sum).
+/// while also verifying the size and the b3sum of the file (if it has a known b3sum).
 pub async fn read_storage(file: &inode::File, storage: &Storage, b3sum: Arc<Mutex<blake3::Hasher>>) -> Result<ReadStream> {
-    let underlying_stream = read_storage_(file, storage).await?;
-    let file_b3sum = file.b3sum;
+    let underlying_stream = read_storage_without_checks(file, storage).await?;
     let hashing_stream = Blake3HashingStream::new(underlying_stream, b3sum.clone());
+    let file = file.clone();
     Ok(Box::pin(
         #[try_stream]
         async move {
+            let mut bytes_read: i64 = 0;
+
             #[for_await]
             for frame in hashing_stream {
-                yield frame?;
+                let frame = frame?;
+                bytes_read += frame.len() as i64;
+                yield frame;
             }
+
+            if bytes_read != file.size {
+                bail!("file with id={} should have had {} bytes but read {}", file.id, file.size, bytes_read);
+            }
+
             let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
-            if let Some(db_hash) = file_b3sum {
+            if let Some(db_hash) = file.b3sum {
                 ensure!(
                     computed_hash.as_bytes() == &db_hash,
                     "computed b3sum for content is {:?} but file has b3sum={:?}",
@@ -322,17 +331,9 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
         Box::pin(
             #[try_stream]
             async move {
-                let mut bytes_read: i64 = 0;
-
                 #[for_await]
                 for frame in underlying_stream {
-                    let frame = frame?;
-                    bytes_read += frame.len() as i64;
-                    yield frame;
-                }
-
-                if bytes_read != file_size {
-                    bail!("file with id={} should have had {} bytes but read {}", file_id, file_size, bytes_read);
+                    yield frame?;
                 }
 
                 let mut transaction = pool.begin().await?;
