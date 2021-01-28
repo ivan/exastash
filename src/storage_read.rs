@@ -164,6 +164,7 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
                     let mut decrypted = encrypted.to_vec();
                     cipher.apply_keystream(&mut decrypted);
                     let mut bytes: Bytes = decrypted.into();
+                    // We need to truncate the NULL padding that was suffixed to the chunk before encryption.
                     // keep_bytes will usually be too large, but there is no harm.
                     let mut keep_bytes = file.size - total_bytes_read;
                     if keep_bytes < 0 {
