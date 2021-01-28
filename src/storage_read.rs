@@ -101,8 +101,11 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
     if access_tokens.is_empty() {
         bail!("no access tokens were available for owners associated file_id={:?} (domain_id={})", gdrive_file.id, domain_id);
     }
+    let tries = 3;
+    let access_tokens_tries = access_tokens.iter().cycle().take(access_tokens.len() * tries);
+
     let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
-    for access_token in &access_tokens {
+    for access_token in access_tokens_tries {
         debug!("trying access token {}", access_token);
         let response = request_gdrive_file(&gdrive_file.id, access_token).await?;
         let headers = response.headers();
@@ -122,7 +125,14 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
                 out = Ok(stream_add_validation(gdrive_file, response.bytes_stream()));
                 break;
             },
-            StatusCode::UNAUTHORIZED | StatusCode::NOT_FOUND => {
+            // BAD_REQUEST, FORBIDDEN, INTERNAL_SERVER_ERROR, SERVICE_UNAVAILABLE have been observed as transient errors from Google Drive
+            // UNAUTHORIZED, NOT_FOUND probably indicate that the wrong access token was used
+            StatusCode::BAD_REQUEST |
+            StatusCode::UNAUTHORIZED |
+            StatusCode::FORBIDDEN |
+            StatusCode::NOT_FOUND |
+            StatusCode::INTERNAL_SERVER_ERROR |
+            StatusCode::SERVICE_UNAVAILABLE => {
                 debug!("Google responded with HTTP status code {} for file_id={:?}, \
                         trying another access token if available", response.status(), gdrive_file.id);
                 continue;
