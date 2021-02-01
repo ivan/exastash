@@ -1,35 +1,29 @@
 //! Functions to write content to storage
 
 use rand::Rng;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use std::pin::Pin;
 use std::cmp::min;
 use std::convert::{TryFrom, TryInto};
 use std::fs::Metadata;
-use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use anyhow::{anyhow, bail};
-use futures::{
-    ready,
-    stream::{self, Stream, StreamExt, TryStreamExt},
-    task::{Context, Poll},
-};
+use futures::{ready, stream::{self, Stream, StreamExt, TryStreamExt}, task::{Context, Poll}};
 use tracing::info;
 use anyhow::{ensure, Result};
-use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
-use tokio::fs;
+use tokio::{fs, io::{AsyncRead, AsyncReadExt}};
 use tokio_util::codec::{Encoder, FramedRead};
-use crate::crypto::{FixedReadSizeDecoder, GcmEncoder, gcm_create_key};
+use crate::util::FixedReadSizeDecoder;
+use crate::crypto::{GcmEncoder, gcm_create_key};
 use crate::conceal_size::conceal_size;
 use crate::db;
 use crate::db::inode;
 use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}};
-use crate::blake3::{Blake3HashingStream, b3sum_bytes};
+use crate::blake3::{Blake3HashingReader, b3sum_bytes};
 use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::{create_gdrive_file, GdriveUploadError};
-use crate::util::{self, elide};
-use custom_debug_derive::Debug as CustomDebug;
+use crate::util;
 use pin_project::pin_project;
 use parking_lot::Mutex;
 use md5::{Md5, Digest};
@@ -46,7 +40,9 @@ struct GdriveHashingStream<S> {
 }
 
 impl<S> GdriveHashingStream<S> {
-    fn new(stream: S, crc32c: Arc<Mutex<u32>>, md5: Arc<Mutex<Md5>>) -> GdriveHashingStream<S> {
+    fn new(stream: S) -> GdriveHashingStream<S> {
+        let crc32c = Arc::new(Mutex::new(0));
+        let md5 = Arc::new(Mutex::new(Md5::new()));
         GdriveHashingStream { stream, crc32c, md5 }
     }
 
@@ -87,58 +83,17 @@ where
     }
 }
 
-/// A provider of a stream that starts at some byte offset
-#[async_trait]
-pub trait StreamAtOffset: Send + Sync {
-    /// Get a `Stream` of `std::io::Result<Bytes>` starting at byte offset `offset`.
-    async fn stream(&mut self, offset: usize) -> Result<Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static>>>;
-}
-
-pub(crate) struct GdriveFileProducer<SAO: StreamAtOffset> {
-    efs: SAO,
-    crc32c: Arc<Mutex<u32>>,
-    md5: Arc<Mutex<Md5>>,
-}
-
-impl<SAO: StreamAtOffset> GdriveFileProducer<SAO> {
-    fn new(efs: SAO) -> Self {
-        GdriveFileProducer {
-            efs,
-            crc32c: Arc::new(Mutex::new(0)),
-            md5: Arc::new(Mutex::new(Md5::new())),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn hashes(&self) -> (Arc<Mutex<u32>>, Arc<Mutex<Md5>>) {
-        (self.crc32c.clone(), self.md5.clone())
-    }
-}
-
-#[async_trait]
-impl<SAO: StreamAtOffset> StreamAtOffset for GdriveFileProducer<SAO> {
-    async fn stream(&mut self, offset: usize) -> Result<Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static>>> {
-        // TODO: support non-0 offset
-        assert_eq!(offset, 0);
-
-        let encrypted_stream = self.efs.stream(offset).await?;
-        let stream = GdriveHashingStream::new(encrypted_stream, self.crc32c.clone(), self.md5.clone());
-        Ok(Box::pin(stream))
-    }
-}
-
 /// Uploads a file to Google Drive and returns a `GdriveFile`.  You must commit
 /// it to the database yourself.
 ///
-/// `producer` is a `StreamAtOffset` where `.stream(offset)` returns a `Stream`
-///  containing the content to upload.
+/// `stream` is a `Stream` containing the file content to upload.
 /// `size` is the length of the `Stream` and the resulting Google Drive file.
 /// `owner_id` is the gdrive_owner for the file.
 /// `domain_id` is the google_domain for the file.
 /// `parent` is the Google Drive folder in which to create a file.
 /// `filename` is the name of the file to create in Google Drive.
-pub async fn create_gdrive_file_on_domain<SAO: StreamAtOffset>(
-    producer: SAO,
+pub async fn create_gdrive_file_on_domain<S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static>(
+    stream: S,
     size: u64,
     domain_id: i16,
     owner_id: i32,
@@ -154,8 +109,9 @@ pub async fn create_gdrive_file_on_domain<SAO: StreamAtOffset>(
         Ok(access_token)
     };
 
-    let gfs = GdriveFileProducer::new(producer);
-    let (crc32c, md5) = gfs.hashes();
+    let gfs = GdriveHashingStream::new(stream);
+    let crc32c = gfs.crc32c();
+    let md5 = gfs.md5();
     let response = create_gdrive_file(gfs, access_token_fn, size, parent, filename).await?;
 
     let md5 = md5.lock().clone().finalize();
@@ -214,49 +170,35 @@ impl Iterator for RandomPadding {
     }
 }
 
-/// Produces a stream of AES-128-GCM encrypted and authenticated file contents,
+/// Takes an unencrypted AsyncRead and returns an AES-128-GCM encrypted stream,
 /// suitable for storing in untrusted storage.
-#[derive(CustomDebug)]
-pub struct EncryptedFileProducer {
-    lfp: LocalFileProducer,
+async fn encrypt_reader<A: AsyncRead + Send + Sync + 'static>(
+    reader: A,
     block_size: usize,
-    #[debug(with = "elide")]
     cipher_key: [u8; 16],
-    padding_size: u64,
-}
+    padding_size: u64
+) -> Result<Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static>>> {
+    // Re-chunk the stream to make sure each chunk is appropriately-sized for the GcmEncoder
+    let rechunked = {
+        let decoder = FixedReadSizeDecoder::new(block_size);
+        FramedRead::new(reader, decoder)
+    };
 
-impl EncryptedFileProducer {
-    fn new(lfp: LocalFileProducer, block_size: usize, cipher_key: [u8; 16], padding_size: u64) -> Self {
-        EncryptedFileProducer { lfp, block_size, cipher_key, padding_size }
-    }
-}
+    let mut encoder = {
+        let key = gcm_create_key(cipher_key).unwrap();
+        GcmEncoder::new(block_size, key, 0)
+    };
 
-#[async_trait]
-impl StreamAtOffset for EncryptedFileProducer {
-    async fn stream(&mut self, offset: usize) -> Result<Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static>>> {
-        // TODO: support non-0 offset
-        assert_eq!(offset, 0);
-
-        let read_size = self.block_size;
-        self.lfp.set_read_size(read_size);
-        let unencrypted = self.lfp.stream(offset).await?;
-
-        let key = gcm_create_key(self.cipher_key).unwrap();
-        let mut encoder = GcmEncoder::new(self.block_size, key, 0);
-
-        let block_size = self.block_size;
-        let padding_size = self.padding_size;
-        let stream = unencrypted.map_ok(move |bytes| -> Bytes {
-            assert!(bytes.len() <= block_size, "single read from file must be shorter or same length as block size {}, was {}", block_size, bytes.len());
-            let mut out = BytesMut::new();
-            encoder.encode(bytes, &mut out).unwrap();
-            out.into()
-        }).chain(
-            stream::iter(RandomPadding::new(padding_size))
-            .map(Ok)
-        );
-        Ok(Box::pin(stream))
-    }
+    let stream = rechunked.map_ok(move |bytes| -> Bytes {
+        assert!(bytes.len() <= block_size, "single read from file must be shorter or same length as block size {}, was {}", block_size, bytes.len());
+        let mut out = BytesMut::new();
+        encoder.encode(bytes, &mut out).unwrap();
+        out.into()
+    }).chain(
+        stream::iter(RandomPadding::new(padding_size))
+        .map(Ok)
+    );
+    Ok(Box::pin(stream))
 }
 
 async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlacement) -> Result<()> {
@@ -305,8 +247,8 @@ async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlaceme
 /// Returns a `(GdriveFile, gdrive::Storage)` on which caller must `.create()` to commit.
 /// If the gdrive parent into which we are uploading is full, replaces the parent in gdrive_file_placement,
 /// then returns the original error.
-pub async fn write_to_gdrive(
-    lfp: LocalFileProducer,
+pub async fn write_to_gdrive<A: AsyncRead + Send + Sync + 'static>(
+    reader: A,
     file: &inode::File,
     domain_id: i16
 ) -> Result<(GdriveFile, gdrive::Storage)> {
@@ -328,9 +270,8 @@ pub async fn write_to_gdrive(
     let encrypted_size = get_aes_gcm_length(file.size as u64, block_size);
     let gdrive_file_size = conceal_size(encrypted_size);
     let padding_size = gdrive_file_size - encrypted_size;
-
     let cipher_key = new_cipher_key();
-    let efp = EncryptedFileProducer::new(lfp, block_size, cipher_key, padding_size);
+    let efp = encrypt_reader(reader, block_size, cipher_key, padding_size).await?;
 
     let filename = new_chunk_filename();
     // While terastash uploaded large files as multi-chunk files,
@@ -375,11 +316,23 @@ pub async fn paranoid_zstd_encode_all(bytes: Vec<u8>, level: i32) -> Result<Vec<
 
 /// Descriptor indicating which storages should be used for a new file
 #[derive(Debug, PartialEq, Eq)]
-pub struct DesiredStorage {
+pub struct DesiredStorages {
     /// Whether to store inline in the database
     pub inline: bool,
     /// A list of google_domain ids in which to store the file
     pub gdrive: Vec<i16>,
+}
+
+impl DesiredStorages {
+    /// How many storages we want to store to
+    pub fn len(&self) -> usize {
+        let mut total = 0;
+        if self.inline {
+            total += 1;
+        }
+        total += self.gdrive.len();
+        total
+    }
 }
 
 /// Local file metadata that can be stored in exastash
@@ -417,98 +370,47 @@ impl TryFrom<Metadata> for RelevantFileMetadata {
     }
 }
 
-/// Provide a Stream for a local file and compute a b3sum of the complete file contents
-#[derive(Debug, Clone)]
-pub struct LocalFileProducer {
-    path: PathBuf,
-    read_size: usize,
-    b3sum: Arc<Mutex<blake3::Hasher>>,
-}
 
-impl LocalFileProducer {
-    /// Create a `LocalFileProducer` that can stream a local file
-    pub fn new<P: Into<PathBuf>>(path: P) -> Self {
-        LocalFileProducer {
-            path: path.into(),
-            read_size: 0,
-            b3sum: Arc::new(Mutex::new(blake3::Hasher::new())),
-        }
-    }
-
-    /// You must call this before .stream(...) to set the max length of the Bytes yielded by the stream
-    pub fn set_read_size(&mut self, read_size: usize) {
-        self.read_size = read_size;
-    }
-
-    /// Returns an `Arc` which can be derefenced to get the b3sum of the data streamed so far
-    #[inline]
-    fn b3sum(&self) -> Arc<Mutex<blake3::Hasher>> {
-        self.b3sum.clone()
-    }
-}
-
-#[async_trait]
-impl StreamAtOffset for LocalFileProducer {
-    async fn stream(&mut self, offset: usize) -> Result<Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static>>> {
-        let decoder = FixedReadSizeDecoder::new(self.read_size);
-        // TODO: support non-0 offset if we implement upload retries
-        assert_eq!(offset, 0);
-        let async_read = fs::File::open(self.path.clone()).await?;
-        let file_stream = FramedRead::new(async_read, decoder);
-        let hashing_stream = Blake3HashingStream::new(file_stream, self.b3sum());
-        Ok(Box::pin(hashing_stream))
-    }
-}
-
-/// Write a file to storage and return the new file id
-pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storage: &DesiredStorage) -> Result<i64> {
-    let pool = db::pgpool().await;
-
-    // We don't want to hold a transaction open as we upload a file, so we get a new id for a
-    // file here but don't create it until later.
-    let mut transaction = pool.begin().await?;
-    let next_file_id = inode::File::next_id(&mut transaction).await?;
-    drop(transaction);
-
-    let birth = inode::Birth::here_and_now();
-    let mut file = inode::File {
-        id: next_file_id,
-        mtime: metadata.mtime,
-        birth,
-        size: metadata.size,
-        executable: metadata.executable,
-        b3sum: None,
-    };
-
-    if metadata.size > 0 && !desired_storage.inline && desired_storage.gdrive.is_empty() {
-        bail!("a file with size > 0 needs storage, but no storage was specified");
-    }
-
-    let mut inline_storages_to_commit: Vec<inline::Storage> = vec![];
-    let mut gdrive_files_to_commit: Vec<GdriveFile> = vec![];
-    let mut gdrive_storages_to_commit: Vec<gdrive::Storage> = vec![];
-
+/// Add storages for a file and commit them to the database.
+/// Returns the b3sum of the stream.
+pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
+    mut producer: impl FnMut() -> Result<A>,
+    file: &inode::File,
+    desired: &DesiredStorages,
+) -> Result<blake3::Hash> {
     let mut hash = None;
 
-    if desired_storage.inline {
-        let content = fs::read(path.clone()).await?;
+    // If no storages, just return the hash
+    if !desired.inline && desired.gdrive.is_empty() {
+        hash = Some(b3sum_bytes(b""));
+    }
+
+    if desired.inline {
+        let mut reader = producer()?;
+        let mut content = vec![];
+        reader.read_to_end(&mut content).await?;
         hash = Some(b3sum_bytes(&content));
         ensure!(
-            content.len() as i64 == metadata.size,
+            content.len() as i64 == file.size,
             "read {} bytes from file but file size was read as {}", content.len(), file.size
         );
         let compression_level = 19; // levels > 19 use a lot more memory to decompress
         let content_zstd = paranoid_zstd_encode_all(content, compression_level).await?;
 
-        let storage = inline::Storage { file_id: file.id, content_zstd };
-        inline_storages_to_commit.push(storage);
+        let pool = db::pgpool().await;
+        let mut transaction = pool.begin().await?;
+        inline::Storage { file_id: file.id, content_zstd }.create(&mut transaction).await?;
+        transaction.commit().await?;
     }
 
-    if !desired_storage.gdrive.is_empty() {
-        for domain in &desired_storage.gdrive {
-            let lfp = LocalFileProducer::new(path.clone());
-            let b3sum = lfp.b3sum();
-            let (gdrive_file, storage) = write_to_gdrive(lfp, &file, *domain).await?;
+    if !desired.gdrive.is_empty() {
+        for domain in &desired.gdrive {
+            let reader = producer()?;
+            let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
+            // TODO: ensure size read here is correct
+            let hashing_reader = Blake3HashingReader::new(reader, b3sum.clone());
+
+            let (gdrive_file, storage) = write_to_gdrive(hashing_reader, &file, *domain).await?;
             let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
             if let Some(h) = hash {
                 if hash_this_upload != h {
@@ -517,33 +419,59 @@ pub async fn write(path: String, metadata: &RelevantFileMetadata, desired_storag
                 }
             }
             hash = Some(hash_this_upload);
-            gdrive_files_to_commit.push(gdrive_file);
-            gdrive_storages_to_commit.push(storage);
+
+            let pool = db::pgpool().await;
+            let mut transaction = pool.begin().await?;
+            gdrive_file.create(&mut transaction).await?;
+            storage.create(&mut transaction).await?;
+            transaction.commit().await?;
         }
     }
 
-    // Note that for files of size 0 and no storage, we will not have a b3sum
-    // because we do not really need one.
-    if let Some(h) = hash {
-        file.b3sum = Some(*h.as_bytes());
+    Ok(hash.unwrap())
+}
+
+/// Return `count` number of open `tokio::fs::File`s for a path.
+pub async fn readers_for_file(path: PathBuf, count: usize) -> Result<Vec<tokio::fs::File>> {
+    let mut readers = Vec::with_capacity(count);
+    for _ in 0..count {
+        let reader = fs::File::open(path.clone()).await?;
+        readers.push(reader);
+    }
+    Ok(readers)
+}
+
+/// Create a new stash file based on a local file, write storage, return the new file id
+pub async fn create_stash_file_from_local_file(path: String, metadata: &RelevantFileMetadata, desired: &DesiredStorages) -> Result<i64> {
+    if metadata.size > 0 && desired.len() == 0 {
+        bail!("a file with size > 0 needs storage, but no storage was specified");
     }
 
-    if metadata.size > 0 {
-        assert!(file.b3sum.is_some(), "b3sum should have been set");
-    }
-
+    let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
-    file.create(&mut transaction).await?;
-    for storage in inline_storages_to_commit {
-        storage.create(&mut transaction).await?;
-    }
-    for gdrive_file in gdrive_files_to_commit {
-        gdrive_file.create(&mut transaction).await?;
-    }
-    for storage in gdrive_storages_to_commit {
-        storage.create(&mut transaction).await?;
-    }
+    let birth = inode::Birth::here_and_now();
+    let file = inode::NewFile {
+        mtime: metadata.mtime,
+        birth,
+        size: metadata.size,
+        executable: metadata.executable,
+        b3sum: None,
+    }.create(&mut transaction).await?;
     transaction.commit().await?;
+
+    let mut readers = readers_for_file(path.into(), desired.len()).await?;
+    let producer = move || {
+        readers.pop().ok_or_else(|| anyhow!("no readers left"))
+    };
+    let hash = add_storages(producer, &file, desired).await?;
+
+    if file.size > 0 {
+        let pool = db::pgpool().await;
+        let mut transaction = pool.begin().await?;
+        inode::File::set_b3sum(&mut transaction, file.id, hash.as_bytes()).await?;
+        transaction.commit().await?;
+    }
+
     Ok(file.id)
 }
 

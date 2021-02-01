@@ -10,7 +10,7 @@ use quick_js::{Context, JsValue};
 use directories::ProjectDirs;
 use custom_debug_derive::Debug as CustomDebug;
 use crate::util::{self, elide};
-use crate::storage_write::{DesiredStorage, RelevantFileMetadata};
+use crate::storage_write::{DesiredStorages, RelevantFileMetadata};
 
 /// A value in the [path_roots] section of config.toml
 #[derive(Clone, Deserialize, Debug, PartialEq, Eq)]
@@ -62,12 +62,12 @@ pub fn get_config() -> Result<Config> {
     parse_config(&content)
 }
 
-impl TryFrom<JsValue> for DesiredStorage {
+impl TryFrom<JsValue> for DesiredStorages {
     type Error = anyhow::Error;
 
-    /// Convert JS object e.g. {inline: true, gdrive: [1]} to a DesiredStorage
-    fn try_from(js_obj: JsValue) -> Result<DesiredStorage> {
-        let mut desired_storage = DesiredStorage { inline: false, gdrive: vec![] };
+    /// Convert JS object e.g. {inline: true, gdrive: [1]} to a DesiredStorages
+    fn try_from(js_obj: JsValue) -> Result<DesiredStorages> {
+        let mut desired_storage = DesiredStorages { inline: false, gdrive: vec![] };
 
         if let JsValue::Object(map) = js_obj {
             if let Some(val) = map.get("gdrive") {
@@ -110,8 +110,8 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// Call policy.js's newFileStorages and convert the result to a DesiredStorage
-    pub fn new_file_storages(&self, stash_path: &[&str], metadata: &RelevantFileMetadata) -> Result<DesiredStorage> {
+    /// Call policy.js's newFileStorages and convert the result to a DesiredStorages
+    pub fn new_file_storages(&self, stash_path: &[&str], metadata: &RelevantFileMetadata) -> Result<DesiredStorages> {
         let mut properties: HashMap<String, JsValue> = HashMap::new();
         let stash_path_js = stash_path
             .iter()
@@ -208,21 +208,21 @@ mod tests {
 
             assert_eq!(
                 policy.new_file_storages(&["parent", "something.json"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-                DesiredStorage { inline: true, gdrive: vec![1] }
+                DesiredStorages { inline: true, gdrive: vec![1] }
             );
 
             assert_eq!(
                 policy.new_file_storages(&["something.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-                DesiredStorage { inline: false, gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, gdrive: vec![1, 2] }
             );
             assert_eq!(
                 policy.new_file_storages(&["something"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
-                DesiredStorage { inline: false, gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, gdrive: vec![1, 2] }
             );
 
             assert_eq!(
                 policy.new_file_storages(&["small"], &RelevantFileMetadata { size: 50, mtime: Utc::now(), executable: false })?,
-                DesiredStorage { inline: true, gdrive: vec![] }
+                DesiredStorages { inline: true, gdrive: vec![] }
             );
 
             Ok(())

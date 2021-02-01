@@ -12,9 +12,10 @@ use std::future::Future;
 use byteorder::{BigEndian, ReadBytesExt};
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
+use futures::stream::Stream;
+use bytes::Bytes;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
-use crate::storage_write::StreamAtOffset;
 
 pub fn get_header_value<'a>(response: &'a reqwest::Response, header: &str) -> Result<&'a str> {
     let headers = response.headers();
@@ -142,8 +143,8 @@ fn is_shared_drive_full_response(json: &serde_json::Value) -> bool {
     false
 }
 
-pub(crate) async fn create_gdrive_file<SAO: StreamAtOffset, A>(
-    mut producer: SAO,
+pub(crate) async fn create_gdrive_file<S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static, A>(
+    stream: S,
     access_token_fn: impl Fn() -> A,
     size: u64,
     parent: &str,
@@ -182,8 +183,6 @@ where
     let upload_url = headers.get("Location")
         .ok_or_else(|| anyhow!(GdriveUploadError::InitialUploadRequestMissingLocationHeader(headers.clone())))?
         .to_str()?;
-    let offset = 0;
-    let stream = producer.stream(offset).await?;
     let body = reqwest::Body::wrap_stream(stream);
     let upload_response = client
         .put(upload_url)

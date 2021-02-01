@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::path::Component;
 use anyhow::{anyhow, Result, Context};
 use chrono::{DateTime, Utc, Timelike};
+use bytes::{Bytes, BytesMut, Buf};
+use tokio_util::codec::Decoder;
 
 pub(crate) fn env_var(var: &str) -> Result<String> {
     env::var(var).with_context(|| anyhow!("Could not get variable {:?} from environment", var))
@@ -103,6 +105,44 @@ pub(crate) fn utf8_path_to_components(path: &str) -> Vec<String> {
 #[inline]
 pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "...")
+}
+/// Decodes an AsyncRead to a stream of Bytes of fixed length,
+/// except for the last chunk which may be shorter.
+#[allow(missing_copy_implementations)]
+#[derive(Debug)]
+pub struct FixedReadSizeDecoder {
+    /// Length of each Bytes
+    chunk_size: usize,
+}
+
+impl FixedReadSizeDecoder {
+    /// Create a new `FixedReadSizeDecoder`
+    pub fn new(chunk_size: usize) -> Self {
+        assert!(chunk_size > 0, "chunk size must be > 0");
+        FixedReadSizeDecoder { chunk_size }
+    }
+}
+
+impl Decoder for FixedReadSizeDecoder {
+    type Item = Bytes;
+    type Error = std::io::Error;
+
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if src.len() < self.chunk_size {
+            return Ok(None);
+        }
+        let mut data = src.split_to(self.chunk_size);
+        src.reserve(self.chunk_size);
+        Ok(Some(data.copy_to_bytes(data.remaining())))
+    }
+
+    // Last chunk is not necessarily full-sized
+    fn decode_eof(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if src.is_empty() {
+            return Ok(None)
+        }
+        Ok(Some(src.copy_to_bytes(src.remaining())))
+    }
 }
 
 #[cfg(test)]

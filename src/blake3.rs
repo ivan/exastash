@@ -5,6 +5,43 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use pin_project::pin_project;
 use futures::{ready, stream::Stream, task::{Context, Poll}};
+use tokio::io::{AsyncRead, ReadBuf};
+
+#[pin_project]
+pub(crate) struct Blake3HashingReader<A: AsyncRead> {
+    #[pin]
+    inner: A,
+    b3sum: Arc<Mutex<blake3::Hasher>>,
+}
+
+impl<A: AsyncRead> Blake3HashingReader<A> {
+    pub fn new(inner: A, b3sum: Arc<Mutex<blake3::Hasher>>) -> Blake3HashingReader<A> {
+        Blake3HashingReader { inner, b3sum }
+    }
+
+    /// Returns an `Arc` which can be derefenced to get the blake3 Hasher
+    #[inline]
+    pub fn b3sum(&self) -> Arc<Mutex<blake3::Hasher>> {
+        self.b3sum.clone()
+    }
+}
+
+impl<R> AsyncRead for Blake3HashingReader<R>
+where
+    R: AsyncRead,
+{
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let b3sum = self.b3sum();
+        let inner_poll = self.project().inner.poll_read(cx, buf);
+        b3sum.lock().update(buf.filled());
+        inner_poll
+    }
+}
+
 
 #[pin_project]
 pub(crate) struct Blake3HashingStream<S> {
@@ -44,6 +81,7 @@ where
         }
     }
 }
+
 
 /// Return the BLAKE3 hash for a slice of bytes.
 pub fn b3sum_bytes(bytes: &[u8]) -> blake3::Hash {

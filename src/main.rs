@@ -8,12 +8,14 @@ use anyhow::{anyhow, bail, Result};
 use structopt::StructOpt;
 use chrono::Utc;
 use tokio::fs;
+use tokio_util::codec::FramedRead;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::PathBuf;
 use num::rational::Ratio;
 use sqlx::{Postgres, Transaction};
 use tracing_subscriber::EnvFilter;
+use exastash::util::FixedReadSizeDecoder;
 use serde_json::json;
 use exastash::db;
 use exastash::db::storage::gdrive::{file::GdriveFile, GdriveFilePlacement};
@@ -116,6 +118,23 @@ enum FileCommand {
         /// Local file from which content, mtime, and executable flag will be read
         #[structopt(name = "PATH")]
         path: String,
+
+        /// Store the file data in the database itself. Can be specified with other --store-* options.
+        #[structopt(long)]
+        store_inline: bool,
+
+        /// Store the file data in some google domain (specified by id).
+        /// Can be specified multiple times and with other --store-* options.
+        #[structopt(long)]
+        store_gdrive: Vec<i16>,
+    },
+
+    /// Add storages for stash files
+    #[structopt(name = "add-storages")]
+    AddStorages {
+        /// file id
+        #[structopt(name = "ID")]
+        ids: Vec<i64>,
 
         /// Store the file data in the database itself. Can be specified with other --store-* options.
         #[structopt(long)]
@@ -669,11 +688,39 @@ async fn main() -> Result<()> {
             match command {
                 FileCommand::Create { path, store_inline, store_gdrive } => {
                     drop(transaction);
-                    let desired_storage = storage_write::DesiredStorage { inline: store_inline, gdrive: store_gdrive };
+                    let desired = storage_write::DesiredStorages { inline: store_inline, gdrive: store_gdrive };
                     let attr = fs::metadata(path.clone()).await?;
                     let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
-                    let file_id = storage_write::write(path, &metadata, &desired_storage).await?;
+                    let file_id = storage_write::create_stash_file_from_local_file(path, &metadata, &desired).await?;
                     println!("{}", file_id);
+                }
+                FileCommand::AddStorages { ids, store_inline, store_gdrive } => {
+                    let desired = storage_write::DesiredStorages { inline: store_inline, gdrive: store_gdrive };
+
+                    let files = File::find_by_ids(&mut transaction, &ids).await?;
+                    let mut map = HashMap::with_capacity(files.len());
+                    for file in files {
+                        map.insert(file.id, file);
+                    }
+
+                    for id in ids {
+                        let file = map.get(&id).ok_or_else(|| anyhow!("no file with id={}", id))?;
+
+                        // Read to temporary file because we need an AsyncRead we can Send,
+                        // and because when adding more than one storage, we want to avoid
+                        // reading a file more than once from existing storage.
+                        let (stream, _) = storage_read::read(id).await?;
+                        let temp_path = tempfile::NamedTempFile::new()?.into_temp_path();
+                        let path: PathBuf = (*temp_path).into();
+                        let mut local_file = tokio::fs::File::create(path.clone()).await?;
+                        storage_read::write_stream_to_sink(stream, &mut local_file).await?;
+
+                        let mut readers = storage_write::readers_for_file(path, desired.len()).await?;
+                        let producer = move || {
+                            readers.pop().ok_or_else(|| anyhow!("no readers left"))
+                        };
+                        storage_write::add_storages(producer, file, &desired).await?;
+                    }
                 }
                 FileCommand::Remove { file_id } => {
                     db::storage::remove_storages(&mut transaction, &[file_id]).await?;
@@ -835,10 +882,13 @@ async fn main() -> Result<()> {
                                     let attr = fs::metadata(&path).await?;
                                     let size = attr.len();
 
-                                    let mut lfp = storage_write::LocalFileProducer::new(path.clone());
-                                    lfp.set_read_size(65536);
+                                    let reader = fs::File::open(path.clone()).await?;
+                                    // n.b. 'internal' bypasses encryption - so read size is unrelated to AES-GCM block size
+                                    let decoder = FixedReadSizeDecoder::new(65536);
+                                    let file_stream = FramedRead::new(reader, decoder);
+
                                     let gdrive_file = storage_write::create_gdrive_file_on_domain(
-                                        lfp, size, domain_id, owner_id, &parent, &filename
+                                        file_stream, size, domain_id, owner_id, &parent, &filename
                                     ).await?;
                                     gdrive_file.create(&mut transaction).await?;
                                     transaction.commit().await?;
@@ -1014,14 +1064,14 @@ async fn main() -> Result<()> {
                             }
                             transaction.commit().await?;
 
-                            let desired_storage = policy.new_file_storages(&stash_path, &metadata)?;
+                            let desired = policy.new_file_storages(&stash_path, &metadata)?;
 
                             let initial_delay = std::time::Duration::new(5, 0);
                             let maximum_delay = std::time::Duration::new(1800, 0);
                             let mut decayer = Decayer::new(initial_delay, Ratio::new(3, 2), maximum_delay);
                             let mut tries = 30;
                             let file_id = loop {
-                                match storage_write::write(path_arg.clone(), &metadata, &desired_storage).await {
+                                match storage_write::create_stash_file_from_local_file(path_arg.clone(), &metadata, &desired).await {
                                     Ok(id) => break id,
                                     Err(err) => {
                                         tries -= 1;
@@ -1029,7 +1079,7 @@ async fn main() -> Result<()> {
                                             bail!(err);
                                         }
                                         let delay = decayer.decay();
-                                        eprintln!("storage_write::write({:?}, ...) failed, {} tries left \
+                                        eprintln!("storage_write::create_stash_file_from_local_file({:?}, ...) failed, {} tries left \
                                                    (next in {} sec): {:?}", path_arg, tries, delay.as_secs(), err);
                                         tokio::time::sleep(delay).await;
                                     }

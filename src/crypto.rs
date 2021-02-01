@@ -1,4 +1,6 @@
-use anyhow::{anyhow, bail, ensure, Result, Error};
+//! AES-GCM helpers
+
+use anyhow::{anyhow, bail, Result, Error};
 use byteorder::{BigEndian, WriteBytesExt};
 use ring::aead::{LessSafeKey, Nonce, Aad, Tag, UnboundKey, AES_128_GCM};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
@@ -119,8 +121,12 @@ impl Encoder<Bytes> for GcmEncoder {
     type Error = Error;
 
     fn encode(&mut self, item: Bytes, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        ensure!(item.len() <= self.block_size, "AES-GCM block must be shorter or same length as block size {}, was {}", self.block_size, item.len());
-        ensure!(item.len() > 0, "AES-GCM block must not be 0 bytes");
+        if item.len() > self.block_size {
+            bail!("AES-GCM block must be shorter or same length as block size {}, was {}", self.block_size, item.len());
+        }
+        if item.len() == 0 {
+            bail!("AES-GCM block must not be 0 bytes");
+        }
         if self.finalized {
             bail!("cannot encode another AES-GCM block after encoding a block shorter than the block size");
         }
@@ -136,41 +142,6 @@ impl Encoder<Bytes> for GcmEncoder {
     }
 }
 
-/// Decodes an AsyncRead to a stream of Bytes of fixed length,
-/// except for the last chunk which may be shorter.
-#[derive(Debug)]
-pub(crate) struct FixedReadSizeDecoder {
-    chunk_size: usize,
-}
-
-impl FixedReadSizeDecoder {
-    pub(crate) fn new(chunk_size: usize) -> Self {
-        assert!(chunk_size > 0, "chunk size must be > 0");
-        FixedReadSizeDecoder { chunk_size }
-    }
-}
-
-impl Decoder for FixedReadSizeDecoder {
-    type Item = Bytes;
-    type Error = std::io::Error;
-
-    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if src.len() < self.chunk_size {
-            return Ok(None);
-        }
-        let mut data = src.split_to(self.chunk_size);
-        src.reserve(self.chunk_size);
-        Ok(Some(data.copy_to_bytes(data.remaining())))
-    }
-
-    // Last chunk is not necessarily full-sized
-    fn decode_eof(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if src.is_empty() {
-            return Ok(None)
-        }
-        Ok(Some(src.copy_to_bytes(src.remaining())))
-    }
-}
 
 #[cfg(test)]
 mod tests {
