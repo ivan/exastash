@@ -449,7 +449,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         }
     }
 
-    if let Some(h) = last_hash {
+    if let (None, Some(h)) = (file.b3sum, last_hash) {
         let pool = db::pgpool().await;
         let mut transaction = pool.begin().await?;
         inode::File::set_b3sum(&mut transaction, file.id, h.as_bytes()).await?;
