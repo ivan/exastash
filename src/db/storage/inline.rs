@@ -29,6 +29,21 @@ impl Storage {
         Ok(())
     }
 
+    /// Create an inline storage entity in the database if an entity with `file_id` does not already exist.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn maybe_create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO stash.storage_inline (file_id, content_zstd)
+             VALUES ($1::bigint, $2::bytea)
+             ON CONFLICT DO NOTHING",
+        )
+            .bind(&self.file_id)
+            .bind(&self.content_zstd)
+            .execute(transaction)
+            .await?;
+        Ok(())
+    }
+
     /// Remove storages with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {

@@ -1,7 +1,7 @@
 //! Functions to write content to storage
 
 use rand::Rng;
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 use std::pin::Pin;
 use std::cmp::min;
 use std::convert::{TryFrom, TryInto};
@@ -373,7 +373,8 @@ impl TryFrom<Metadata> for RelevantFileMetadata {
 
 
 /// Add storages for a file and commit them to the database.
-/// Returns the b3sum of the stream.
+/// If a particular storage for a file already exists, it will be skipped.
+/// Returns the `blake3::Hash` of the stream.
 pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     mut producer: impl FnMut() -> Result<A>,
     file: &inode::File,
@@ -399,12 +400,22 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
 
         let pool = db::pgpool().await;
         let mut transaction = pool.begin().await?;
-        inline::Storage { file_id: file.id, content_zstd }.create(&mut transaction).await?;
+        inline::Storage { file_id: file.id, content_zstd }.maybe_create(&mut transaction).await?;
         transaction.commit().await?;
     }
 
     if !desired.gdrive.is_empty() {
+        let already_on_domains: HashSet<i16> = {
+            let pool = db::pgpool().await;
+            let mut transaction = pool.begin().await?;
+            let storages = gdrive::Storage::find_by_file_ids(&mut transaction, &[file.id]).await?;
+            storages.iter().map(|storage| storage.google_domain).collect()
+        };
+
         for domain in &desired.gdrive {
+            if already_on_domains.contains(domain) {
+                continue;
+            }
             let reader = producer()?;
             let counting_reader = util::ByteCountingReader::new(reader);
             let length_arc = counting_reader.length();

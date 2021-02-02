@@ -129,7 +129,7 @@ enum FileCommand {
         store_gdrive: Vec<i16>,
     },
 
-    /// Add storages for stash files
+    /// Add storages for stash files. Skips adding storages that already exists for a file.
     #[structopt(name = "add-storages")]
     AddStorages {
         /// file id
