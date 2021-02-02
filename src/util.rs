@@ -4,12 +4,19 @@ use std::env;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::path::Component;
-use anyhow::{anyhow, Result, Context};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc, Timelike};
 use bytes::{Bytes, BytesMut, Buf};
 use tokio_util::codec::Decoder;
+use pin_project::pin_project;
+use futures::task::{Context, Poll};
+use tokio::io::{AsyncRead, ReadBuf};
 
 pub(crate) fn env_var(var: &str) -> Result<String> {
+    use anyhow::Context;
     env::var(var).with_context(|| anyhow!("Could not get variable {:?} from environment", var))
 }
 
@@ -142,6 +149,42 @@ impl Decoder for FixedReadSizeDecoder {
             return Ok(None)
         }
         Ok(Some(src.copy_to_bytes(src.remaining())))
+    }
+}
+
+#[pin_project]
+pub(crate) struct ByteCountingReader<A: AsyncRead> {
+    #[pin]
+    inner: A,
+    length: Arc<AtomicU64>,
+}
+
+impl<A: AsyncRead> ByteCountingReader<A> {
+    pub fn new(inner: A) -> ByteCountingReader<A> {
+        let length = Arc::new(AtomicU64::new(0));
+        ByteCountingReader { inner, length }
+    }
+
+    /// Returns an `Arc<AtomicU64>`  of the number of bytes read so far.
+    #[inline]
+    pub fn length(&self) -> Arc<AtomicU64> {
+        self.length.clone()
+    }
+}
+
+impl<R> AsyncRead for ByteCountingReader<R>
+where
+    R: AsyncRead,
+{
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let length = self.length();
+        let inner_poll = self.project().inner.poll_read(cx, buf);
+        length.fetch_add(buf.filled().len() as u64, Ordering::SeqCst);
+        inner_poll
     }
 }
 

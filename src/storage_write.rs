@@ -6,11 +6,12 @@ use std::pin::Pin;
 use std::cmp::min;
 use std::convert::{TryFrom, TryInto};
 use std::fs::Metadata;
+use std::sync::atomic::Ordering;
 use chrono::{DateTime, Utc};
 use anyhow::{anyhow, bail};
 use futures::{ready, stream::{self, Stream, StreamExt, TryStreamExt}, task::{Context, Poll}};
 use tracing::info;
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use bytes::{Bytes, BytesMut};
 use tokio::{fs, io::{AsyncRead, AsyncReadExt}};
 use tokio_util::codec::{Encoder, FramedRead};
@@ -390,10 +391,9 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         let mut content = vec![];
         reader.read_to_end(&mut content).await?;
         hash = Some(b3sum_bytes(&content));
-        ensure!(
-            content.len() as i64 == file.size,
-            "read {} bytes from file but file size was read as {}", content.len(), file.size
-        );
+        if content.len() as i64 != file.size {
+            bail!("read {} bytes from file but file size was previously stat as {}", content.len(), file.size);
+        }
         let compression_level = 19; // levels > 19 use a lot more memory to decompress
         let content_zstd = paranoid_zstd_encode_all(content, compression_level).await?;
 
@@ -407,10 +407,15 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         for domain in &desired.gdrive {
             let reader = producer()?;
             let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
-            // TODO: ensure size read here is correct
-            let hashing_reader = Blake3HashingReader::new(reader, b3sum.clone());
+            let counting_reader = util::ByteCountingReader::new(reader);
+            let length_arc = counting_reader.length();
+            let hashing_reader = Blake3HashingReader::new(counting_reader, b3sum.clone());
 
             let (gdrive_file, storage) = write_to_gdrive(hashing_reader, &file, *domain).await?;
+            let read_length = length_arc.load(Ordering::SeqCst);
+            if read_length != file.size as u64 {
+                bail!("read {} bytes from file but file size was previously stat as {}", read_length, file.size);
+            }
             let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
             if let Some(h) = hash {
                 if hash_this_upload != h {
