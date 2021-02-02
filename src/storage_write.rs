@@ -374,26 +374,26 @@ impl TryFrom<Metadata> for RelevantFileMetadata {
 
 /// Add storages for a file and commit them to the database.
 /// If a particular storage for a file already exists, it will be skipped.
-/// Returns the `blake3::Hash` of the uploaded file.
+/// If a b3sum is calculated and the file does not already have one in the database, fix it.
 pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     mut producer: impl FnMut() -> Result<A>,
     file: &inode::File,
     desired: &DesiredStorages,
-) -> Result<blake3::Hash> {
-    let mut hash = None;
-
-    // If no storages, just return the hash
-    if !desired.inline && desired.gdrive.is_empty() {
-        hash = Some(b3sum_bytes(b""));
-    }
+) -> Result<()> {
+    let mut last_hash = None;
 
     if desired.inline {
         let mut reader = producer()?;
         let mut content = vec![];
         reader.read_to_end(&mut content).await?;
-        hash = Some(b3sum_bytes(&content));
+        last_hash = Some(b3sum_bytes(&content));
         if content.len() as i64 != file.size {
-            bail!("read {} bytes from file but file size was previously stat as {}", content.len(), file.size);
+            bail!("while adding inline storage, read {} bytes from file but file has size={}", content.len(), file.size);
+        }
+        if let Some(file_hash) = file.b3sum {
+            if last_hash.unwrap() != file_hash {
+                bail!("while adding inline storage, content had b3sum={:?} but file has b3sum={:?}", last_hash.unwrap(), file_hash);
+            }
         }
         let compression_level = 19; // levels > 19 use a lot more memory to decompress
         let content_zstd = paranoid_zstd_encode_all(content, compression_level).await?;
@@ -425,16 +425,21 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             let (gdrive_file, storage) = write_to_gdrive(hashing_reader, &file, *domain).await?;
             let read_length = length_arc.load(Ordering::SeqCst);
             if read_length != file.size as u64 {
-                bail!("read {} bytes from file but file size was previously stat as {}", read_length, file.size);
+                bail!("while adding gdrive storage, read {} bytes from file but file has size={}", read_length, file.size);
             }
             let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
-            if let Some(h) = hash {
+            if let Some(file_hash) = file.b3sum {
+                if hash_this_upload != file_hash {
+                    bail!("while adding gdrive storage, content had b3sum={:?} but file has b3sum={:?}", hash_this_upload, file_hash);
+                }
+            }
+            if let Some(h) = last_hash {
                 if hash_this_upload != h {
                     bail!("blake3 hash of local file changed during upload into \
                            multiple storages, was={:?} now={:?}", h, hash_this_upload);
                 }
             }
-            hash = Some(hash_this_upload);
+            last_hash = Some(hash_this_upload);
 
             let pool = db::pgpool().await;
             let mut transaction = pool.begin().await?;
@@ -444,7 +449,14 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         }
     }
 
-    Ok(hash.unwrap())
+    if let Some(h) = last_hash {
+        let pool = db::pgpool().await;
+        let mut transaction = pool.begin().await?;
+        inode::File::set_b3sum(&mut transaction, file.id, h.as_bytes()).await?;
+        transaction.commit().await?;
+    }
+
+    Ok(())
 }
 
 /// Return `count` number of open `tokio::fs::File`s for a path.
@@ -479,14 +491,7 @@ pub async fn create_stash_file_from_local_file(path: String, metadata: &Relevant
     let producer = move || {
         readers.pop().ok_or_else(|| anyhow!("no readers left"))
     };
-    let hash = add_storages(producer, &file, desired).await?;
-
-    if file.size > 0 {
-        let pool = db::pgpool().await;
-        let mut transaction = pool.begin().await?;
-        inode::File::set_b3sum(&mut transaction, file.id, hash.as_bytes()).await?;
-        transaction.commit().await?;
-    }
+    add_storages(producer, &file, desired).await?;
 
     Ok(file.id)
 }
