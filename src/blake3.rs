@@ -15,7 +15,8 @@ pub(crate) struct Blake3HashingReader<A: AsyncRead> {
 }
 
 impl<A: AsyncRead> Blake3HashingReader<A> {
-    pub fn new(inner: A, b3sum: Arc<Mutex<blake3::Hasher>>) -> Blake3HashingReader<A> {
+    pub fn new(inner: A) -> Blake3HashingReader<A> {
+        let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
         Blake3HashingReader { inner, b3sum }
     }
 

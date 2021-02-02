@@ -406,10 +406,10 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     if !desired.gdrive.is_empty() {
         for domain in &desired.gdrive {
             let reader = producer()?;
-            let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
             let counting_reader = util::ByteCountingReader::new(reader);
             let length_arc = counting_reader.length();
-            let hashing_reader = Blake3HashingReader::new(counting_reader, b3sum.clone());
+            let hashing_reader = Blake3HashingReader::new(counting_reader);
+            let b3sum = hashing_reader.b3sum();
 
             let (gdrive_file, storage) = write_to_gdrive(hashing_reader, &file, *domain).await?;
             let read_length = length_arc.load(Ordering::SeqCst);
