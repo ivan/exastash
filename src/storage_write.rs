@@ -374,7 +374,7 @@ impl TryFrom<Metadata> for RelevantFileMetadata {
 
 /// Add storages for a file and commit them to the database.
 /// If a particular storage for a file already exists, it will be skipped.
-/// Returns the `blake3::Hash` of the stream.
+/// Returns the `blake3::Hash` of the uploaded file.
 pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     mut producer: impl FnMut() -> Result<A>,
     file: &inode::File,
