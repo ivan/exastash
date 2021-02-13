@@ -138,8 +138,7 @@ impl Dirent {
     /// Return a count of the number of dirents in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
         let count: i64 = sqlx::query("SELECT COUNT(parent) FROM stash.dirents")
-            .fetch_one(transaction)
-            .await?
+            .fetch_one(transaction).await?
             .get(0);
         Ok(count)
     }
