@@ -58,8 +58,7 @@ pub(crate) async fn request_gdrive_file(file_id: &str, access_token: &str) -> Re
     let response = client
         .get(&url)
         .header("Authorization", format!("Bearer {access_token}"))
-        .send()
-        .await?;
+        .send().await?;
     Ok(response)
 }
 
@@ -170,8 +169,7 @@ where
         .header("Authorization", format!("Bearer {}", access_token_fn().await?))
         .header("X-Upload-Content-Type", "application/octet-stream")
         .header("X-Upload-Content-Length", size)
-        .send()
-        .await?;
+        .send().await?;
 
     let status = initial_response.status();
     if status != 200 {
@@ -187,8 +185,7 @@ where
     let upload_response = client
         .put(upload_url)
         .body(body)
-        .send()
-        .await?;
+        .send().await?;
     // TODO: retry/resume partial uploads
 
     let status = upload_response.status();

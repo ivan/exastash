@@ -127,8 +127,7 @@ impl Server {
                         .attr(attr)
                         .ttl_attr(TTL)
                         .ttl_entry(TTL),
-                )
-                .await?;
+                ).await?;
             }
         }
 

@@ -44,8 +44,7 @@ impl GdriveParent {
             .bind(&self.name)
             .bind(&self.parent)
             .bind(&self.full)
-            .execute(transaction)
-            .await?;
+            .execute(transaction).await?;
         Ok(())
     }
 
@@ -132,8 +131,7 @@ impl GdriveFilePlacement {
             .bind(&self.domain)
             .bind(&self.owner)
             .bind(&self.parent)
-            .execute(transaction)
-            .await?;
+            .execute(transaction).await?;
         Ok(())
     }
 
@@ -227,8 +225,7 @@ impl Storage {
             .bind(&self.cipher)
             .bind(Uuid::from_bytes(self.cipher_key))
             .bind(&self.gdrive_ids)
-            .execute(transaction)
-            .await?;
+            .execute(transaction).await?;
         Ok(())
     }
 
@@ -251,8 +248,7 @@ impl Storage {
              WHERE file_id = ANY($1::bigint[])"
         )
             .bind(file_ids)
-            .fetch_all(transaction)
-            .await?;
+            .fetch_all(transaction).await?;
         Ok(storages)
     }
 }

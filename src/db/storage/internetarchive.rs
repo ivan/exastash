@@ -33,8 +33,7 @@ impl Storage {
             .bind(&self.pathname)
             .bind(&self.darked)
             .bind(&self.last_probed)
-            .execute(transaction)
-            .await?;
+            .execute(transaction).await?;
         Ok(())
     }
 

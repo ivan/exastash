@@ -24,8 +24,7 @@ impl Storage {
         )
             .bind(&self.file_id)
             .bind(&self.content_zstd)
-            .execute(transaction)
-            .await?;
+            .execute(transaction).await?;
         Ok(())
     }
 
@@ -39,8 +38,7 @@ impl Storage {
         )
             .bind(&self.file_id)
             .bind(&self.content_zstd)
-            .execute(transaction)
-            .await?;
+            .execute(transaction).await?;
         Ok(())
     }
 

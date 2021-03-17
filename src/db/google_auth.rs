@@ -25,8 +25,7 @@ impl GoogleApplicationSecret {
         sqlx::query(stmt)
             .bind(&self.domain_id)
             .bind(&self.secret)
-            .execute(transaction)
-            .await?;
+            .execute(transaction).await?;
         Ok(())
     }
 
@@ -70,8 +69,7 @@ impl GoogleAccessToken {
             .bind(&self.access_token)
             .bind(&self.refresh_token)
             .bind(&self.expires_at)
-            .execute(transaction)
-            .await?;
+            .execute(transaction).await?;
         Ok(())
     }
 

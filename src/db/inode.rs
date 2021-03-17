@@ -123,8 +123,7 @@ impl Dir {
     /// Return a count of the number of dirs in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
         let count: i64 = sqlx::query("SELECT COUNT(id) FROM stash.dirs")
-            .fetch_one(transaction)
-            .await?
+            .fetch_one(transaction).await?
             .get(0);
         Ok(count)
     }
@@ -262,8 +261,7 @@ impl File {
     /// Return a count of the number of files in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
         let count: i64 = sqlx::query("SELECT COUNT(id) FROM stash.files")
-            .fetch_one(transaction)
-            .await?
+            .fetch_one(transaction).await?
             .get(0);
         Ok(count)
     }
@@ -370,8 +368,7 @@ impl Symlink {
     /// Return a count of the number of symlinks in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
         let count: i64 = sqlx::query("SELECT COUNT(id) FROM stash.symlinks")
-            .fetch_one(transaction)
-            .await?
+            .fetch_one(transaction).await?
             .get(0);
         Ok(count)
     }

@@ -64,8 +64,7 @@ impl NewGdriveOwner {
         let row = sqlx::query("INSERT INTO stash.gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id")
             .bind(&self.domain)
             .bind(&self.owner)
-            .fetch_one(transaction)
-            .await?;
+            .fetch_one(transaction).await?;
         let id: i32 = row.get(0);
         Ok(GdriveOwner {
             id,
