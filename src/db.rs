@@ -19,6 +19,7 @@ use std::future::Future;
 use std::time::Duration;
 use std::process::Command;
 use std::env;
+use std::path::Path;
 use crate::util::env_var;
 
 /// Return a `PgPool` that connects to the given `postgres://` URI,
@@ -94,9 +95,10 @@ pub fn postgres_temp_instance_uri() -> String {
 }
 
 /// Connect to PostgreSQL server at `uri` and apply SQL DDL from file `sql_file`
-pub fn apply_ddl(uri: &str, sql_file: &str) {
+pub fn apply_ddl<P: AsRef<Path>>(uri: &str, cwd: P, sql_file: &str) {
     let mut command = Command::new("psql");
     let psql = command
+        .current_dir(cwd)
         .arg("--no-psqlrc")
         .arg("--quiet")
         .arg("-f").arg(sql_file)
@@ -109,8 +111,8 @@ pub fn apply_ddl(uri: &str, sql_file: &str) {
 
 /// Connect to PostgreSQL server at `uri` and apply exastash's SQL DDL
 pub fn apply_exastash_ddl(uri: &str) {
-    apply_ddl(&uri, concat!(env!("CARGO_MANIFEST_DIR"), "/schema/extensions.sql"));
-    apply_ddl(&uri, concat!(env!("CARGO_MANIFEST_DIR"), "/schema/schema.sql"));
+    apply_ddl(&uri, env!("CARGO_MANIFEST_DIR"), "schema/extensions.sql");
+    apply_ddl(&uri, env!("CARGO_MANIFEST_DIR"), "schema/schema.sql");
 }
 
 /// Note that TRUNCATE tests should be run on the secondary pool because they
