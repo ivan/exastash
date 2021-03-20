@@ -127,6 +127,15 @@ impl Dirent {
         Ok(out.pop())
     }
 
+    /// Return a `Vec` of `Dirent`s for all dirents that exist with given `parent` and some `basename`.
+    pub async fn find_by_parent_and_basenames(transaction: &mut Transaction<'_, Postgres>, parent: i64, basenames: &[&str]) -> Result<Vec<Dirent>> {
+        // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
+        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
+                     WHERE parent = $1::bigint AND child_dir IS DISTINCT FROM 1 AND basename = ANY($2::text[])";
+        let dirents = sqlx::query_as::<_, Dirent>(query).bind(parent).bind(basenames).fetch_all(transaction).await?;
+        Ok(dirents)
+    }
+
     /// Return an `Option<Dirent>` if a `Dirent` exists with the given `child_dir`.
     pub async fn find_by_child_dir(transaction: &mut Transaction<'_, Postgres>, child_dir: i64) -> Result<Option<Dirent>> {
         let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
