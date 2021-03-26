@@ -232,6 +232,9 @@ impl Storage {
     /// Remove storages with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
+        if file_ids.is_empty() {
+            return Ok(());
+        }
         let stmt = "DELETE FROM stash.storage_gdrive WHERE file_id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(file_ids)
@@ -241,6 +244,9 @@ impl Storage {
 
     /// Return a list of gdrive storage entities where the data for a file can be retrieved.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+        if file_ids.is_empty() {
+            return Ok(vec![]);
+        }
         // Note that we can get more than one row per unique file_id
         let storages = sqlx::query_as::<_, Storage>(
             "SELECT file_id, google_domain, cipher, cipher_key, gdrive_ids

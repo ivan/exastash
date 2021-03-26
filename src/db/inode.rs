@@ -113,6 +113,9 @@ impl Dir {
     ///
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
         let stmt = "DELETE FROM stash.dirs WHERE id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(ids)
@@ -251,6 +254,9 @@ impl File {
     /// Remove files with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
         let stmt = "DELETE FROM stash.files WHERE id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(ids)
@@ -358,6 +364,9 @@ impl Symlink {
     /// Remove symlinks with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
         let stmt = "DELETE FROM stash.symlinks WHERE id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(ids)

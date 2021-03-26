@@ -124,6 +124,9 @@ impl GdriveFile {
     /// Remove gdrive files in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
         sqlx::query("DELETE FROM stash.gdrive_files WHERE id = ANY($1::text[])")
             .bind(ids)
             .execute(transaction).await?;

@@ -45,6 +45,9 @@ impl Storage {
     /// Remove storages with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
+        if file_ids.is_empty() {
+            return Ok(());
+        }
         let stmt = "DELETE FROM stash.storage_inline WHERE file_id = ANY($1::bigint[])";
         sqlx::query(stmt)
             .bind(file_ids)
@@ -54,6 +57,9 @@ impl Storage {
 
     /// Return a list of inline storage entities containing the data for a file.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+        if file_ids.is_empty() {
+            return Ok(vec![]);
+        }
         Ok(sqlx::query_as::<_, Storage>(
             "SELECT file_id, content_zstd FROM stash.storage_inline
              WHERE file_id = ANY($1::bigint[])"
