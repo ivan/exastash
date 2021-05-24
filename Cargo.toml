@@ -60,7 +60,7 @@ tracing-subscriber = "0.2"
 uuid = "0.8"
 yansi = "0.5"
 yup-oauth2 = { git = "https://github.com/ludios/yup-oauth2", branch = "prime" }
-zstd = "0.7"
+zstd = "0.8"
 
 # Disabled for now to improve build time while we're not working on the FUSE server
 #polyfuse = { git = "https://github.com/ubnt-intrepid/polyfuse" }
