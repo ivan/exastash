@@ -10,7 +10,8 @@ function newFileStorages({ stashPath, size, mtime, executable }) {
         remoteStorageThreshold = 60000;
     }
 
-    if (fileSize > remoteStorageThreshold || stashPath.endsWith(".jpg")) {
+    let lastSegment = stashPath[stashPath.length - 1];
+    if (size > remoteStorageThreshold || lastSegment.endsWith(".jpg")) {
         // 1 is the google_domain
         return {gdrive: [1]};
     } else {
