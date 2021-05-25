@@ -219,6 +219,14 @@ mod tests {
                 policy.new_file_storages(&["something"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
                 DesiredStorages { inline: false, gdrive: vec![1, 2] }
             );
+            assert_eq!(
+                policy.new_file_storages(&["第四十七集 动漫 怪物弹珠二０十六 (中文简体字幕)-qD8VHZ3lxBw.webm"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
+                DesiredStorages { inline: false, gdrive: vec![1, 2] }
+            );
+            assert_eq!(
+                policy.new_file_storages(&["Sam Needham 'Life is a Journey' - Crankworx Whistler Deep Summer Photo Challenge 2015-WVA3QDiy7Bc.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
+                DesiredStorages { inline: false, gdrive: vec![1, 2] }
+            );
 
             assert_eq!(
                 policy.new_file_storages(&["small"], &RelevantFileMetadata { size: 50, mtime: Utc::now(), executable: false })?,
