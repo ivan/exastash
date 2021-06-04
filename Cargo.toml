@@ -9,7 +9,9 @@ name = "es"
 path = "src/main.rs"
 
 [dependencies]
-aes-ctr = "0.6"
+aes = "0.7"
+ctr = "0.7"
+cipher = "0.3"
 anyhow = "1.0"
 async-recursion = "0.3"
 byteorder = "1"
