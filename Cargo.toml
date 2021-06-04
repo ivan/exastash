@@ -77,7 +77,7 @@ ring = { git = "https://github.com/ludios/ring", branch = "prime" }
 [profile.dev]
 # Reduce debug rebuild time
 # https://github.com/rust-gamedev/wg/issues/50#issuecomment-527160611
-#debug = false
+debug = false
 
 [profile.release]
 lto = true
