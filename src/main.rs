@@ -1066,7 +1066,7 @@ async fn main() -> Result<()> {
 
                             let desired = policy.new_file_storages(&stash_path, &metadata)?;
 
-                            let initial_delay = std::time::Duration::new(5, 0);
+                            let initial_delay = std::time::Duration::new(15, 0);
                             let maximum_delay = std::time::Duration::new(1800, 0);
                             let mut decayer = Decayer::new(initial_delay, Ratio::new(3, 2), maximum_delay);
                             let mut tries = 30;
