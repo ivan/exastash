@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 aes = "0.7"
-ctr = "0.7"
+ctr = "0.8"
 cipher = "0.3"
 anyhow = "1.0"
 async-recursion = "0.3"
@@ -33,7 +33,7 @@ libc = "0.2"
 literally = "0.1"
 log = "0.4"
 md-5 = "0.9"
-blake3 = "0.3"
+blake3 = "1"
 mimalloc = { version = "0.1", default-features = false } # Turn off the default secure mode
 num = "0.4"
 num-format = { git = "https://github.com/ludios/num-format" } # Waiting for https://github.com/bcmyers/num-format/pull/20
