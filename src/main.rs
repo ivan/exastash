@@ -560,7 +560,7 @@ arg_enum! {
 }
 
 async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, path: &str) -> Result<InodeId> {
-    let path_components: Vec<&str> = if path == "" {
+    let path_components: Vec<&str> = if path.is_empty() {
         vec![]
     } else {
         path.split('/').collect()

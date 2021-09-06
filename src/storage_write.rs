@@ -334,6 +334,14 @@ impl DesiredStorages {
         total += self.gdrive.len();
         total
     }
+
+    /// Whether we lack any storages to store to
+    pub fn is_empty(&self) -> bool {
+        if self.inline || !self.gdrive.is_empty() {
+            return false;
+        }
+        true
+    }
 }
 
 /// Local file metadata that can be stored in exastash
@@ -422,7 +430,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             let hashing_reader = Blake3HashingReader::new(counting_reader);
             let b3sum = hashing_reader.b3sum();
 
-            let (gdrive_file, storage) = write_to_gdrive(hashing_reader, &file, *domain).await?;
+            let (gdrive_file, storage) = write_to_gdrive(hashing_reader, file, *domain).await?;
             let read_length = length_arc.load(Ordering::SeqCst);
             if read_length != file.size as u64 {
                 bail!("while adding gdrive storage, read {} bytes from file but file has size={}", read_length, file.size);

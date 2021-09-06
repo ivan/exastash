@@ -75,7 +75,7 @@ pub async fn resolve_path_components<S: AsRef<str> + ToString + Clone>(
     transaction: &mut Transaction<'_, Postgres>,
     path_components: &[S]
 ) -> Result<InodeId> {
-    resolve_local_absolute_path(&config, transaction, path_components).await
+    resolve_local_absolute_path(config, transaction, path_components).await
 }
 
 /// Resolve some local relative path argument to its exastash equivalent inode

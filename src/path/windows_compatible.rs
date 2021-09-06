@@ -28,31 +28,17 @@ pub(crate) fn check_segment(segment: &str) -> Result<(), PathError> {
 
 fn check_windows_special_characters(segment: &str) -> Result<(), PathError> {
     for c in segment.chars() {
-        let invalid = match c {
-            '"' => true,
-            '*' => true,
-            ':' => true,
-            '<' => true,
-            '>' => true,
-            '?' => true,
-            '\\' => true,
-            '|' => true,
-            '\0'..='\x1F' => true,
-            _ => false,
-        };
-
-        if invalid {
+        if matches!(c, '"' | '*' | ':' | '<' | '>' | '?' | '\\' | '|' | '\0'..='\x1F') {
             return Err(PathError::ContainsInvalidWindowsCharacter(c));
         }
     }
-
     Ok(())
 }
 
 fn check_windows_segment_ending(segment: &str) -> Result<(), PathError> {
-    if segment.ends_with(".") {
+    if segment.ends_with('.') {
         Err(PathError::InvalidWindowsNameEnding('.'))
-    } else if segment.ends_with(" ") {
+    } else if segment.ends_with(' ') {
         Err(PathError::InvalidWindowsNameEnding(' '))
     } else {
         Ok(())
@@ -80,7 +66,7 @@ fn check_windows_device_name(segment: &str) -> Result<(), PathError> {
         }
         4 => {
             let mut name: [u8; 4] = [0; 4];
-            name.clone_from_slice(&before_dot.as_bytes());
+            name.clone_from_slice(before_dot.as_bytes());
             name.make_ascii_lowercase();
             match &name {
                 // https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file

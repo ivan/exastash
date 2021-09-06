@@ -111,8 +111,8 @@ pub fn apply_ddl<P: AsRef<Path>>(uri: &str, cwd: P, sql_file: &str) {
 
 /// Connect to PostgreSQL server at `uri` and apply exastash's SQL DDL
 pub fn apply_exastash_ddl(uri: &str) {
-    apply_ddl(&uri, env!("CARGO_MANIFEST_DIR"), "schema/extensions.sql");
-    apply_ddl(&uri, env!("CARGO_MANIFEST_DIR"), "schema/schema.sql");
+    apply_ddl(uri, env!("CARGO_MANIFEST_DIR"), "schema/extensions.sql");
+    apply_ddl(uri, env!("CARGO_MANIFEST_DIR"), "schema/schema.sql");
 }
 
 /// Note that TRUNCATE tests should be run on the secondary pool because they

@@ -48,7 +48,7 @@ impl From<RawConfig> for Config {
 
 /// Return a Config parsed from a string containing toml configuration
 fn parse_config(content: &str) -> Result<Config> {
-    let raw_config = toml::from_str::<RawConfig>(&content)?;
+    let raw_config = toml::from_str::<RawConfig>(content)?;
     let config     = raw_config.into();
     Ok(config)
 }

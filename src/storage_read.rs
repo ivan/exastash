@@ -278,7 +278,7 @@ async fn read_storage_without_checks(file: &inode::File, storage: &Storage) -> R
             Box::pin(stream::iter::<_>(vec![Ok(bytes.copy_to_bytes(bytes.remaining()))]))
         }
         Storage::Gdrive(gdrive_storage) => {
-            stream_gdrive_files(&file, gdrive_storage)
+            stream_gdrive_files(file, gdrive_storage)
         }
         Storage::InternetArchive(internetarchive::Storage { .. }) => {
             unimplemented!()
@@ -340,7 +340,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     drop(transaction);
     let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
     let underlying_stream = match storages.get(0) {
-        Some(storage) => read_storage(&file, &storage, b3sum.clone()).await?,
+        Some(storage) => read_storage(&file, storage, b3sum.clone()).await?,
         None => bail!("file with id={} has no storage", file_id)
     };
 

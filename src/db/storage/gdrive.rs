@@ -175,7 +175,7 @@ impl GdriveFilePlacement {
         let query = "SELECT domain, owner, parent FROM stash.gdrive_file_placement
                      WHERE domain = $1::smallint AND owner = $2::int AND parent = $3::text
                      FOR UPDATE";
-        Ok(sqlx::query_as::<_, GdriveFilePlacement>(&query)
+        Ok(sqlx::query_as::<_, GdriveFilePlacement>(query)
             .bind(self.domain)
             .bind(self.owner)
             .bind(&self.parent)
