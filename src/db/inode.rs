@@ -9,6 +9,7 @@ use std::convert::TryInto;
 use crate::EXASTASH_VERSION;
 use crate::db;
 use crate::util;
+use crate::db::dirent::Dirent;
 
 /// A dir, file, or symlink
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -500,10 +501,34 @@ impl Inode {
     }
 }
 
-/// Create a dummy file for use in tests.
-pub async fn create_dummy_file(transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
-    NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(transaction).await
+mod dummy {
+    use super::*;
+    use atomic_counter::{AtomicCounter, RelaxedCounter};
+    use once_cell::sync::Lazy;
+
+    /// Create a dummy file for use in tests.
+    pub async fn create_dummy_file(transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
+        NewFile { executable: false, size: 0, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(transaction).await
+    }
+
+    static BASENAME_COUNTER: Lazy<RelaxedCounter> = Lazy::new(|| {
+        RelaxedCounter::new(1)
+    });
+
+    pub(crate) fn make_basename(prefix: &str) -> String {
+        let num = BASENAME_COUNTER.inc();
+        format!("{prefix}_{num}")
+    }
+
+    /// Create a dummy dir for use in tests.
+    pub async fn create_dummy_dir(transaction: &mut Transaction<'_, Postgres>, basename_prefix: &str) -> Result<Dir> {
+        let dir = NewDir { mtime: Utc::now(), birth: Birth::here_and_now() }.create(transaction).await?;
+        Dirent::new(1, make_basename(basename_prefix), InodeId::Dir(dir.id)).create(transaction).await?;
+        Ok(dir)
+    }
 }
+
+pub use dummy::{create_dummy_file, create_dummy_dir};
 
 #[cfg(test)]
 pub(crate) mod tests {

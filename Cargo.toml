@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 aes = "0.7"
+atomic-counter = "1.0"
 ctr = "0.8"
 cipher = "0.3"
 anyhow = "1.0"
@@ -67,9 +68,6 @@ zstd = "0.9"
 # Disabled for now to improve build time while we're not working on the FUSE server
 #polyfuse = { git = "https://github.com/ubnt-intrepid/polyfuse" }
 #polyfuse-tokio = { git = "https://github.com/ubnt-intrepid/polyfuse" }
-
-[dev-dependencies]
-atomic-counter = "1.0"
 
 [patch.crates-io]
 # Need a matching version for the ring in
