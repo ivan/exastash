@@ -338,8 +338,8 @@ mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            for limit in &[None, Some(1_i32)] {
-                let accounts = GoogleServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], *limit).await?;
+            for limit in [None, Some(1)] {
+                let accounts = GoogleServiceAccount::find_by_owner_ids(&mut transaction, &[owner.id], limit).await?;
                 assert_eq!(accounts, vec![account.clone()]);
             }
 

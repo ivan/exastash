@@ -145,7 +145,7 @@ mod tests {
             Storage { file_id: dummy.id, ia_item: "item".into(), pathname: "path".into(), darked: false, last_probed: None }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            for (column, value) in &[("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
+            for (column, value) in [("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.storage_internetarchive SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;

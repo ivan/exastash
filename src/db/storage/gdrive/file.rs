@@ -278,7 +278,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let new_id = format!("'{}'", "C".repeat(28));
-            for (column, value) in &[
+            for (column, value) in [
                 ("id", new_id.as_str()),
                 ("md5", "'0000-0000-0000-0000-0000-0000-0000-0001'::uuid"),
                 ("crc32c", "1"),

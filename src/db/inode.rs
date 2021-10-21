@@ -682,7 +682,7 @@ pub(crate) mod tests {
         #[serial]
         async fn test_cannot_truncate() -> Result<()> {
             let pool = new_secondary_pool().await;
-            for table in &["dirs", "files", "symlinks"] {
+            for table in ["dirs", "files", "symlinks"] {
                 let mut transaction = pool.begin().await?;
                 assert_cannot_truncate(&mut transaction, &format!("stash.{table}")).await;
             }
@@ -705,12 +705,12 @@ pub(crate) mod tests {
             let pool = new_primary_pool().await;
             let transaction = pool.begin().await?;
             transaction.commit().await?;
-            for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
+            for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.dirs SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&1i64).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
-                if *column == "id" {
+                if column == "id" {
                     assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {
                     assert_eq!(msg, "error returned from database: cannot change id or birth_*");
@@ -745,12 +745,12 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let file = NewFile { size: 0, executable: false, mtime: Utc::now(), birth: Birth::here_and_now(), b3sum: None }.create(&mut transaction).await?;
             transaction.commit().await?;
-            for (column, value) in &[("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
+            for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.files SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
-                if *column == "id" {
+                if column == "id" {
                     assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {
                     assert_eq!(msg, "error returned from database: cannot change id or birth_*");
@@ -779,12 +779,12 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let symlink = NewSymlink { target: "old".into(), mtime: Utc::now(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             transaction.commit().await?;
-            for (column, value) in &[("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
+            for (column, value) in [("id", "100"), ("target", "'new'"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.symlinks SET {column} = {value} WHERE id = $1::bigint");
                 let result = sqlx::query(&query).bind(&symlink.id).execute(&mut transaction).await;
                 let msg = result.err().expect("expected an error").to_string();
-                if *column == "id" {
+                if column == "id" {
                     assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {
                     assert_eq!(msg, "error returned from database: cannot change id, target, or birth_*");

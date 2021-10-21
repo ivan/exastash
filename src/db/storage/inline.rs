@@ -127,7 +127,7 @@ mod tests {
             Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() }.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            for (column, value) in &[("file_id", "100")] {
+            for (column, value) in [("file_id", "100")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.storage_inline SET {column} = {value} WHERE file_id = $1::bigint");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;

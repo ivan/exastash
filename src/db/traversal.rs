@@ -151,7 +151,7 @@ mod tests {
             assert_eq!(resolve_inode(&mut transaction, root_dir.id, &["child_dir", "child_symlink"]).await?, InodeId::Symlink(child_symlink.id));
 
             // resolve_inode returns an error if some segment is not found
-            for (parent, segments) in &[
+            for (parent, segments) in [
                 (root_dir.id, vec![""]),
                 (root_dir.id, vec!["nonexistent"]),
                 (child_dir.id, vec!["child_dir", "nonexistent"]),
@@ -164,11 +164,11 @@ mod tests {
             }
 
             // resolve_inode returns an error if trying to walk down a file or symlink
-            for (parent, not_a_dir, segments) in &[
+            for (parent, not_a_dir, segments) in [
                 (root_dir.id, InodeId::File(child_file.id), vec!["child_file", "further"]),
                 (root_dir.id, InodeId::Symlink(child_symlink.id), vec!["child_symlink", "further"]),
             ] {
-                let result = resolve_inode(&mut transaction, *parent, &segments).await;
+                let result = resolve_inode(&mut transaction, parent, &segments).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
                     format!("{:?} is not a dir", not_a_dir)
@@ -206,7 +206,7 @@ mod tests {
             assert_eq!(resolve_dirent(&mut transaction, root_dir.id, &["child_dir", "child_symlink"]).await?.child, InodeId::Symlink(child_symlink.id));
 
             // resolve_dirent returns an error if some segment is not found
-            for (parent, segments) in &[
+            for (parent, segments) in [
                 (root_dir.id, vec![""]),
                 (root_dir.id, vec!["nonexistent"]),
                 (child_dir.id, vec!["child_dir", "nonexistent"]),
@@ -219,11 +219,11 @@ mod tests {
             }
 
             // resolve_dirent returns an error if trying to walk down a file or symlink
-            for (parent, not_a_dir, segments) in &[
+            for (parent, not_a_dir, segments) in [
                 (root_dir.id, InodeId::File(child_file.id), vec!["child_file", "further"]),
                 (root_dir.id, InodeId::Symlink(child_symlink.id), vec!["child_symlink", "further"]),
             ] {
-                let result = resolve_dirent(&mut transaction, *parent, &segments).await;
+                let result = resolve_dirent(&mut transaction, parent, &segments).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),
                     format!("{:?} is not a dir", not_a_dir)

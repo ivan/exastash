@@ -296,7 +296,7 @@ pub(crate) mod tests {
             Dirent::new(1, make_basename("child_dir"), InodeId::Dir(child_dir.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            for (column, value) in &[("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
+            for (column, value) in [("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.dirents SET {column} = {value} WHERE parent = $1::bigint AND child_dir = $2::bigint");
                 let result = sqlx::query(&query).bind(1i64).bind(child_dir.id).execute(&mut transaction).await;
@@ -386,7 +386,7 @@ pub(crate) mod tests {
             Dirent::new(1, make_basename("parent"), InodeId::Dir(parent.id)).create(&mut transaction).await?;
             transaction.commit().await?;
 
-            for basename in &["", "/", ".", "..", &"x".repeat(256)] {
+            for basename in ["", "/", ".", "..", &"x".repeat(256)] {
                 let mut transaction = pool.begin().await?;
                 // Avoid using a child dir because the mutual FK results in "deadlock detected"
                 // some of the time instead of the error we want to see
