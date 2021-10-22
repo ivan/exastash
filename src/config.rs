@@ -1,7 +1,6 @@
 //! code for loading ~/.config/exastash/*
 
 use std::fs;
-use std::convert::{TryFrom, TryInto};
 use std::collections::HashMap;
 use anyhow::{bail, Result};
 use serde_derive::Deserialize;

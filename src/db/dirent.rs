@@ -1,7 +1,6 @@
 //! CRUD operations for dirent entities in PostgreSQL
 
 use crate::db::inode::InodeId;
-use std::convert::{TryFrom, TryInto};
 use anyhow::{bail, Error, Result};
 use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
 
