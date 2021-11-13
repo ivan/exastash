@@ -34,3 +34,6 @@ CREATE TRIGGER storage_internetarchive_check_update
 CREATE TRIGGER storage_internetarchive_forbid_truncate
     BEFORE TRUNCATE ON storage_internetarchive
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
+-- Set the index to use for future CLUSTER operations
+ALTER TABLE storage_internetarchive CLUSTER ON storage_internetarchive_pkey;

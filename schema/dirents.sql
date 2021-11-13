@@ -100,6 +100,9 @@ CREATE TRIGGER dirents_forbid_truncate
     BEFORE TRUNCATE ON dirents
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
 
+-- Set the index to use for future CLUSTER operations
+ALTER TABLE dirents CLUSTER ON dirents_pkey;
+
 ALTER TABLE dirs
     -- Use deferrable constraints because we mutually FK dirs to dirents. Do that
     -- because we do not want to allow directories to be orphaned in the tree.  Do

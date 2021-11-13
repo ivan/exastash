@@ -108,3 +108,8 @@ CREATE TRIGGER files_forbid_truncate
 CREATE TRIGGER symlinks_forbid_truncate
     BEFORE TRUNCATE ON symlinks
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
+-- Set the index to use for future CLUSTER operations
+ALTER TABLE dirs CLUSTER ON dirs_pkey;
+ALTER TABLE files CLUSTER ON files_pkey;
+ALTER TABLE symlinks CLUSTER ON symlinks_pkey;

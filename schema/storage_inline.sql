@@ -21,3 +21,6 @@ CREATE TRIGGER storage_inline_check_update
 CREATE TRIGGER storage_inline_forbid_truncate
     BEFORE TRUNCATE ON storage_inline
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
+-- Set the index to use for future CLUSTER operations
+ALTER TABLE storage_inline CLUSTER ON storage_inline_pkey;

@@ -193,3 +193,6 @@ CREATE TRIGGER storage_gdrive_check_update
 CREATE TRIGGER storage_gdrive_forbid_truncate
     BEFORE TRUNCATE ON storage_gdrive
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
+-- Set the index to use for future CLUSTER operations
+ALTER TABLE storage_gdrive CLUSTER ON storage_gdrive_pkey;
