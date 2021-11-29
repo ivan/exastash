@@ -7,7 +7,7 @@ use yup_oauth2::{ApplicationSecret, RefreshFlow, InstalledFlowAuthenticator, Ins
 use sqlx::{Transaction, Postgres};
 use sqlx::postgres::PgPool;
 use chrono::{Utc, Duration};
-use hyper_rustls::HttpsConnector;
+use hyper_rustls::HttpsConnectorBuilder;
 use crate::db::google_auth::{GoogleApplicationSecret, GoogleAccessToken};
 use crate::db::storage::gdrive::file::GdriveOwner;
 
@@ -72,7 +72,11 @@ pub async fn refresh_access_tokens(client: &mut PgPool) -> Result<()> {
         owners_map.insert(owner.id, owner);
     }
 
-    let https = HttpsConnector::with_webpki_roots();
+    let https = HttpsConnectorBuilder::new()
+        .with_webpki_roots()
+        .https_only()
+        .enable_http1()
+        .build();
     let hyper_client = hyper::Client::builder().build::<_, hyper::Body>(https);
 
     let expires_at = Utc::now() + Duration::minutes(expiry_within_minutes);

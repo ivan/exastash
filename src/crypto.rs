@@ -31,12 +31,12 @@ fn gcm_encrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8]) ->
 }
 
 #[inline]
-fn gcm_decrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8], tag: &Tag) -> Result<()> {
+fn gcm_decrypt_block(key: &LessSafeKey, block_number: u64, in_out: &mut [u8], tag: Tag) -> Result<()> {
     let mut iv = [0; 12];
     write_gcm_iv_for_block_number(&mut iv, block_number);
     let nonce = Nonce::assume_unique_for_key(iv);
     key
-        .open_in_place_separate_tag(nonce, Aad::empty(), in_out, tag)
+        .open_in_place_separate_tag(nonce, Aad::empty(), tag, in_out, 0..)
         .map_err(|_| anyhow!("AES-GCM decryption failed, likely bad tag or data"))?;
     Ok(())
 }
@@ -63,15 +63,15 @@ impl Decoder for GcmDecoder {
     type Error = Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        let tag_plus_data_length = self.block_size + GCM_TAG_LENGTH;
-        if src.len() < tag_plus_data_length {
+        let len_tag_plus_data = self.block_size + GCM_TAG_LENGTH;
+        if src.len() < len_tag_plus_data {
             return Ok(None);
         }
         let tag = src.split_to(GCM_TAG_LENGTH);
         let mut data = src.split_to(self.block_size);
-        src.reserve(tag_plus_data_length);
-        let tag = Tag::new(tag.as_ref()).unwrap();
-        gcm_decrypt_block(&self.key, self.block_number, &mut data, &tag)?;
+        src.reserve(len_tag_plus_data);
+        let tag = tag.as_ref().try_into().unwrap();
+        gcm_decrypt_block(&self.key, self.block_number, &mut data, tag)?;
         self.block_number += 1;
         Ok(Some(data.copy_to_bytes(data.remaining())))
     }
@@ -89,11 +89,11 @@ impl Decoder for GcmDecoder {
             bail!("AES-GCM stream ended after a tag followed by no data");
         }
         let tag = src.split_to(GCM_TAG_LENGTH);
-        let mut data = src;
+        let data = src;
         // data should be shorter than block_size, else it would have been handled in decode()
         assert!(data.len() < self.block_size);
-        let tag = Tag::new(tag.as_ref()).unwrap();
-        gcm_decrypt_block(&self.key, self.block_number, &mut data, &tag)?;
+        let tag = tag.as_ref().try_into().unwrap();
+        gcm_decrypt_block(&self.key, self.block_number, data, tag)?;
         self.block_number += 1;
         Ok(Some(data.copy_to_bytes(data.remaining())))
     }
@@ -179,9 +179,9 @@ mod tests {
 	fn test_gcm_decrypt_block() -> Result<()> {
         let key = gcm_create_key([0; 16])?;
         let block_number = 0;
-        let tag = Tag::new(&[216, 233, 87, 141, 195, 160, 86, 118, 56, 169, 213, 238, 142, 121, 81, 181]).expect("tag of wrong length?");
+        let tag = [216, 233, 87, 141, 195, 160, 86, 118, 56, 169, 213, 238, 142, 121, 81, 181].into();
         let mut in_out = vec![3, 136, 218, 206, 96, 182, 163, 146, 243, 40];
-        gcm_decrypt_block(&key, block_number, &mut in_out, &tag)?;
+        gcm_decrypt_block(&key, block_number, &mut in_out, tag)?;
         assert_eq!(in_out, [0; 10]);
         Ok(())
     }

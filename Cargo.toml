@@ -29,7 +29,7 @@ futures-async-stream = "0.2"
 gethostname = "0.2"
 hex = "0.4"
 hyper = { version = "0.14", features = ["client"] }
-hyper-rustls = { version = "0.22", features = ["webpki-roots"] }
+hyper-rustls = { version = "0.23", features = ["webpki-roots"] }
 libc = "0.2"
 literally = "0.1"
 log = "0.4"
@@ -45,7 +45,7 @@ quick-js = { version = "0.4", features = ["bigint", "chrono", "log"] }
 rand = "0.8"
 regex = "1"
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "stream", "json"] }
-ring = { git = "https://github.com/ludios/ring", branch = "prime" } # Waiting for https://github.com/briansmith/ring/pull/909
+ring = { git = "https://github.com/briansmith/ring" } # Until 2896a014de94d670a6913156c9f31d8de8a2323b is in a release
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
@@ -72,7 +72,7 @@ zstd = "0.9"
 [patch.crates-io]
 # Need a matching version for the ring in
 # reqwest -> hyper-rustls -> rustls -> ring
-ring = { git = "https://github.com/ludios/ring", branch = "prime" }
+ring = { git = "https://github.com/briansmith/ring" }
 
 [profile.dev]
 # Reduce debug rebuild time
