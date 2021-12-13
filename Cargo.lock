@@ -425,7 +425,7 @@ dependencies = [
 
 [[package]]
 name = "exastash"
-version = "2.2.12"
+version = "2.3.0"
 dependencies = [
  "aes",
  "anyhow",
