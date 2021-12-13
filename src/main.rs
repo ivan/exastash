@@ -1227,5 +1227,7 @@ async fn main() -> Result<()> {
         }
     };
 
+    pool.close().await;
+
     Ok(())
 }
