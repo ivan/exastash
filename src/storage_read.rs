@@ -61,6 +61,8 @@ pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> 
         tokens.push(token.access_token);
     }
 
+    transaction.commit().await?; // close read-only transaction
+
     Ok(tokens)
 }
 

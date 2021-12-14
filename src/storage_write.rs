@@ -416,6 +416,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             let pool = db::pgpool().await;
             let mut transaction = pool.begin().await?;
             let storages = gdrive::Storage::find_by_file_ids(&mut transaction, &[file.id]).await?;
+            transaction.commit().await?; // close read-only transaction
             storages.iter().map(|storage| storage.google_domain).collect()
         };
 
