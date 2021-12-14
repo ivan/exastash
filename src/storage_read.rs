@@ -155,7 +155,7 @@ fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pi
             let mut transaction = pool.begin().await?;
             let gdrive_ids: Vec<&str> = storage.gdrive_ids.iter().map(String::as_str).collect();
             let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
-            drop(transaction);
+            transaction.commit().await?; // close read-only transaction
 
             let mut total_bytes_read: i64 = 0;
 
@@ -213,7 +213,7 @@ fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> Re
             let mut transaction = pool.begin().await?;
             let gdrive_ids: Vec<&str> = storage.gdrive_ids.iter().map(String::as_str).collect();
             let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
-            drop(transaction);
+            transaction.commit().await?; // close read-only transaction
 
             let whole_block_size = 65536;
             // Block size for all of our AES-128-GCM files
@@ -337,7 +337,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     }
 
     let storages = get_storages(&mut transaction, &[file_id]).await?;
-    drop(transaction);
+    transaction.commit().await?; // close read-only transaction
     let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
     let underlying_stream = match storages.get(0) {
         Some(storage) => read_storage(&file, storage, b3sum.clone()).await?,

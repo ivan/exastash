@@ -677,9 +677,11 @@ async fn main() -> Result<()> {
                         let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
                         println!("{}", json_info(&mut transaction, inode).await?);
                     }
+                    transaction.commit().await?; // close read-only transaction
                 }
                 DirCommand::Count => {
                     let count = Dir::count(&mut transaction).await?;
+                    transaction.commit().await?; // close read-only transaction
                     println!("{}", count);
                 }
             }
@@ -687,7 +689,7 @@ async fn main() -> Result<()> {
         ExastashCommand::File(command) => {
             match command {
                 FileCommand::Create { path, store_inline, store_gdrive } => {
-                    drop(transaction);
+                    transaction.commit().await?; // close unused transaction
                     let desired = storage_write::DesiredStorages { inline: store_inline, gdrive: store_gdrive };
                     let attr = fs::metadata(path.clone()).await?;
                     let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
@@ -698,6 +700,7 @@ async fn main() -> Result<()> {
                     let desired = storage_write::DesiredStorages { inline: store_inline, gdrive: store_gdrive };
 
                     let files = File::find_by_ids(&mut transaction, &ids).await?;
+                    transaction.commit().await?; // close read-only transaction
                     let mut map = HashMap::with_capacity(files.len());
                     for file in files {
                         map.insert(file.id, file);
@@ -734,6 +737,7 @@ async fn main() -> Result<()> {
                         let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
                         println!("{}", json_info(&mut transaction, inode).await?);
                     }
+                    transaction.commit().await?; // close read-only transaction
                 }
                 FileCommand::Content(content) => {
                     match content {
@@ -746,6 +750,7 @@ async fn main() -> Result<()> {
                 }
                 FileCommand::Count => {
                     let count = File::count(&mut transaction).await?;
+                    transaction.commit().await?; // close read-only transaction
                     println!("{}", count);
                 }
             }
@@ -770,9 +775,11 @@ async fn main() -> Result<()> {
                         let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
                         println!("{}", json_info(&mut transaction, inode).await?);
                     }
+                    transaction.commit().await?; // close read-only transaction
                 }
                 SymlinkCommand::Count => {
                     let count = Symlink::count(&mut transaction).await?;
+                    transaction.commit().await?; // close read-only transaction
                     println!("{}", count);
                 }
             }
@@ -790,6 +797,7 @@ async fn main() -> Result<()> {
                 }
                 DirentCommand::List { ids } => {
                     let dirents = Dirent::find_by_parents(&mut transaction, &ids).await?;
+                    transaction.commit().await?; // close read-only transaction
                     for dirent in dirents {
                         let j = json!({
                             "parent":        dirent.parent,
@@ -803,6 +811,7 @@ async fn main() -> Result<()> {
                 }
                 DirentCommand::Walk { id } => {
                     walk_dir(&mut transaction, id, &[], id).await?;
+                    transaction.commit().await?; // close read-only transaction
                 }
                 DirentCommand::Resolve { kind, root, paths } => {
                     for path in paths {
@@ -813,9 +822,11 @@ async fn main() -> Result<()> {
                             ResolveKind::symlink => if let InodeId::Symlink(id) = inode { println!("{}", id) },
                         }
                     }
+                    transaction.commit().await?; // close read-only transaction
                 }
                 DirentCommand::Count => {
                     let count = Dirent::count(&mut transaction).await?;
+                    transaction.commit().await?; // close read-only transaction
                     println!("{}", count);
                 }
             }
@@ -835,7 +846,8 @@ async fn main() -> Result<()> {
                 GoogleCommand::AccessToken(command) => {
                     match command {
                         AccessTokenCommand::Create { owner_id } => {
-                            oauth::create_access_token(transaction, owner_id).await?;
+                            oauth::create_access_token(&mut transaction, owner_id).await?;
+                            transaction.commit().await?;
                         }
                     }
                 }
@@ -851,7 +863,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 GoogleCommand::TokenService => {
-                    drop(transaction);
+                    transaction.commit().await?; // close unused transaction
                     let interval_sec = 305;
                     info!("will check access tokens every {} seconds", interval_sec);
                     loop {
@@ -873,6 +885,7 @@ async fn main() -> Result<()> {
                                         let j = serde_json::to_string(&placement)?;
                                         println!("{j}");
                                     }
+                                    transaction.commit().await?; // close read-only transaction
                                 }
                             }
                         }
@@ -903,6 +916,7 @@ async fn main() -> Result<()> {
                                         let mut stdout = tokio::io::stdout();
                                         storage_read::write_stream_to_sink(stream, &mut stdout).await?;
                                     }
+                                    transaction.commit().await?; // close read-only transaction
                                 }
                             }
                         }
@@ -932,6 +946,7 @@ async fn main() -> Result<()> {
                         let inode = inodes.get(&inode_id).unwrap();
                         println!("{}", json_info(&mut transaction, inode).await?);
                     }
+                    transaction.commit().await?; // close read-only transaction
                 }
                 PathCommand::Cat { paths: path_args } => {
                     let config = config::get_config()?;
@@ -942,6 +957,7 @@ async fn main() -> Result<()> {
                         let file_id = path::resolve_local_path_arg(&config, &mut transaction, Some(&path_arg)).await?.file_id()?;
                         file_ids.push(file_id);
                     }
+                    transaction.commit().await?; // close read-only transaction
                     for file_id in file_ids {
                         let (stream, _) = storage_read::read(file_id).await?;
                         let mut stdout = tokio::io::stdout();
@@ -1021,10 +1037,11 @@ async fn main() -> Result<()> {
                             }
                         }
                     }
+                    transaction.commit().await?; // close read-only transaction
                 }
                 PathCommand::Add { paths: path_args, existing_file_behavior: already_exists_behavior, remove_local_files } => {
                     // We need one transaction per new directory below.
-                    drop(transaction);
+                    transaction.commit().await?; // close unused transaction
 
                     let config = config::get_config()?;
                     let policy = config::get_policy()?;
@@ -1113,6 +1130,7 @@ async fn main() -> Result<()> {
                         let children: Vec<InodeId> = dirents.iter().map(|dirent| dirent.child).collect();
                         Inode::find_by_inode_ids(&mut transaction, &children).await?
                     };
+                    transaction.commit().await?; // close read-only transaction
                     match sort {
                         SortOrder::name  => { dirents.sort_by(|d1, d2| d1.basename.cmp(&d2.basename)) },
                         SortOrder::mtime => { dirents.sort_by_key(|dirent| inodes.get(&dirent.child).unwrap().mtime()) },
@@ -1180,10 +1198,11 @@ async fn main() -> Result<()> {
                         }
                         x_find(&mut transaction, &[&path_arg], dir_id, r#type, terminator).await?;
                     }
+                    transaction.commit().await?; // close read-only transaction
                 }
                 PathCommand::Mkdir { paths: path_args } => {
                     // We need one transaction per new directory below.
-                    drop(transaction);
+                    transaction.commit().await?; // close unused transaction
 
                     let config = config::get_config()?;
 
@@ -1203,7 +1222,7 @@ async fn main() -> Result<()> {
                 }
                 PathCommand::Rm { paths: path_args } => {
                     // We need one transaction per dirent removal below (at least for dirents with a child_dir).
-                    drop(transaction);
+                    transaction.commit().await?; // close unused transaction
 
                     let config = config::get_config()?;
 
@@ -1227,7 +1246,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    pool.close().await;
+    // Don't `pool.close().await;` here because it will just hang forever if some transaction was not finished.
 
     Ok(())
 }

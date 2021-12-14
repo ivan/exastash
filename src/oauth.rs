@@ -19,13 +19,15 @@ use crate::db::storage::gdrive::file::GdriveOwner;
 ///    Google account corresponding to the owner
 /// 2) human must take the code from Google and paste it into the terminal
 /// 3) new google_access_token is inserted into the database
-pub async fn create_access_token(mut transaction: Transaction<'_, Postgres>, owner_id: i32) -> Result<()> {
-    let owners = GdriveOwner::find_by_owner_ids(&mut transaction, &[owner_id]).await?;
+/// 
+/// Does not commit the transaction, you must do so yourself.
+pub async fn create_access_token(transaction: &mut Transaction<'_, Postgres>, owner_id: i32) -> Result<()> {
+    let owners = GdriveOwner::find_by_owner_ids(transaction, &[owner_id]).await?;
     if owners.is_empty() {
         bail!("owner id {} not in database", owner_id);
     }
     let owner = &owners[0];
-    let secrets = GoogleApplicationSecret::find_by_domain_ids(&mut transaction, &[owner.domain]).await?;
+    let secrets = GoogleApplicationSecret::find_by_domain_ids(transaction, &[owner.domain]).await?;
     if secrets.is_empty() {
         bail!("application secret not in database for domain {}", owner.domain);
     }
@@ -42,8 +44,7 @@ pub async fn create_access_token(mut transaction: Transaction<'_, Postgres>, own
         access_token: info.access_token.clone(),
         refresh_token: info.refresh_token.clone().unwrap(),
         expires_at: info.expires_at.unwrap(),
-    }.create(&mut transaction).await?;
-    transaction.commit().await?;
+    }.create(transaction).await?;
 
     Ok(())
 }

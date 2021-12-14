@@ -263,7 +263,7 @@ pub async fn write_to_gdrive<A: AsyncRead + Send + Sync + 'static>(
     let parent_name = &placement.parent;
     let parent = gdrive::GdriveParent::find_by_name(&mut transaction, parent_name).await?.unwrap();
     // Don't hold the transaction during the upload.
-    drop(transaction);
+    transaction.commit().await?; // close read-only transaction
 
     let whole_block_size = 65536;
     let block_size = whole_block_size - 16;
