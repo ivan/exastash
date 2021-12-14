@@ -703,8 +703,6 @@ pub(crate) mod tests {
         #[tokio::test]
         async fn test_cannot_change_dir_immutables() -> Result<()> {
             let pool = new_primary_pool().await;
-            let transaction = pool.begin().await?;
-            transaction.commit().await?;
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.dirs SET {column} = {value} WHERE id = $1::bigint");
