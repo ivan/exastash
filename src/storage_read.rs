@@ -1,10 +1,9 @@
 //! Functions to read content from storage
 
-use std::pin::Pin;
 use anyhow::{Result, Error, anyhow, bail, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use tracing::{info, debug};
-use futures::{stream::{self, Stream, TryStreamExt}};
+use futures::{stream::{self, Stream, BoxStream, TryStreamExt}};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tokio::io::AsyncReadExt;
 use tokio_util::codec::FramedRead;
@@ -70,8 +69,8 @@ pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> 
 /// an Err if the crc32c or body length is correct.
 fn stream_add_validation(
     gdrive_file: &gdrive::file::GdriveFile,
-    stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + 'static,
-) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
+    stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + Send + 'static,
+) -> BoxStream<'static, Result<Bytes, Error>> {
     let expected_crc = gdrive_file.crc32c;
     let expected_size = gdrive_file.size as u64;
     let mut crc = 0;
@@ -145,7 +144,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
     out
 }
 
-fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>> {
+fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> BoxStream<'static, Result<Bytes, Error>> {
     let file = file.clone();
     let storage = storage.clone();
 
@@ -202,7 +201,7 @@ pub(crate) fn get_aes_gcm_length(content_length: u64, block_size: usize) -> u64 
 }
 
 /// Pinned boxed dyn Stream of bytes::Bytes
-pub type ReadStream = Pin<Box<dyn Stream<Item = Result<Bytes, Error>>>>;
+pub type ReadStream = BoxStream<'static, Result<Bytes, Error>>;
 
 fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> ReadStream {
     let file = file.clone();
