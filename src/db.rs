@@ -25,7 +25,7 @@ use crate::util::env_var;
 /// Return a `PgPool` that connects to the given `postgres://` URI,
 /// and starts all transactions in `search_path` = search_path and with
 /// isolation level `REPEATABLE READ`.
-pub async fn new_pgpool(uri: &str, max_connections: u32, search_path: &str) -> Result<PgPool> {
+pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u64, search_path: &str) -> Result<PgPool> {
     let search_path = Arc::new(String::from(search_path));
     let mut options: PgConnectOptions = uri.parse()?;
     // By default, sqlx logs statements that take > 1 sec as a warning
@@ -44,7 +44,7 @@ pub async fn new_pgpool(uri: &str, max_connections: u32, search_path: &str) -> R
                 Ok(())
             })
         })
-        .connect_timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(connect_timeout_sec))
         .max_connections(max_connections)
         .connect_with(options).await?;
     Ok(pool)
@@ -56,13 +56,16 @@ static PGPOOL: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::
     let max_connections = env::var("EXASTASH_POSTGRES_MAX_CONNECTIONS")
         .map(|s| s.parse::<u32>().expect("could not parse EXASTASH_POSTGRES_MAX_CONNECTIONS as a u32"))
         .unwrap_or(16); // default
+    let connect_timeout_sec = env::var("EXASTASH_POSTGRES_CONNECT_TIMEOUT_SEC")
+        .map(|s| s.parse::<u64>().expect("could not parse EXASTASH_POSTGRES_CONNECT_TIMEOUT_SEC as a u64"))
+        .unwrap_or(30); // default
 
     // TODO: allow in tests but ensure 1) localhost URL 2) no 'production database' flag in db
     if cfg!(test) {
         panic!("Refusing to create pgpool to EXASTASH_POSTGRES_URI={} in tests", database_uri);
     }
 
-    new_pgpool(&database_uri, max_connections, "public").await.unwrap()
+    new_pgpool(&database_uri, max_connections, connect_timeout_sec, "public").await.unwrap()
 }.boxed().shared());
 
 /// Return the global `PgPool`.  It must not be used in more than one tokio runtime.
@@ -140,7 +143,7 @@ pub mod tests {
     /// Return a new `PgPool` connected to the `pg_tmp` for most tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_primary_pool() -> PgPool {
-        new_pgpool(&*PRIMARY_POOL_URI, 4, "public").await.unwrap()
+        new_pgpool(&*PRIMARY_POOL_URI, 4, 30, "public").await.unwrap()
     }
 
     /// PgPool Future initialized once by the first caller
@@ -153,6 +156,6 @@ pub mod tests {
     /// Return a new `PgPool` connected to the pg_tmp for `TRUNCATE` tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_secondary_pool() -> PgPool {
-        new_pgpool(&*SECONDARY_POOL_URI, 4, "public").await.unwrap()
+        new_pgpool(&*SECONDARY_POOL_URI, 4, 30, "public").await.unwrap()
     }
 }
