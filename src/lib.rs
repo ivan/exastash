@@ -7,7 +7,6 @@
     stmt_expr_attributes,
     format_args_capture,
 )]
-
 #![warn(
     nonstandard_style,
     rust_2018_compatibility,
@@ -23,6 +22,7 @@
     variant_size_differences,
 )]
 #![allow(
+    stable_features, // warning: your code is backwards-compatible
     clippy::len_zero,
 )]
 
