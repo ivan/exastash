@@ -931,7 +931,8 @@ async fn main() -> Result<()> {
         }
         ExastashCommand::Fuse(command) => {
             match command {
-                FuseCommand::Run { mountpoint: _ } => {
+                FuseCommand::Run { mountpoint } => {
+                    dbg!(mountpoint);
                     panic!("FUSE server was not built");
                     //fuse::run(mountpoint.into()).await?;
                 }

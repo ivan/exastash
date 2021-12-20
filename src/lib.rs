@@ -24,6 +24,7 @@
 #![allow(
     stable_features, // warning: your code is backwards-compatible
     clippy::len_zero,
+    clippy::needless_collect,
 )]
 
 pub(crate) mod conceal_size;
