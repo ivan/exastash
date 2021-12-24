@@ -1,5 +1,6 @@
 //! CRUD operations for dir, file, and symlink entities in PostgreSQL
 
+use futures_async_stream::for_await;
 use anyhow::{Result, bail};
 use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction};
@@ -111,13 +112,15 @@ impl Dir {
         if ids.is_empty() {
             return Ok(vec![])
         }
-        let dirs = sqlx::query_as!(DirRow, "
+        let cursor = sqlx::query_as!(DirRow, "
             SELECT id, mtime, birth_time, birth_version, birth_hostname FROM stash.dirs WHERE id = ANY($1)", ids
-        )
-            .fetch_all(transaction).await?
-            .into_iter()
-            .map(Into::into)
-            .collect();
+        ).fetch(transaction);
+        let mut dirs = Vec::with_capacity(cursor.size_hint().1.unwrap_or(ids.len()));
+        #[for_await]
+        for row in cursor {
+            let dir: Dir = row?.into();
+            dirs.push(dir);
+        }
         Ok(dirs)
     }
 
@@ -231,15 +234,17 @@ impl File {
         if ids.is_empty() {
             return Ok(vec![])
         }
-        let files = sqlx::query_as!(FileRow, "
+        let cursor = sqlx::query_as!(FileRow, "
             SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum
             FROM stash.files
             WHERE id = ANY($1)", ids
-        )
-            .fetch_all(transaction).await?
-            .into_iter()
-            .map(Into::into)
-            .collect();
+        ).fetch(transaction);
+        let mut files = Vec::with_capacity(cursor.size_hint().1.unwrap_or(ids.len()));
+        #[for_await]
+        for row in cursor {
+            let file: File = row?.into();
+            files.push(file);
+        }
         Ok(files)
     }
 
@@ -376,15 +381,17 @@ impl Symlink {
         if ids.is_empty() {
             return Ok(vec![])
         }
-        let symlinks = sqlx::query_as!(SymlinkRow, "
+        let cursor = sqlx::query_as!(SymlinkRow, "
             SELECT id, mtime, target, birth_time, birth_version, birth_hostname
             FROM stash.symlinks
             WHERE id = ANY($1)", ids
-        )
-            .fetch_all(transaction).await?
-            .into_iter()
-            .map(Into::into)
-            .collect();
+        ).fetch(transaction);
+        let mut symlinks = Vec::with_capacity(cursor.size_hint().1.unwrap_or(ids.len()));
+        #[for_await]
+        for row in cursor {
+            let symlink: Symlink = row?.into();
+            symlinks.push(symlink);
+        }
         Ok(symlinks)
     }
 
