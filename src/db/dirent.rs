@@ -2,7 +2,7 @@
 
 use crate::db::inode::InodeId;
 use anyhow::{bail, Error, Result};
-use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
+use sqlx::{Postgres, Transaction};
 
 /// A (dir, file, symlink) tuple that is useful when interacting with
 /// the dirents table.
@@ -44,14 +44,20 @@ pub struct Dirent {
     pub child: InodeId
 }
 
-impl<'c> sqlx::FromRow<'c, PgRow> for Dirent {
-    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        let parent = row.get("parent");
-        let basename: String = row.get("basename");
-        let tuple = InodeTuple(row.get("child_dir"), row.get("child_file"), row.get("child_symlink"));
+impl From<DirentRow> for Dirent {
+    fn from(row: DirentRow) -> Self {
+        let tuple = InodeTuple(row.child_dir, row.child_file, row.child_symlink);
         let inode_id: InodeId = tuple.try_into().unwrap();
-        Ok(Dirent::new(parent, basename, inode_id))
+        Dirent::new(row.parent, row.basename, inode_id)
     }
+}
+
+struct DirentRow {
+    parent: i64,
+    basename: String,
+    child_dir: Option<i64>,
+    child_file: Option<i64>,
+    child_symlink: Option<i64>,
 }
 
 impl Dirent {
@@ -64,25 +70,20 @@ impl Dirent {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         let InodeTuple(child_dir, child_file, child_symlink) = self.child.into();
-        let stmt = "INSERT INTO stash.dirents (parent, basename, child_dir, child_file, child_symlink)
-                    VALUES ($1::bigint, $2::text, $3::bigint, $4::bigint, $5::bigint)";
-        sqlx::query(stmt)
-            .bind(self.parent)
-            .bind(&self.basename)
-            .bind(child_dir)
-            .bind(child_file)
-            .bind(child_symlink)
-            .execute(transaction).await?;
+        sqlx::query!("
+            INSERT INTO stash.dirents (parent, basename, child_dir, child_file, child_symlink)
+            VALUES ($1, $2::text, $3, $4, $5)",
+            self.parent, &self.basename, child_dir, child_file, child_symlink
+        ).execute(transaction).await?;
         Ok(())
     }
 
     /// Remove this directory entry.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "DELETE FROM stash.dirents WHERE parent = $1::bigint AND basename = $2::text";
-        sqlx::query(stmt)
-            .bind(self.parent)
-            .bind(&self.basename)
+        sqlx::query!("
+            DELETE FROM stash.dirents
+            WHERE parent = $1 AND basename = $2", self.parent, &self.basename)
             .execute(transaction).await?;
         Ok(())
     }
@@ -90,10 +91,9 @@ impl Dirent {
     /// Remove a directory entry by `parent` and `basename`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_parent_basename(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<()> {
-        let stmt = "DELETE FROM stash.dirents WHERE parent = $1::bigint AND basename = $2::text";
-        sqlx::query(stmt)
-            .bind(parent)
-            .bind(basename)
+        sqlx::query!("
+            DELETE FROM stash.dirents
+            WHERE parent = $1 AND basename = $2", parent, basename)
             .execute(transaction).await?;
         Ok(())
     }
@@ -101,9 +101,9 @@ impl Dirent {
     /// Remove a directory entry by `child_dir`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_child_dir(transaction: &mut Transaction<'_, Postgres>, child_dir: i64) -> Result<()> {
-        let stmt = "DELETE FROM stash.dirents WHERE child_dir = $1::bigint";
-        sqlx::query(stmt)
-            .bind(child_dir)
+        sqlx::query!("
+            DELETE FROM stash.dirents
+            WHERE child_dir = $1", child_dir)
             .execute(transaction).await?;
         Ok(())
     }
@@ -112,42 +112,63 @@ impl Dirent {
     /// There is no error on missing parents.
     pub async fn find_by_parents(transaction: &mut Transaction<'_, Postgres>, parents: &[i64]) -> Result<Vec<Dirent>> {
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
-        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
-                     WHERE parent = ANY($1::bigint[]) AND child_dir IS DISTINCT FROM 1";
-        Ok(sqlx::query_as::<_, Dirent>(query).bind(parents).fetch_all(transaction).await?)
+        let dirents =
+            sqlx::query_as!(DirentRow, "
+                SELECT parent, basename, child_dir, child_file, child_symlink
+                FROM stash.dirents
+                WHERE parent = ANY($1) AND child_dir IS DISTINCT FROM 1", parents)
+            .fetch_all(transaction).await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        Ok(dirents)
     }
 
     /// Return an `Option<Dirent>` if a `Dirent` exists with the given `parent` and `basename`.
     pub async fn find_by_parent_and_basename(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<Option<Dirent>> {
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
-        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
-                     WHERE parent = $1::bigint AND child_dir IS DISTINCT FROM 1 AND basename = $2::text";
-        let mut out = sqlx::query_as::<_, Dirent>(query).bind(parent).bind(basename).fetch_all(transaction).await?;
-        Ok(out.pop())
+        let row =
+            sqlx::query_as!(DirentRow, "
+                SELECT parent, basename, child_dir, child_file, child_symlink
+                FROM stash.dirents
+                WHERE parent = $1 AND basename = $2 AND child_dir IS DISTINCT FROM 1", parent, basename)
+            .fetch_optional(transaction).await?;
+        Ok(row.map(Into::into))
     }
 
-    /// Return a `Vec` of `Dirent`s for all dirents that exist with given `parent` and some `basename`.
+    /// Return a `Vec` of `Dirent`s for all dirents that exist with given `parent` and any one of `basenames`.
     pub async fn find_by_parent_and_basenames(transaction: &mut Transaction<'_, Postgres>, parent: i64, basenames: &[&str]) -> Result<Vec<Dirent>> {
+        // sqlx::query_as! insists on String
+        let basenames: Vec<String> = basenames.iter().map(|s| s.to_string()).collect();
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
-        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
-                     WHERE parent = $1::bigint AND child_dir IS DISTINCT FROM 1 AND basename = ANY($2::text[])";
-        let dirents = sqlx::query_as::<_, Dirent>(query).bind(parent).bind(basenames).fetch_all(transaction).await?;
+        let dirents =
+            sqlx::query_as!(DirentRow, "
+                SELECT parent, basename, child_dir, child_file, child_symlink
+                FROM stash.dirents
+                WHERE parent = $1 AND basename = ANY($2) AND child_dir IS DISTINCT FROM 1", parent, &basenames)
+            .fetch_all(transaction).await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
         Ok(dirents)
     }
 
     /// Return an `Option<Dirent>` if a `Dirent` exists with the given `child_dir`.
     pub async fn find_by_child_dir(transaction: &mut Transaction<'_, Postgres>, child_dir: i64) -> Result<Option<Dirent>> {
-        let query = "SELECT parent, basename, child_dir, child_file, child_symlink FROM stash.dirents
-                     WHERE child_dir = $1::bigint";
-        let mut out = sqlx::query_as::<_, Dirent>(query).bind(child_dir).fetch_all(transaction).await?;
-        Ok(out.pop())
+        let row =
+            sqlx::query_as!(DirentRow, "
+                SELECT parent, basename, child_dir, child_file, child_symlink
+                FROM stash.dirents
+                WHERE child_dir = $1", child_dir)
+            .fetch_optional(transaction).await?;
+        Ok(row.map(Into::into))
     }
 
     /// Return a count of the number of dirents in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
-        let count: i64 = sqlx::query("SELECT COUNT(parent) FROM stash.dirents")
+        let count: i64 = sqlx::query_scalar!("SELECT COUNT(parent) FROM stash.dirents")
             .fetch_one(transaction).await?
-            .get(0);
+            .unwrap();
         Ok(count)
     }
 }
@@ -297,7 +318,7 @@ pub(crate) mod tests {
 
             for (column, value) in [("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE stash.dirents SET {column} = {value} WHERE parent = $1::bigint AND child_dir = $2::bigint");
+                let query = format!("UPDATE stash.dirents SET {column} = {value} WHERE parent = $1 AND child_dir = $2");
                 let result = sqlx::query(&query).bind(1i64).bind(child_dir.id).execute(&mut transaction).await;
                 assert_eq!(
                     result.err().expect("expected an error").to_string(),

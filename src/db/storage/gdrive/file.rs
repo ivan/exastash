@@ -4,8 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
-use sqlx::{Postgres, Transaction, Row};
-use sqlx::postgres::PgRow;
+use sqlx::{Postgres, Transaction};
 use serde::Serialize;
 use serde_hex::{SerHex, Strict};
 use futures_async_stream::for_await;
@@ -26,23 +25,21 @@ pub struct GdriveOwner {
 impl GdriveOwner {
     /// Return a `Vec<GdriveOwner>` for all gdrive_owners.
     pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM stash.gdrive_owners")
+        Ok(sqlx::query_as!(GdriveOwner, "SELECT id, domain, owner FROM stash.gdrive_owners")
             .fetch_all(transaction).await?)
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM stash.gdrive_owners WHERE id = ANY($1)")
-            .bind(owner_ids)
+        Ok(sqlx::query_as!(GdriveOwner, "SELECT id, domain, owner FROM stash.gdrive_owners WHERE id = ANY($1)", owner_ids)
             .fetch_all(transaction).await?)
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
     pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as::<_, GdriveOwner>("SELECT id, domain, owner FROM stash.gdrive_owners WHERE domain = ANY($1)")
-            .bind(domain_ids)
+        Ok(sqlx::query_as!(GdriveOwner, "SELECT id, domain, owner FROM stash.gdrive_owners WHERE domain = ANY($1)", domain_ids)
             .fetch_all(transaction).await?)
     }
 }
@@ -61,11 +58,12 @@ impl NewGdriveOwner {
     /// Create a gdrive_owner in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GdriveOwner> {
-        let row = sqlx::query("INSERT INTO stash.gdrive_owners (domain, owner) VALUES ($1::smallint, $2::text) RETURNING id")
-            .bind(&self.domain)
-            .bind(&self.owner)
-            .fetch_one(transaction).await?;
-        let id: i32 = row.get(0);
+        let id = sqlx::query_scalar!("
+            INSERT INTO stash.gdrive_owners (domain, owner)
+            VALUES ($1, $2)
+            RETURNING id",
+            &self.domain, &self.owner
+        ).fetch_one(transaction).await?;
         Ok(GdriveOwner {
             id,
             domain: self.domain,
@@ -92,32 +90,42 @@ pub struct GdriveFile {
     pub last_probed: Option<DateTime<Utc>>,
 }
 
-impl<'c> sqlx::FromRow<'c, PgRow> for GdriveFile {
-    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        Ok(GdriveFile {
-            id: row.get("id"),
-            owner_id: row.get("owner"),
-            md5: *row.get::<Uuid, _>("md5").as_bytes(),
-            crc32c: row.get::<i32, _>("crc32c") as u32,
-            size: row.get("size"),
-            last_probed: row.get("last_probed"),
-        })
+impl From<GdriveFileRow> for GdriveFile {
+    fn from(row: GdriveFileRow) -> Self {
+        GdriveFile {
+            id: row.id,
+            owner_id: row.owner,
+            md5: *row.md5.as_bytes(),
+            crc32c: row.crc32c as u32,
+            size: row.size,
+            last_probed: row.last_probed,
+        }
     }
+}
+
+struct GdriveFileRow {
+    id: String,
+    owner: Option<i32>,
+    md5: Uuid,
+    crc32c: i32,
+    size: i64,
+    last_probed: Option<DateTime<Utc>>,
 }
 
 impl GdriveFile {
     /// Create a gdrive_file in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query("INSERT INTO stash.gdrive_files (id, owner, md5, crc32c, size, last_probed)
-                     VALUES ($1::text, $2::int, $3::uuid, $4::int, $5::bigint, $6::timestamptz)")
-            .bind(&self.id)
-            .bind(&self.owner_id)
-            .bind(Uuid::from_bytes(self.md5))
-            .bind(self.crc32c as i32)
-            .bind(&self.size)
-            .bind(&self.last_probed)
-            .execute(transaction).await?;
+        sqlx::query!("
+            INSERT INTO stash.gdrive_files (id, owner, md5, crc32c, size, last_probed)
+            VALUES ($1, $2, $3, $4, $5, $6)",
+            self.id,
+            self.owner_id,
+            Uuid::from_bytes(self.md5),
+            self.crc32c as i32,
+            self.size,
+            self.last_probed
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -127,23 +135,24 @@ impl GdriveFile {
         if ids.is_empty() {
             return Ok(());
         }
-        sqlx::query("DELETE FROM stash.gdrive_files WHERE id = ANY($1::text[])")
-            .bind(ids)
+        // sqlx::query_as! insists on String
+        let ids: Vec<String> = ids.iter().map(|s| s.to_string()).collect();
+        sqlx::query!("DELETE FROM stash.gdrive_files WHERE id = ANY($1)", &ids)
             .execute(transaction).await?;
         Ok(())
     }
 
     /// Return gdrive files with matching ids, in the same order as the ids.
     pub async fn find_by_ids_in_order(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
-        let query = "SELECT id, owner, md5, crc32c, size, last_probed FROM stash.gdrive_files WHERE id = ANY($1)";
-        let cursor = sqlx::query_as::<_, GdriveFile>(query)
-            .bind(ids)
+        // sqlx::query_as! insists on String
+        let ids: Vec<String> = ids.iter().map(|s| s.to_string()).collect();
+        let cursor = sqlx::query_as!(GdriveFileRow, "SELECT id, owner, md5, crc32c, size, last_probed FROM stash.gdrive_files WHERE id = ANY($1)", &ids)
             .fetch(transaction);
         let mut out = Vec::with_capacity(cursor.size_hint().1.unwrap_or(ids.len()));
         let mut map: HashMap<String, GdriveFile> = HashMap::new();
         #[for_await]
         for file in cursor {
-            let file = file?;
+            let file: GdriveFile = file?.into();
             map.insert(file.id.to_string(), file);
         }
         for id in ids {

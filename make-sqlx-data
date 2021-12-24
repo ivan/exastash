@@ -1,0 +1,7 @@
+#!/bin/sh
+
+set -eu -o pipefail
+
+export DATABASE_URL=$(pg_tmp)
+psql "$DATABASE_URL" -f schema/extensions.sql -f schema/schema.sql
+cargo sqlx prepare -- --lib

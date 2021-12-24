@@ -11,7 +11,7 @@ use sqlx::Executor;
 use log::LevelFilter;
 use std::sync::Arc;
 use sqlx::postgres::{PgPool, PgPoolOptions, PgConnectOptions};
-use sqlx::{ConnectOptions, Postgres, Transaction, Row};
+use sqlx::{ConnectOptions, Postgres, Transaction};
 use futures::future::{FutureExt, Shared};
 use once_cell::sync::Lazy;
 use std::pin::Pin;
@@ -75,8 +75,8 @@ pub async fn pgpool() -> PgPool {
 
 /// Return the output of `SELECT nextval(...)` on some PostgreSQL sequence.
 pub async fn nextval(transaction: &mut Transaction<'_, Postgres>, sequence: &str) -> Result<i64> {
-    let row = sqlx::query("SELECT nextval($1)").bind(sequence).fetch_one(transaction).await?;
-    let id: i64 = row.get(0);
+    let row = sqlx::query_scalar_unchecked!("SELECT nextval($1)", sequence).fetch_one(transaction).await?;
+    let id: i64 = row.unwrap();
     Ok(id)
 }
 

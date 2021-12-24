@@ -24,16 +24,15 @@ impl Storage {
     /// Create an internetarchive storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query(
-            "INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
-             VALUES ($1::bigint, $2::text, $3::text, $4::boolean, $5::timestamptz)",
-        )
-            .bind(&self.file_id)
-            .bind(&self.ia_item)
-            .bind(&self.pathname)
-            .bind(&self.darked)
-            .bind(&self.last_probed)
-            .execute(transaction).await?;
+        sqlx::query!("
+            INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
+            VALUES ($1, $2::text, $3::text, $4, $5)",
+            self.file_id,
+            self.ia_item,
+            self.pathname,
+            self.darked,
+            self.last_probed
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -43,9 +42,7 @@ impl Storage {
         if file_ids.is_empty() {
             return Ok(());
         }
-        let stmt = "DELETE FROM stash.storage_internetarchive WHERE file_id = ANY($1::bigint[])";
-        sqlx::query(stmt)
-            .bind(file_ids)
+        sqlx::query!("DELETE FROM stash.storage_internetarchive WHERE file_id = ANY($1)", file_ids)
             .execute(transaction).await?;
         Ok(())
     }
@@ -57,13 +54,13 @@ impl Storage {
             return Ok(vec![]);
         }
         // Note that we can get more than one row per unique file_id
-        Ok(sqlx::query_as::<_, Storage>(
-                "SELECT file_id, ia_item, pathname, darked, last_probed
-                 FROM stash.storage_internetarchive
-                 WHERE file_id = ANY($1::bigint[])"
-            )
-            .bind(file_ids)
-            .fetch_all(transaction).await?)
+        let storages = sqlx::query_as!(Storage, "
+            SELECT file_id, ia_item, pathname, darked, last_probed
+            FROM stash.storage_internetarchive
+            WHERE file_id = ANY($1)",
+            file_ids
+        ).fetch_all(transaction).await?;
+        Ok(storages)
     }
 }
 
@@ -147,7 +144,7 @@ mod tests {
 
             for (column, value) in [("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
                 let mut transaction = pool.begin().await?;
-                let query = format!("UPDATE stash.storage_internetarchive SET {column} = {value} WHERE file_id = $1::bigint");
+                let query = format!("UPDATE stash.storage_internetarchive SET {column} = {value} WHERE file_id = $1");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id, ia_item, or pathname");
             }

@@ -1,9 +1,9 @@
 //! CRUD operations for Google OAuth 2.0 and service account entities in PostgreSQL
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use yup_oauth2::ServiceAccountKey;
-use sqlx::{Postgres, Transaction, Row, postgres::PgRow};
+use sqlx::{Postgres, Transaction};
 use custom_debug_derive::Debug as CustomDebug;
 use crate::util::elide;
 
@@ -21,25 +21,30 @@ impl GoogleApplicationSecret {
     /// Create a google_application_secret in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "INSERT INTO stash.google_application_secrets (domain_id, secret) VALUES ($1::smallint, $2::jsonb)";
-        sqlx::query(stmt)
-            .bind(&self.domain_id)
-            .bind(&self.secret)
-            .execute(transaction).await?;
+        sqlx::query!("
+            INSERT INTO stash.google_application_secrets (domain_id, secret)
+            VALUES ($1, $2)",
+            &self.domain_id, &self.secret
+        ).execute(transaction).await?;
         Ok(())
     }
 
     /// Return a `Vec<GoogleApplicationSecret>` of all google_application_secrets.
     pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GoogleApplicationSecret>> {
-        let query = "SELECT domain_id, secret FROM stash.google_application_secrets";
-        Ok(sqlx::query_as::<_, GoogleApplicationSecret>(query).fetch_all(transaction).await?)
+        Ok(sqlx::query_as!(GoogleApplicationSecret, "
+            SELECT domain_id, secret
+            FROM stash.google_application_secrets"
+        ).fetch_all(transaction).await?)
     }
 
     /// Return a `Vec<GoogleApplicationSecret>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
     pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GoogleApplicationSecret>> {
-        let query = "SELECT domain_id, secret FROM stash.google_application_secrets WHERE domain_id = ANY($1::smallint[])";
-        Ok(sqlx::query_as::<_, GoogleApplicationSecret>(query).bind(domain_ids).fetch_all(transaction).await?)
+        Ok(sqlx::query_as!(GoogleApplicationSecret, "
+            SELECT domain_id, secret
+            FROM stash.google_application_secrets
+            WHERE domain_id = ANY($1)", domain_ids
+        ).fetch_all(transaction).await?)
     }
 }
 
@@ -62,14 +67,11 @@ impl GoogleAccessToken {
     /// Create a google_access_token in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "INSERT INTO stash.google_access_tokens (owner_id, access_token, refresh_token, expires_at)
-                    VALUES ($1::int, $2::text, $3::text, $4::timestamptz)";
-        sqlx::query(stmt)
-            .bind(&self.owner_id)
-            .bind(&self.access_token)
-            .bind(&self.refresh_token)
-            .bind(&self.expires_at)
-            .execute(transaction).await?;
+        sqlx::query!("
+            INSERT INTO stash.google_access_tokens (owner_id, access_token, refresh_token, expires_at)
+            VALUES ($1, $2, $3, $4)",
+            &self.owner_id, &self.access_token, &self.refresh_token, &self.expires_at
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -77,28 +79,31 @@ impl GoogleAccessToken {
     /// There is no error if the owner does not exist.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn delete(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        let stmt = "DELETE FROM stash.google_access_tokens WHERE owner_id = $1::int";
-        sqlx::query(stmt).bind(&self.owner_id).execute(transaction).await?;
+        sqlx::query!("DELETE FROM stash.google_access_tokens WHERE owner_id = $1", &self.owner_id).execute(transaction).await?;
         Ok(())
     }
 
     /// Return a `Vec<GoogleAccessToken>` of tokens that expire before `expires_at`.
     pub async fn find_by_expires_at(transaction: &mut Transaction<'_, Postgres>, expires_at: DateTime<Utc>) -> Result<Vec<GoogleAccessToken>> {
-        Ok(sqlx::query_as::<_, GoogleAccessToken>(
+        let tokens = sqlx::query_as!(GoogleAccessToken,
             "SELECT owner_id, access_token, refresh_token, expires_at
              FROM stash.google_access_tokens
-             WHERE expires_at < $1::timestamptz"
-        ).bind(expires_at).fetch_all(transaction).await?)
+             WHERE expires_at < $1",
+             expires_at
+        ).fetch_all(transaction).await?;
+        Ok(tokens)
     }
 
     /// Return a `Vec<GoogleAccessToken>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GoogleAccessToken>> {
-        Ok(sqlx::query_as::<_, GoogleAccessToken>(
+        let tokens = sqlx::query_as!(GoogleAccessToken,
             "SELECT owner_id, access_token, refresh_token, expires_at
              FROM stash.google_access_tokens
-             WHERE owner_id = ANY($1::int[])"
-        ).bind(owner_ids).fetch_all(transaction).await?)
+             WHERE owner_id = ANY($1)",
+            owner_ids
+        ).fetch_all(transaction).await?;
+        Ok(tokens)
     }
 }
 
@@ -112,71 +117,82 @@ pub struct GoogleServiceAccount {
     pub key: ServiceAccountKey,
 }
 
-impl<'c> sqlx::FromRow<'c, PgRow> for GoogleServiceAccount {
-    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        Ok(GoogleServiceAccount {
-            owner_id:                        row.get("owner_id"),
+impl From<GoogleServiceAccountRow> for GoogleServiceAccount {
+    fn from(row: GoogleServiceAccountRow) -> Self {
+        GoogleServiceAccount {
+            owner_id:                        row.owner_id,
             key: ServiceAccountKey {
-                client_email:                row.get("client_email"),
-                client_id:                   row.get("client_id"),
-                project_id:                  row.get("project_id"),
-                private_key_id:              row.get("private_key_id"),
-                private_key:                 row.get("private_key"),
-                auth_uri:                    row.get("auth_uri"),
-                token_uri:                   row.get("token_uri"),
-                auth_provider_x509_cert_url: row.get("auth_provider_x509_cert_url"),
-                client_x509_cert_url:        row.get("client_x509_cert_url"),
+                client_email:                row.client_email,
+                client_id:                   Some(row.client_id),
+                project_id:                  Some(row.project_id),
+                private_key_id:              Some(row.private_key_id),
+                private_key:                 row.private_key,
+                auth_uri:                    Some(row.auth_uri),
+                token_uri:                   row.token_uri,
+                auth_provider_x509_cert_url: Some(row.auth_provider_x509_cert_url),
+                client_x509_cert_url:        Some(row.client_x509_cert_url),
                 key_type:                    Some("service_account".into())
             }
-        })
+        }
     }
 }
 
-
+struct GoogleServiceAccountRow {
+    /// The gdrive_owner this service account is for
+    owner_id: i32,
+    client_email: String,
+    client_id: String,
+    project_id: String,
+    private_key_id: String,
+    private_key: String,
+    auth_uri: String,
+    token_uri: String,
+    auth_provider_x509_cert_url: String,
+    client_x509_cert_url: String,
+}
 
 impl GoogleServiceAccount {
     /// Create a google_service_account in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         let k = &self.key;
-        let stmt =
-            "INSERT INTO stash.google_service_accounts (
+        sqlx::query!("
+            INSERT INTO stash.google_service_accounts (
                 owner_id, client_email, client_id, project_id, private_key_id, private_key,
                 auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url)
-             VALUES ($1::int, $2::text, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $9::text, $10::text)";
-        sqlx::query(stmt)
-            .bind(&self.owner_id)
-            .bind(&k.client_email)
-            .bind(&k.client_id)
-            .bind(&k.project_id)
-            .bind(&k.private_key_id)
-            .bind(&k.private_key)
-            .bind(&k.auth_uri)
-            .bind(&k.token_uri)
-            .bind(&k.auth_provider_x509_cert_url)
-            .bind(&k.client_x509_cert_url)
-            .execute(transaction).await?;
+            VALUES ($1, $2::text, $3, $4, $5, $6, $7, $8, $9, $10)",
+            &self.owner_id,
+            &k.client_email,
+            &k.client_id.clone().ok_or_else(|| anyhow!("client_id must not be None"))?,
+            &k.project_id.clone().ok_or_else(|| anyhow!("project_id must not be None"))?,
+            &k.private_key_id.clone().ok_or_else(|| anyhow!("private_key_id must not be None"))?,
+            &k.private_key,
+            &k.auth_uri.clone().ok_or_else(|| anyhow!("auth_uri must not be None"))?,
+            &k.token_uri,
+            &k.auth_provider_x509_cert_url.clone().ok_or_else(|| anyhow!("auth_provider_x509_cert_url must not be None"))?,
+            &k.client_x509_cert_url.clone().ok_or_else(|| anyhow!("client_x509_cert_url must not be None"))?,
+        ).execute(transaction).await?;
         Ok(())
     }
 
     /// Return a `Vec<GoogleServiceAccount>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
-    /// If limit is not `None`, returns max `N` random rows.
-    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32], limit: Option<i32>) -> Result<Vec<GoogleServiceAccount>> {
-        let limit_sql = match limit {
-            None => "".into(),
-            Some(num) => format!("ORDER BY random() LIMIT {num}")
-        };
-        let query = format!("
+    /// Always returns rows in a random order.
+    /// If limit is not `None`, returns max `N` rows.
+    pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32], limit: Option<i64>) -> Result<Vec<GoogleServiceAccount>> {
+        let accounts = sqlx::query_as!(GoogleServiceAccountRow, "
             SELECT owner_id, client_email, client_id, project_id, private_key_id, private_key,
                    auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url
             FROM stash.google_service_accounts
-            WHERE owner_id = ANY($1::int[])
-            {limit_sql}
-        ");
-        Ok(sqlx::query_as::<_, GoogleServiceAccount>(&query)
-            .bind(owner_ids)
-            .fetch_all(transaction).await?)
+            WHERE owner_id = ANY($1)
+            ORDER BY random()
+            LIMIT $2
+        ", owner_ids, limit)
+            .fetch_all(transaction).await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        Ok(accounts)
     }
 }
 
