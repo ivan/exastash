@@ -33,7 +33,7 @@ hyper-rustls = { version = "0.23", features = ["webpki-roots"] }
 libc = "0.2"
 literally = "0.1"
 log = "0.4"
-md-5 = "0.10"
+md-5 = { version = "0.10", features = ["asm"] }
 blake3 = "1"
 mimalloc = { version = "0.1", default-features = false } # Turn off the default secure mode
 num = "0.4"
