@@ -1,6 +1,3 @@
-#![feature(
-    format_args_capture,
-)]
 #![allow(
     stable_features, // warning: your code is backwards-compatible
 )]
