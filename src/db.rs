@@ -80,6 +80,14 @@ pub async fn nextval(transaction: &mut Transaction<'_, Postgres>, sequence: &str
     Ok(id)
 }
 
+/// Turn off synchronous_commit for this transaction, enabling writes to
+/// faster, but with the increased possibility of losing the most recent
+/// writes on server crashes.
+pub async fn disable_synchronous_commit(transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
+    sqlx::query_unchecked!("SET LOCAL synchronous_commit TO OFF").execute(transaction).await?;
+    Ok(())
+}
+
 // Test helper functions below are also used outside exastash
 
 /// Return a PostgreSQL connection string to an ephemeralpg instance

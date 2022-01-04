@@ -922,6 +922,16 @@
       ]
     }
   },
+  "aed1d80faf81ee69aa41a26c2218d1c405c4151689c1a8facdc9bddc9b288fb6": {
+    "query": "SET LOCAL synchronous_commit TO OFF",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": []
+    }
+  },
   "b0c642d442cf0114135139c6f981be065a2ef77115aaa11e04276b061e0f4de8": {
     "query": "\n            SELECT owner_id, client_email, client_id, project_id, private_key_id, private_key,\n                   auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url\n            FROM stash.google_service_accounts\n            WHERE owner_id = ANY($1)\n            ORDER BY random()\n            LIMIT $2\n        ",
     "describe": {
