@@ -359,6 +359,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
                 let mut transaction = pool.begin().await?;
                 let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
                 info!("fixing unset b3sum on file id={} to {:?}", file_id, hex::encode(computed_hash.as_bytes()));
+                db::disable_synchronous_commit(&mut transaction).await?;
                 inode::File::set_b3sum(&mut transaction, file_id, computed_hash.as_bytes()).await?;
                 transaction.commit().await?;
             }
