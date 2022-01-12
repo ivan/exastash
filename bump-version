@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -eu -o pipefail -o verbose
+
+new_version=$1
+
+last_line=$(rg ';' schema/exastash_versions.sql | tail -n 1)
+current_version_id=$(echo "$last_line" | cut -d , -f 1 | rg -o '[0-9]+')
+new_version_id=$(($current_version_id + 1))
+echo "$current_version_id -> $new_version_id"
+
+sed -i -r "s/($current_version_id, .+);/\1,\n    ($new_version_id, '$new_version');/" schema/exastash_versions.sql
+
+sed -i -r "s/^version = .+/version = \"$new_version\"/" Cargo.toml
+
+sed -i -r "s/^pub const EXASTASH_VERSION: i16 = .+;/pub const EXASTASH_VERSION: i16 = $new_version_id;/" src/lib.rs
+
+sed -i -r "s/^INSERT INTO dirs VALUES \(DEFAULT, now\(\), now\(\), $current_version_id, ''\);/INSERT INTO dirs VALUES (DEFAULT, now(), now(), $new_version_id, '');/" schema/inodes.sql
+
+# Update Cargo.lock
+cargo test
