@@ -22,8 +22,8 @@ CREATE DOMAIN hostname AS text CHECK (octet_length(VALUE) <= 253);
 --
 -- Columns are ordered for optimal packing, be careful.
 CREATE TABLE dirs (
-    -- Limit of 2T can be raised if needed
-    id              bigint            GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 2000000000000),
+    -- Limit of 1T can be raised if needed
+    id              bigint            GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 1000000000000),
     mtime           timestamptz       NOT NULL,
     birth_time      timestamptz       NOT NULL,
     -- When/where/with what exastash version was this inode produced?
@@ -52,8 +52,8 @@ CREATE TABLE files (
 );
 
 CREATE TABLE symlinks (
-    -- Limit of 2T can be raised if needed
-    id              bigint            GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 2000000000000),
+    -- Limit of 1T can be raised if needed
+    id              bigint            GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 1000000000000),
     mtime           timestamptz       NOT NULL,
     birth_time      timestamptz       NOT NULL,
     birth_version   smallint          NOT NULL REFERENCES exastash_versions (id),
