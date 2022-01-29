@@ -24,7 +24,7 @@
     stable_features, // warning: your code is backwards-compatible
     clippy::len_zero,
     clippy::needless_collect,
-    clippy::needless_borrow, // very broken as of clippy 788a8bc74013de287de699b2e1234a7adaf728e7
+    clippy::needless_borrow, // waiting on https://github.com/rust-lang/rust-clippy/issues/8367
 )]
 
 pub(crate) mod conceal_size;
