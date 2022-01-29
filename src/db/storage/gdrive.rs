@@ -263,7 +263,7 @@ pub(crate) mod tests {
     pub(crate) async fn create_dummy_domain(transaction: &mut Transaction<'_, Postgres>) -> Result<GoogleDomain> {
         let num = DOMAIN_COUNTER.inc();
         let domain = format!("{num}.example.com");
-        Ok(NewGoogleDomain { domain }.create(transaction).await?)
+        NewGoogleDomain { domain }.create(transaction).await
     }
 
     mod api {
