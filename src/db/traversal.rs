@@ -48,7 +48,7 @@ pub async fn resolve_dirent<S: AsRef<str> + ToString + Clone>(transaction: &mut 
             bail!(TraversalError::NoDirent { parent: dir_id, basename: component.to_string() });
         }
     }
-    Ok(last_dirent.ok_or_else(|| anyhow!("resolve_dirent: need at least one path segment to traverse"))?)
+    last_dirent.ok_or_else(|| anyhow!("resolve_dirent: need at least one path segment to traverse"))
 }
 
 /// Resolve path_components but also create new dirs as needed, like `mkdir -p`.

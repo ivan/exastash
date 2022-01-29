@@ -374,7 +374,7 @@ impl TryFrom<Metadata> for RelevantFileMetadata {
     type Error = anyhow::Error;
 
     fn try_from(attr: Metadata) -> Result<RelevantFileMetadata> {
-        (&attr).try_into()
+        attr.try_into()
     }
 }
 

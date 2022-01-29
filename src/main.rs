@@ -992,7 +992,7 @@ async fn main() -> Result<()> {
                                             }
                                         }
                                         Ok(attr) => {
-                                            let metadata: storage_write::RelevantFileMetadata = (&attr).try_into()?;
+                                            let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
                                             let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
                                             let file = files.get(0).ok_or_else(|| {
                                                 anyhow!("database unexpectedly missing file id={}", file_id)
@@ -1059,8 +1059,9 @@ async fn main() -> Result<()> {
                         let stash_path = [&components_to_base_dir, remaining_components].concat();
 
                         let attr = fs::metadata(path_arg).await?;
-                        let metadata: storage_write::RelevantFileMetadata = (&attr).try_into()?;
-                        if attr.is_file() {
+                        let is_file = attr.is_file();
+                        let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
+                        if is_file {
                             let stash_path: Vec<&str> = stash_path.iter().map(String::as_str).collect();
 
                             let basename = remaining_components.last().unwrap();
