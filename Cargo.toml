@@ -9,9 +9,8 @@ name = "es"
 path = "src/main.rs"
 
 [dependencies]
-aes = "0.7"
+aes = { version = "0.7", features = ["ctr"] }
 atomic-counter = "1.0"
-ctr = "0.8"
 cipher = "0.3"
 anyhow = "1.0"
 async-recursion = "1.0"

@@ -11,6 +11,7 @@ dependencies = [
  "cfg-if",
  "cipher",
  "cpufeatures",
+ "ctr",
  "opaque-debug",
 ]
 
@@ -452,7 +453,6 @@ dependencies = [
  "cipher",
  "clap",
  "crc32c",
- "ctr",
  "custom_debug_derive",
  "data-encoding",
  "directories",
