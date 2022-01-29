@@ -182,7 +182,7 @@ pub(crate) mod tests {
 
     pub(crate) async fn create_dummy_owner(transaction: &mut Transaction<'_, Postgres>, domain: i16) -> Result<GdriveOwner> {
         let owner = format!("me-{}@example.com", OWNER_COUNTER.inc());
-        NewGdriveOwner { domain, owner }.create(transaction).await
+        Ok(NewGdriveOwner { domain, owner }.create(transaction).await?)
     }
 
     mod api {
