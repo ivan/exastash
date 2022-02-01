@@ -16,6 +16,7 @@ $$ LANGUAGE plpgsql;
 
 \ir exastash_versions.sql
 \ir inodes.sql
+\ir storage_fofs.sql
 \ir storage_inline.sql
 \ir storage_gdrive.sql
 \ir storage_internetarchive.sql
