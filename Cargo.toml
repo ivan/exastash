@@ -9,6 +9,7 @@ name = "es"
 path = "src/main.rs"
 
 [dependencies]
+# Can't upgrade to 0.8 until https://github.com/rust-analyzer/rust-analyzer/issues/11370#issuecomment-1047207845 is fixed
 aes = { version = "0.7", features = ["ctr"] }
 atomic-counter = "1.0"
 cipher = "0.3"
@@ -49,14 +50,14 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 serde-hex = "0.1"
-serial_test = "0.5"
+serial_test = "0.6"
 # use git until https://github.com/launchbadge/sqlx/issues/1579 is in a release
 sqlx = { git = "https://github.com/launchbadge/sqlx", default-features = false, features = [ "runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "json", "offline" ] }
 structopt = "0.3"
 tempfile = "3"
 thiserror = "1.0"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "fs", "io-util"] }
-tokio-util = { version = "0.6", features = ["compat"] }
+tokio-util = { version = "0.7", features = ["codec", "compat"] }
 toml = "0.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
