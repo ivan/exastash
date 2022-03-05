@@ -103,6 +103,38 @@
     },
     "query": "\n            SELECT domain_id, secret\n            FROM stash.google_application_secrets"
   },
+  "0e1be071826c3127aecc2170bfa11ded405574a3cc01a507aa1d52139ae5e035": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        },
+        {
+          "name": "hostname",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "path",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4Array"
+        ]
+      }
+    },
+    "query": "\n            SELECT id, hostname, path FROM stash.piles WHERE id = ANY($1)"
+  },
   "10d155d077b18ed84592f2fc079ce6c9a1dcc4b4d4ce827979d8d4b6eb6d405d": {
     "describe": {
       "columns": [],
@@ -553,6 +585,19 @@
       }
     },
     "query": "DELETE FROM stash.gdrive_file_placement WHERE domain = $1 AND owner = $2 AND parent = $3"
+  },
+  "63a0d35d958703aa74e6eb2df8d842de9c04d428a68cab4876aa292b913d6bf2": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "INSERT INTO stash.piles (hostname, path) VALUES ($1::text, $2)"
   },
   "65c7827894adb5e7677a9515c2efd4a4a5d1249df917c9fe53d660fe2f8636fd": {
     "describe": {
