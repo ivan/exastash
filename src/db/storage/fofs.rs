@@ -10,6 +10,8 @@ use serde::Serialize;
 pub struct Pile {
     /// Unique pile id
     id: i32,
+    /// The number of files to place in each cell before marking it full and making a new cell
+    files_per_cell: i32,
     /// The machine on which the pile is stored
     hostname: String,
     /// The absolute path to the root directory of the pile on the machine
@@ -24,7 +26,7 @@ impl Pile {
             return Ok(vec![])
         }
         let piles = sqlx::query_as!(Pile, "
-            SELECT id, hostname, path FROM stash.piles WHERE id = ANY($1)", ids
+            SELECT id, files_per_cell, hostname, path FROM stash.piles WHERE id = ANY($1)", ids
         ).fetch_all(transaction).await?;
         Ok(piles)
     }
@@ -33,6 +35,8 @@ impl Pile {
 /// A new pile entity
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct NewPile {
+    /// The number of files to place in each cell before marking it full and making a new cell
+    files_per_cell: i32,
     /// The machine on which the pile is stored
     hostname: String,
     /// The absolute path to the root directory of the pile on the machine
@@ -43,8 +47,10 @@ impl NewPile {
     /// Create an pile entity in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query!("INSERT INTO stash.piles (hostname, path) VALUES ($1::text, $2)", self.hostname, self.path)
-            .execute(transaction).await?;
+        sqlx::query!(
+            "INSERT INTO stash.piles (files_per_cell, hostname, path) VALUES ($1, $2::text, $3)",
+            self.files_per_cell, self.hostname, self.path
+        ).execute(transaction).await?;
         Ok(())
     }
 }

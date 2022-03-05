@@ -103,38 +103,6 @@
     },
     "query": "\n            SELECT domain_id, secret\n            FROM stash.google_application_secrets"
   },
-  "0e1be071826c3127aecc2170bfa11ded405574a3cc01a507aa1d52139ae5e035": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int4"
-        },
-        {
-          "name": "hostname",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "path",
-          "ordinal": 2,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int4Array"
-        ]
-      }
-    },
-    "query": "\n            SELECT id, hostname, path FROM stash.piles WHERE id = ANY($1)"
-  },
   "10d155d077b18ed84592f2fc079ce6c9a1dcc4b4d4ce827979d8d4b6eb6d405d": {
     "describe": {
       "columns": [],
@@ -195,6 +163,44 @@
       }
     },
     "query": "\n            DELETE FROM stash.dirents\n            WHERE child_dir = $1"
+  },
+  "1979b43559f9341e73009320cdbd24617ae8bdcf3f45f02433b949a15d511065": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        },
+        {
+          "name": "files_per_cell",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "hostname",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "path",
+          "ordinal": 3,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4Array"
+        ]
+      }
+    },
+    "query": "\n            SELECT id, files_per_cell, hostname, path FROM stash.piles WHERE id = ANY($1)"
   },
   "1de8adffe88aaa9ea4d2bc2885e558cddd0d856c0325c8d64a7211939d1fe868": {
     "describe": {
@@ -586,19 +592,6 @@
     },
     "query": "DELETE FROM stash.gdrive_file_placement WHERE domain = $1 AND owner = $2 AND parent = $3"
   },
-  "63a0d35d958703aa74e6eb2df8d842de9c04d428a68cab4876aa292b913d6bf2": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text"
-        ]
-      }
-    },
-    "query": "INSERT INTO stash.piles (hostname, path) VALUES ($1::text, $2)"
-  },
   "65c7827894adb5e7677a9515c2efd4a4a5d1249df917c9fe53d660fe2f8636fd": {
     "describe": {
       "columns": [],
@@ -980,6 +973,20 @@
       }
     },
     "query": "\n            INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)\n            VALUES ($1, $2::text, $3::text, $4, $5)"
+  },
+  "a5cc10394be35330479b3beca564af93957bf5296635c24937fdee30688dc724": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "INSERT INTO stash.piles (files_per_cell, hostname, path) VALUES ($1, $2::text, $3)"
   },
   "ab41ed76e2d142bcb736b823e0359885459ba7489855d007f08784de123cf1f9": {
     "describe": {

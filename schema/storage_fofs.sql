@@ -2,11 +2,13 @@
 -- pile per filesystem/storage device.
 CREATE TABLE piles (
     -- Limit of 1M can be raised if needed
-    id            int       GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 1000000),
+    id              int       GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 1000000),
+    -- The number of files to place in each cell before marking it full and making a new cell
+    files_per_cell  int       NOT NULL CHECK (files_per_cell >= 1),
     -- The machine on which the pile is stored
-    hostname      hostname  NOT NULL,
+    hostname        hostname  NOT NULL,
     -- The absolute path to the root directory of the pile on the machine
-    "path"        text      NOT NULL CHECK ("path" ~ '\A/.*[^/]\Z') -- Must start with /, must not end with /
+    "path"          text      NOT NULL CHECK ("path" ~ '\A/.*[^/]\Z') -- Must start with /, must not end with /
 );
 
 CREATE TRIGGER piles_check_update
