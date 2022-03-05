@@ -25,9 +25,15 @@ CREATE TRIGGER piles_forbid_truncate
 CREATE TABLE cells (
     -- Limit of 200M can be raised if needed
     id            int       GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 200000000),
-    -- The pile we're parented in
-    pile_id       int       NOT NULL REFERENCES piles (id)
+    -- The pile we are parented in
+    pile_id       int       NOT NULL REFERENCES piles (id),
+    -- Whether we are full because we have reached the per-cell file limit
+    "full"        boolean   NOT NULL DEFAULT FALSE
 );
+
+-- Make it fast to find the not-full cells.
+-- Most cells will be full, because we do not create a new cell until the existing cells in the pile are full.
+CREATE INDEX ON cells ("full") WHERE "full" = FALSE;
 
 CREATE TRIGGER cells_check_update
     BEFORE UPDATE ON cells

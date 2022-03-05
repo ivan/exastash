@@ -17,7 +17,7 @@ use parking_lot::Mutex;
 use crate::blake3::Blake3HashingStream;
 use crate::db;
 use crate::db::inode;
-use crate::db::storage::{get_storages, Storage, inline, gdrive, internetarchive};
+use crate::db::storage::{get_storages, Storage, fofs, inline, gdrive, internetarchive};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::db::google_auth::{GoogleAccessToken, GoogleServiceAccount};
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
@@ -266,6 +266,9 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> ReadStr
 async fn read_storage_without_checks(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
     info!(id = file.id, "reading file");
     Ok(match storage {
+        Storage::Fofs(fofs::Storage { .. }) => {
+            unimplemented!()
+        }
         Storage::Inline(inline::Storage { content_zstd, .. }) => {
             let content = zstd::stream::decode_all(content_zstd.as_slice())?;
             ensure!(

@@ -1,5 +1,6 @@
 //! CRUD operations for the storage_* entities in PostgreSQL
 
+pub mod fofs;
 pub mod inline;
 pub mod gdrive;
 pub mod internetarchive;
@@ -12,6 +13,9 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "type")]
 pub enum Storage {
+    /// A storage entity backed by a file on a filesystem we control
+    #[serde(rename = "fofs")]
+    Fofs(fofs::Storage),
     /// A storage entity stored directly in the database
     #[serde(rename = "inline")]
     Inline(inline::Storage),
@@ -25,6 +29,8 @@ pub enum Storage {
 
 /// Return a list of places where the data for a file can be retrieved
 pub async fn get_storages(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
+    let fofs = fofs::Storage::find_by_file_ids(transaction, file_ids).await?
+        .into_iter().map(Storage::Fofs).collect::<Vec<_>>();
     let inline = inline::Storage::find_by_file_ids(transaction, file_ids).await?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
     let gdrive = gdrive::Storage::find_by_file_ids(transaction, file_ids).await?
@@ -33,6 +39,7 @@ pub async fn get_storages(transaction: &mut Transaction<'_, Postgres>, file_ids:
         .into_iter().map(Storage::InternetArchive).collect::<Vec<_>>();
 
     Ok([
+        &fofs[..],
         &inline[..],
         &gdrive[..],
         &internetarchive[..],
@@ -41,6 +48,7 @@ pub async fn get_storages(transaction: &mut Transaction<'_, Postgres>, file_ids:
 
 /// Remove all storages for the given file ids
 pub async fn remove_storages(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
+    fofs::Storage::remove_by_file_ids(transaction, file_ids).await?;
     gdrive::Storage::remove_by_file_ids(transaction, file_ids).await?;
     inline::Storage::remove_by_file_ids(transaction, file_ids).await?;
     internetarchive::Storage::remove_by_file_ids(transaction, file_ids).await?;
