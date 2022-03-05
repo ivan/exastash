@@ -69,6 +69,21 @@ pub struct Cell {
 }
 
 impl Cell {
+    /// Get cell entities where `pile_id` is any of `pile_ids` and `full` = the given `full`.
+    /// Entities which are not found will not be included in the resulting `Vec`.
+    pub async fn find_by_pile_ids_and_fullness(transaction: &mut Transaction<'_, Postgres>, pile_ids: &[i32], full: bool) -> Result<Vec<Cell>> {
+        if pile_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let cells = sqlx::query_as!(Cell, r#"
+            SELECT id, pile_id, "full"
+            FROM stash.cells
+            WHERE pile_id = ANY($1) AND "full" = $2"#,
+            pile_ids, full
+        ).fetch_all(transaction).await?;
+        Ok(cells)
+    }
+
     /// Set whether a cell is full or not
     pub async fn set_full(transaction: &mut Transaction<'_, Postgres>, id: i32, full: bool) -> Result<()> {
         info!("setting full = {} on cell id = {:?}", full, id);

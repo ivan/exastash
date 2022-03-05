@@ -1574,6 +1574,39 @@
     },
     "query": "\n            INSERT INTO stash.files (id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)\n            OVERRIDING SYSTEM VALUE\n            VALUES ($1, $2, $3, $4, $5, $6, $7::text, $8)\n            "
   },
+  "f993974799a3b855be9e56ca9ffeefa1c4df7898f18e989278124bf3db8723bf": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        },
+        {
+          "name": "pile_id",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "full",
+          "ordinal": 2,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4Array",
+          "Bool"
+        ]
+      }
+    },
+    "query": "\n            SELECT id, pile_id, \"full\"\n            FROM stash.cells\n            WHERE pile_id = ANY($1) AND \"full\" = $2"
+  },
   "fcb05bd2cadea4b91f8106f6eded3dd19351ff121d19098a0073f3e1356a7cf3": {
     "describe": {
       "columns": [],
