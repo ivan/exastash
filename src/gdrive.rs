@@ -6,7 +6,7 @@ use regex::Regex;
 use data_encoding::BASE64;
 use serde::Deserialize;
 use serde_hex::{SerHex, Strict};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::io::Cursor;
 use std::future::Future;
 use byteorder::{BigEndian, ReadBytesExt};
@@ -79,7 +79,7 @@ pub(crate) struct GdriveUploadResponse {
 #[derive(Debug, Eq, thiserror::Error, PartialEq)]
 pub enum GdriveUploadError {
     #[error("expected status 200 in response to initial upload request, got {0} with body {}", .1.to_string())]
-    InitialUploadRequestNotOk(StatusCode, serde_json::Value),
+    InitialUploadRequestNotOk(StatusCode, Value),
 
     #[error("did not get Location header in response to initial upload request: {0:#?}")]
     InitialUploadRequestMissingLocationHeader(HeaderMap),
@@ -88,7 +88,7 @@ pub enum GdriveUploadError {
     ParentIsFull(String),
 
     #[error("expected status 200 in response to upload request, got {0} with body {}", .1.to_string())]
-    UploadRequestNotOk(StatusCode, serde_json::Value),
+    UploadRequestNotOk(StatusCode, Value),
 
     #[error("expected Google to create object with kind=drive#file, got {0:?}")]
     CreatedFileHasWrongKind(String),
@@ -121,16 +121,16 @@ pub enum GdriveUploadError {
 ///   }
 /// }
 /// ```
-fn is_shared_drive_full_response(json: &serde_json::Value) -> bool {
-    let matching_reason = serde_json::Value::String("teamDriveFileLimitExceeded".into());
+fn is_shared_drive_full_response(json: &Value) -> bool {
+    let matching_reason = Value::String("teamDriveFileLimitExceeded".into());
 
-    if let serde_json::Value::Object(_) = json {
+    if json.is_object() {
         let error = &json["error"];
-        if let serde_json::Value::Object(_) = error {
+        if error.is_object() {
             let errors = &error["errors"];
-            if let serde_json::Value::Array(arr) = errors {
-                for e in arr.iter() {
-                    if let serde_json::Value::Object(props) = e {
+            if let Value::Array(arr) = errors {
+                for e in arr {
+                    if let Value::Object(props) = e {
                         if props["reason"] == matching_reason {
                             return true;
                         }
