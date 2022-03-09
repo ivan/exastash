@@ -317,6 +317,8 @@ pub async fn paranoid_zstd_encode_all(bytes: Vec<u8>, level: i32) -> Result<Vec<
 /// Descriptor indicating which storages should be used for a new file
 #[derive(Debug, PartialEq, Eq)]
 pub struct DesiredStorages {
+    /// A list of fofs pile ids in which to store the file
+    pub fofs: Vec<i32>,
     /// Whether to store inline in the database
     pub inline: bool,
     /// A list of google_domain ids in which to store the file
@@ -330,13 +332,14 @@ impl DesiredStorages {
         if self.inline {
             total += 1;
         }
+        total += self.fofs.len();
         total += self.gdrive.len();
         total
     }
 
     /// Whether we lack any storages to store to
     pub fn is_empty(&self) -> bool {
-        if self.inline || !self.gdrive.is_empty() {
+        if self.inline || !self.fofs.is_empty() || !self.gdrive.is_empty() {
             return false;
         }
         true
@@ -388,6 +391,10 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     desired: &DesiredStorages,
 ) -> Result<()> {
     let mut last_hash = None;
+
+    if !desired.fofs.is_empty() {
+        unimplemented!();
+    }
 
     if desired.inline {
         let mut reader = producer()?;

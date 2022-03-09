@@ -66,9 +66,32 @@ impl TryFrom<JsValue> for DesiredStorages {
 
     /// Convert JS object e.g. {inline: true, gdrive: [1]} to a DesiredStorages
     fn try_from(js_obj: JsValue) -> Result<DesiredStorages> {
-        let mut desired_storage = DesiredStorages { inline: false, gdrive: vec![] };
+        let mut desired_storage = DesiredStorages { inline: false, fofs: vec![], gdrive: vec![] };
 
         if let JsValue::Object(map) = js_obj {
+            if let Some(val) = map.get("inline") {
+                if let JsValue::Bool(inline) = val {
+                    desired_storage.inline = *inline;
+                } else {
+                    bail!("newFileStorages returned an object with property \
+                           'inline' but value was not a boolean");
+                }
+            }
+            if let Some(val) = map.get("fofs") {
+                if let JsValue::Array(fofs_ids) = val {
+                    for val in fofs_ids {
+                        if let JsValue::Int(fofs_pile_id) = val {
+                            desired_storage.fofs.push(*fofs_pile_id);
+                        } else {
+                            bail!("newFileStorages returned an object with property \
+                                   'fofs' but some array element was not an integer");
+                        }
+                    }
+                } else {
+                    bail!("newFileStorages returned an object with property \
+                           'fofs' but value was not an array");
+                }
+            }
             if let Some(val) = map.get("gdrive") {
                 if let JsValue::Array(gdrive_ids) = val {
                     for val in gdrive_ids {
@@ -83,14 +106,6 @@ impl TryFrom<JsValue> for DesiredStorages {
                 } else {
                     bail!("newFileStorages returned an object with property \
                            'gdrive' but value was not an array");
-                }
-            }
-            if let Some(val) = map.get("inline") {
-                if let JsValue::Bool(inline) = val {
-                    desired_storage.inline = *inline;
-                } else {
-                    bail!("newFileStorages returned an object with property \
-                           'inline' but value was not a boolean");
                 }
             }
         } else {
@@ -195,7 +210,7 @@ mod tests {
                     let path = stashPath.join("/");
                     if (path.endsWith(".json")) {
                         // Not something we'd do in practice
-                        return {inline: true, gdrive: [1]};
+                        return {inline: true, gdrive: [1], fofs: [2]};
                     } else if (size > 100 || path.endsWith(".jpg")) {
                         return {gdrive: [1, 2]};
                     } else {
@@ -207,29 +222,29 @@ mod tests {
 
             assert_eq!(
                 policy.new_file_storages(&["parent", "something.json"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: true, gdrive: vec![1] }
+                DesiredStorages { inline: true, fofs: vec![2], gdrive: vec![1] }
             );
 
             assert_eq!(
                 policy.new_file_storages(&["something.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: false, gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, fofs: vec![], gdrive: vec![1, 2] }
             );
             assert_eq!(
                 policy.new_file_storages(&["something"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: false, gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, fofs: vec![], gdrive: vec![1, 2] }
             );
             assert_eq!(
                 policy.new_file_storages(&["第四十七集 动漫 怪物弹珠二０十六 (中文简体字幕)-qD8VHZ3lxBw.webm"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: false, gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, fofs: vec![], gdrive: vec![1, 2] }
             );
             assert_eq!(
                 policy.new_file_storages(&["Sam Needham 'Life is a Journey' - Crankworx Whistler Deep Summer Photo Challenge 2015-WVA3QDiy7Bc.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: false, gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, fofs: vec![], gdrive: vec![1, 2] }
             );
 
             assert_eq!(
                 policy.new_file_storages(&["small"], &RelevantFileMetadata { size: 50, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: true, gdrive: vec![] }
+                DesiredStorages { inline: true, fofs: vec![], gdrive: vec![] }
             );
 
             Ok(())
