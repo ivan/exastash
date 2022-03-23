@@ -665,6 +665,7 @@ async fn main() -> Result<()> {
     let mut transaction = pool.begin().await?;
     match command {
         ExastashCommand::License => {
+            // Handled above
             unreachable!();
         },
         ExastashCommand::Dir(command) => {
