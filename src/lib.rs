@@ -21,7 +21,6 @@
     variant_size_differences,
 )]
 #![allow(
-    stable_features, // warning: your code is backwards-compatible
     clippy::len_zero,
     clippy::needless_collect,
 )]

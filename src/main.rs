@@ -1,7 +1,3 @@
-#![allow(
-    stable_features, // warning: your code is backwards-compatible
-)]
-
 use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
