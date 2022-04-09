@@ -158,7 +158,7 @@ enum FileCommand {
         file_id: i64,
     },
 
-    /// Print info in JSON format for zero or more dirs
+    /// Print info in JSON format for zero or more files
     #[clap(name = "info")]
     Info {
         /// file id
@@ -201,7 +201,7 @@ enum SymlinkCommand {
         symlink_id: i64,
     },
 
-    /// Print info in JSON format for zero or more dirs
+    /// Print info in JSON format for zero or more symlinks
     #[clap(name = "info")]
     Info {
         /// symlink id
