@@ -10,7 +10,8 @@ path = "src/main.rs"
 
 [dependencies]
 # Can't upgrade to 0.8 until https://github.com/rust-analyzer/rust-analyzer/issues/11370#issuecomment-1047207845 is fixed
-aes = { version = "0.7", features = ["ctr"] }
+aes = "0.8"
+ctr = "0.9"
 atomic-counter = "1.0"
 cipher = "0.4"
 anyhow = "1.0"
