@@ -18,7 +18,7 @@ async-recursion = "1.0"
 byteorder = "1"
 bytes = "1"
 chrono = "0.4"
-clap = "2"
+clap = { version = "3", features = ["derive"] }
 crc32c = "0.6"
 custom_debug_derive = "0.5"
 data-encoding = "2"
@@ -53,7 +53,6 @@ serde-hex = "0.1"
 serial_test = "0.6"
 # use git until https://github.com/launchbadge/sqlx/issues/1579 is in a release
 sqlx = { git = "https://github.com/launchbadge/sqlx", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "uuid", "chrono", "json", "offline"] }
-structopt = "0.3"
 tempfile = "3"
 thiserror = "1.0"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "fs", "io-util"] }

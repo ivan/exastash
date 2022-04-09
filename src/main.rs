@@ -5,9 +5,8 @@
 use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
-use clap::arg_enum;
+use clap::{ArgEnum, Subcommand, Parser};
 use anyhow::{anyhow, bail, Result};
-use structopt::StructOpt;
 use chrono::Utc;
 use tokio::fs;
 use tokio_util::codec::FramedRead;
@@ -37,74 +36,72 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "es")]
-#[structopt(help_message = "Print help information")]
-#[structopt(version_message = "Print version information")]
+#[derive(Parser, Debug)]
+#[clap(name = "es", version)]
 /// exastash
 enum ExastashCommand {
     /// Commands to work with directories
-    #[structopt(name = "dir")]
+    #[clap(subcommand, name = "dir")]
     Dir(DirCommand),
 
     /// Commands to work with files
-    #[structopt(name = "file")]
+    #[clap(subcommand, name = "file")]
     File(FileCommand),
 
     /// Commands to work with symbolic links
-    #[structopt(name = "symlink")]
+    #[clap(subcommand, name = "symlink")]
     Symlink(SymlinkCommand),
 
     /// Commands to work with directory entries
-    #[structopt(name = "dirent")]
+    #[clap(subcommand, name = "dirent")]
     Dirent(DirentCommand),
 
     /// Commands to work with Google tokens and secrets
-    #[structopt(name = "google")]
+    #[clap(subcommand, name = "google")]
     Google(GoogleCommand),
 
     /// Commands to work with storage methods
-    #[structopt(name = "storage")]
+    #[clap(subcommand, name = "storage")]
     Storage(StorageCommand),
 
     /// (nonfunctional) FUSE server
-    #[structopt(name = "fuse")]
+    #[clap(subcommand, name = "fuse")]
     Fuse(FuseCommand),
 
     /// Commands that operate based on paths relative to cwd. To resolve paths,
     /// exastash walks up to find a root directory that points to some stash
     /// dir inode. Root directories can be configured in ~/.config/exastash/config.toml
-    #[structopt(name = "x")]
+    #[clap(subcommand, name = "x")]
     Path(PathCommand),
 
     /// Print license information
     License,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum DirCommand {
     /// Create a new directory as a child of some directory and print its id to stdout
-    #[structopt(name = "create")]
+    #[clap(name = "create")]
     Create {
-        #[structopt(name = "PARENT_DIR_ID")]
+        #[clap(name = "PARENT_DIR_ID")]
         parent_dir_id: i64,
 
-        #[structopt(name = "BASENAME")]
+        #[clap(name = "BASENAME")]
         basename: String,
     },
 
     /// Remove an empty directory and its associated dirent where it is a child_dir
-    #[structopt(name = "remove")]
+    #[clap(name = "remove")]
     Remove {
-        #[structopt(name = "DIR_ID")]
+        #[clap(name = "DIR_ID")]
         dir_id: i64,
     },
 
     /// Print info in JSON format for zero or more dirs
-    #[structopt(name = "info")]
+    #[clap(name = "info")]
     Info {
         /// dir id
-        #[structopt(name = "ID")]
+        #[clap(name = "ID")]
         ids: Vec<i64>,
     },
 
@@ -112,107 +109,107 @@ enum DirCommand {
     Count,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum FileCommand {
     /// Create an unparented file, based on a local file, and print its id to stdout
-    #[structopt(name = "create")]
+    #[clap(name = "create")]
     Create {
         /// Local file from which content, mtime, and executable flag will be read
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         path: String,
 
         /// Store the file data in the database itself. Can be specified with other --store-* options.
-        #[structopt(long)]
+        #[clap(long)]
         store_inline: bool,
 
         /// Store the file data in some fofs pile (specified by id).
         /// Can be specified multiple times and with other --store-* options.
-        #[structopt(long)]
+        #[clap(long)]
         store_fofs: Vec<i32>,
 
         /// Store the file data in some google domain (specified by id).
         /// Can be specified multiple times and with other --store-* options.
-        #[structopt(long)]
+        #[clap(long)]
         store_gdrive: Vec<i16>,
     },
 
     /// Add storages for stash files. Skips adding storages that already exists for a file.
-    #[structopt(name = "add-storages")]
+    #[clap(name = "add-storages")]
     AddStorages {
         /// file id
-        #[structopt(name = "ID")]
+        #[clap(name = "ID")]
         ids: Vec<i64>,
 
         /// Store the file data in the database itself. Can be specified with other --store-* options.
-        #[structopt(long)]
+        #[clap(long)]
         store_inline: bool,
 
         /// Store the file data in some fofs pile (specified by id).
         /// Can be specified multiple times and with other --store-* options.
-        #[structopt(long)]
+        #[clap(long)]
         store_fofs: Vec<i32>,
 
         /// Store the file data in some google domain (specified by id).
         /// Can be specified multiple times and with other --store-* options.
-        #[structopt(long)]
+        #[clap(long)]
         store_gdrive: Vec<i16>,
     },
 
     /// Remove a file and its associated storages
-    #[structopt(name = "remove")]
+    #[clap(name = "remove")]
     Remove {
-        #[structopt(name = "FILE_ID")]
+        #[clap(name = "FILE_ID")]
         file_id: i64,
     },
 
     /// Print info in JSON format for zero or more dirs
-    #[structopt(name = "info")]
+    #[clap(name = "info")]
     Info {
         /// file id
-        #[structopt(name = "ID")]
+        #[clap(name = "ID")]
         ids: Vec<i64>,
     },
 
     /// Commands for working with file content
-    #[structopt(name = "content")]
+    #[clap(subcommand, name = "content")]
     Content(ContentCommand),
 
     /// Print a count of the number of files
     Count,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum ContentCommand {
     /// Output a file's content to stdout
-    #[structopt(name = "read")]
+    #[clap(name = "read")]
     Read {
         /// file id
-        #[structopt(name = "ID")]
+        #[clap(name = "ID")]
         id: i64,
     },
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum SymlinkCommand {
     /// Create a symlink
-    #[structopt(name = "create")]
+    #[clap(name = "create")]
     Create {
-        #[structopt(name = "TARGET")]
+        #[clap(name = "TARGET")]
         target: String,
     },
 
     /// Remove a symlink
-    #[structopt(name = "remove")]
+    #[clap(name = "remove")]
     Remove {
-        #[structopt(name = "SYMLINK_ID")]
+        #[clap(name = "SYMLINK_ID")]
         symlink_id: i64,
     },
 
     /// Print info in JSON format for zero or more dirs
-    #[structopt(name = "info")]
+    #[clap(name = "info")]
     Info {
         /// symlink id
-        #[structopt(name = "ID")]
+        #[clap(name = "ID")]    
         ids: Vec<i64>,
     },
 
@@ -220,77 +217,75 @@ enum SymlinkCommand {
     Count,
 }
 
-arg_enum! {
-    #[derive(Debug)]
-    #[allow(non_camel_case_types)]
-    enum ResolveKind {
-        dir,
-        file,
-        symlink,
-    }
+#[derive(ArgEnum, Clone, Debug)]
+#[allow(non_camel_case_types)]
+enum ResolveKind {
+    dir,
+    file,
+    symlink,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum DirentCommand {
     /// Create a dirent. This does not follow the new_dirent_requirements set in config.toml.
-    #[structopt(name = "create")]
+    #[clap(name = "create")]
     Create {
-        #[structopt(name = "PARENT_DIR_ID")]
+        #[clap(name = "PARENT_DIR_ID")]
         parent_dir_id: i64,
 
-        #[structopt(name = "BASENAME")]
+        #[clap(name = "BASENAME")]
         basename: String,
 
-        #[structopt(long, short = "d")]
+        #[clap(long, short = 'd')]
         child_dir: Option<i64>,
 
-        #[structopt(long, short = "f")]
+        #[clap(long, short = 'f')]
         child_file: Option<i64>,
 
-        #[structopt(long, short = "s")]
+        #[clap(long, short = 's')]
         child_symlink: Option<i64>,
     },
 
     /// Remove a dirent. If dirent has a child_dir, use `es dir remove` instead.
-    #[structopt(name = "remove")]
+    #[clap(name = "remove")]
     Remove {
-        #[structopt(name = "PARENT_DIR_ID")]
+        #[clap(name = "PARENT_DIR_ID")]
         parent_dir_id: i64,
 
-        #[structopt(name = "BASENAME")]
+        #[clap(name = "BASENAME")]
         basename: String,
     },
 
     /// List a dir's children in JSON format, for zero or more parent dirs
-    #[structopt(name = "list")]
+    #[clap(name = "list")]
     List {
         /// dir id
-        #[structopt(name = "ID")]
+        #[clap(name = "ID")]
         ids: Vec<i64>,
     },
 
     /// Walk a dir recursively and print path info in JSON format
-    #[structopt(name = "walk")]
+    #[clap(name = "walk")]
     Walk {
         /// dir id
-        #[structopt(name = "ID")]
+        #[clap(name = "ID")]
         id: i64,
     },
 
     /// Resolve paths to dir, file, or symlink ids
-    #[structopt(name = "resolve")]
+    #[clap(name = "resolve")]
     Resolve {
         /// Kind of entity to resolve. If a path resolves to another kind, it will be skipped.
-        #[structopt(name = "KIND", possible_values = &ResolveKind::variants())]
+        #[clap(arg_enum, name = "KIND")]
         kind: ResolveKind,
 
         /// Dir id of root dir from which to resolve paths
-        #[structopt(name = "ROOT_DIR_ID")]
+        #[clap(name = "ROOT_DIR_ID")]
         root: i64,
 
         /// Path consisting only of slash-separated basenames. There is no handling of
         /// '.', '..', duplicate '/', leading '/', or trailing '/'
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         paths: Vec<String>,
     },
 
@@ -299,276 +294,273 @@ enum DirentCommand {
 }
 
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum ApplicationSecretCommand {
     /// Import an application secret from a .json file
-    #[structopt(name = "import")]
+    #[clap(name = "import")]
     Import {
-        #[structopt(name = "DOMAIN_ID")]
+        #[clap(name = "DOMAIN_ID")]
         domain_id: i16,
 
-        #[structopt(name = "JSON_FILE")]
+        #[clap(name = "JSON_FILE")]
         json_file: String,
     },
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum AccessTokenCommand {
     /// Create an OAuth 2.0 access token for an owner. Domain, owner,
     /// and application secret must already be in database.
-    #[structopt(name = "create")]
+    #[clap(name = "create")]
     Create {
-        #[structopt(name = "OWNER_ID")]
+        #[clap(name = "OWNER_ID")]
         owner_id: i32,
     },
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum ServiceAccountCommand {
     /// Import a service account key from a .json file
-    #[structopt(name = "import")]
+    #[clap(name = "import")]
     Import {
-        #[structopt(name = "OWNER_ID")]
+        #[clap(name = "OWNER_ID")]
         owner_id: i32,
 
-        #[structopt(name = "JSON_FILE")]
+        #[clap(name = "JSON_FILE")]
         json_file: String,
     },
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
+enum TokenServiceCommand {}
+
+#[derive(Subcommand, Debug)]
 enum GoogleCommand {
     /// Manage OAuth 2.0 application secrets (used with the "installed" application flow)
-    #[structopt(name = "app-secret")]
+    #[clap(subcommand, name = "app-secret")]
     ApplicationSecret(ApplicationSecretCommand),
 
     /// Manage OAuth 2.0 access tokens
-    #[structopt(name = "access-token")]
+    #[clap(subcommand, name = "access-token")]
     AccessToken(AccessTokenCommand),
 
     /// Manage Google service accounts
-    #[structopt(name = "service-account")]
+    #[clap(subcommand, name = "service-account")]
     ServiceAccount(ServiceAccountCommand),
 
     /// Run a loop that refreshes OAuth 2.0 access tokens every ~5 minutes
-    #[structopt(name = "token-service")]
-    TokenService,
+    #[clap(subcommand, name = "token-service")]
+    TokenService(TokenServiceCommand),
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum StorageCommand {
     /// gdrive storage
-    #[structopt(name = "gdrive")]
+    #[clap(subcommand, name = "gdrive")]
     Gdrive(GdriveStorageCommand),
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum GdriveStorageCommand {
     /// Internal commands for debugging
-    #[structopt(name = "internal")]
+    #[clap(subcommand, name = "internal")]
     Internal(InternalCommand),
 
     /// gdrive file placement commands
-    #[structopt(name = "placement")]
+    #[clap(subcommand, name = "placement")]
     Placement(PlacementCommand),
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum InternalCommand {
     /// Create an unencrypted/unaltered Google Drive file based on some local
     /// file and record it in the database. Output the info of the new gdrive
     /// file to stdout as JSON.
-    #[structopt(name = "create-file")]
+    #[clap(name = "create-file")]
     CreateFile {
         /// Path to the local file to upload
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         path: PathBuf,
 
         /// google_domain to upload to
-        #[structopt(name = "DOMAIN_ID")]
+        #[clap(name = "DOMAIN_ID")]
         domain_id: i16,
 
         /// gdrive_owner to upload as
-        #[structopt(name = "OWNER_ID")]
+        #[clap(name = "OWNER_ID")]
         owner_id: i32,
 
         /// Google Drive folder ID to create the file in
-        #[structopt(name = "PARENT")]
+        #[clap(name = "PARENT")]
         parent: String,
 
         /// Google Drive filename for the new file
-        #[structopt(name = "FILENAME")]
+        #[clap(name = "FILENAME")]
         filename: String,
     },
 
     /// Read the contents of a sequence of Google Drive files to stdout.
-    #[structopt(name = "read-files")]
+    #[clap(name = "read-files")]
     ReadFiles {
         /// google_domain to read from
-        #[structopt(name = "DOMAIN_ID")]
+        #[clap(name = "DOMAIN_ID")]
         domain_id: i16,
 
         /// ID of the Google Drive file to read
-        #[structopt(name = "FILE_ID")]
+        #[clap(name = "FILE_ID")]
         file_ids: Vec<String>,
     },
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum PlacementCommand {
     /// Print file placement info in JSON format
-    #[structopt(name = "list")]
+    #[clap(name = "list")]
     List {
         /// google_domain for which to list file placement information
-        #[structopt(name = "DOMAIN_ID")]
+        #[clap(name = "DOMAIN_ID")]
         domain_id: i16,
     },
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum FuseCommand {
     /// Run a FUSE server
-    #[structopt(name = "run")]
+    #[clap(name = "run")]
     Run {
         /// Where to mount the exastash root
-        #[structopt(name = "MOUNTPOINT")]
+        #[clap(name = "MOUNTPOINT")]
         mountpoint: String,
     }
 }
 
-arg_enum! {
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    #[allow(non_camel_case_types)]
-    enum FindKind {
-        d, // dir
-        f, // file
-        s, // symlink
-    }
+#[derive(ArgEnum, Copy, Clone, Debug, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+enum FindKind {
+    d, // dir
+    f, // file
+    s, // symlink
 }
 
-arg_enum! {
-    #[derive(Debug, PartialEq, Eq)]
-    #[allow(non_camel_case_types)]
-    enum ExistingFileBehavior {
-        stop,
-        skip,
-        replace,
-    }
+#[derive(ArgEnum, Clone, Debug, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+enum ExistingFileBehavior {
+    stop,
+    skip,
+    replace,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 enum PathCommand {
     /// Print info in JSON format for a path's inode
-    #[structopt(name = "info")]
+    #[clap(name = "info")]
     Info {
         /// Path to an inode to print info for, relative to cwd
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         paths: Vec<String>,
     },
 
     /// Write the contents of a file to stdout
-    #[structopt(name = "cat")]
+    #[clap(name = "cat")]
     Cat {
         /// Path to a file to cat, relative to cwd
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         paths: Vec<String>,
     },
 
     /// Retrieve a dir, file, or symlink to the local filesystem.
     /// Not recursive.
-    #[structopt(name = "get")]
+    #[clap(name = "get")]
     Get {
         /// Path to get from stash, relative to cwd
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         paths: Vec<String>,
 
         /// Skip retrieval if the file exists locally with a matching size and mtime
-        #[structopt(long, short = "s")]
+        #[clap(long, short = 's')]
         skip_if_exists: bool,
     },
 
     /// Create a stash file based on a local file. This also makes local file
     /// read-only to make it more obviously immutable like the stash file.
-    #[structopt(name = "add")]
+    #[clap(name = "add")]
     Add {
         /// Path to add to stash, relative to cwd
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         paths: Vec<String>,
 
         /// What to do if a directory entry already exists at the corresponding stash path
-        #[structopt(long, short = "e", default_value = "stop")]
+        #[clap(arg_enum, long, short = 'e', default_value = "stop")]
         existing_file_behavior: ExistingFileBehavior,
 
         /// Remove each local file after successfully storing it and creating a dirent
-        #[structopt(long)]
+        #[clap(long)]
         remove_local_files: bool,
     },
 
     /// List a directory
-    #[structopt(name = "ls")]
+    #[clap(name = "ls")]
     Ls {
         /// Path to list, relative to cwd
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         path: Option<String>,
 
         /// Whether to print just the filenames
-        #[structopt(long, short = "j")]
+        #[clap(long, short = 'j')]
         just_names: bool,
 
         /// By which field to sort the output
-        #[structopt(long, default_value = "name")]
+        #[clap(arg_enum, long, default_value = "name")]
         sort: SortOrder,
 
         /// Whether to sort in reverse
-        #[structopt(long, short = "r")]
+        #[clap(long, short = 'r')]
         reverse: bool,
     },
 
     /// Recursively list a directory like findutils find
-    #[structopt(name = "find")]
+    #[clap(name = "find")]
     Find {
         /// Path to list recursively, relative to cwd
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         paths: Vec<String>,
 
         /// Limit output to paths pointing to inodes of this type (d = dir, f = file, s = symlink)
-        #[structopt(long, short = "t", possible_values = &FindKind::variants(), case_insensitive = false)]
+        #[clap(arg_enum, long, short = 't')]
         r#type: Option<FindKind>,
 
         /// Print filenames separated by NULL instead of LF
-        #[structopt(short = "0")]
+        #[clap(short = '0')]
         null_sep: bool,
     },
 
     /// Create a directory. This does not follow the new_dirent_requirements set in config.toml.
-    #[structopt(name = "mkdir")]
+    #[clap(name = "mkdir")]
     Mkdir {
         /// Directory path to create, relative to cwd. Parent directories are
         /// also created as needed. For your convenience, the same directories
         /// are also created in cwd.
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         paths: Vec<String>,
     },
 
     /// Delete a directory entry. Also deletes the corresponding dir when removing
     /// a child_dir dirent. Does not delete files or symlinks, even when removing
     /// the last dirent to a file or symlink.
-    #[structopt(name = "rm")]
+    #[clap(name = "rm")]
     Rm {
         /// Path to a dirent to remove, relative to cwd.
-        #[structopt(name = "PATH")]
+        #[clap(name = "PATH")]
         paths: Vec<String>,
     },
 }
 
-arg_enum! {
-    #[derive(Debug, PartialEq, Eq)]
-    #[allow(non_camel_case_types)]
-    enum SortOrder {
-        name,
-        mtime,
-        size,
-    }
+#[derive(ArgEnum, Clone, Debug, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+enum SortOrder {
+    name,
+    mtime,
+    size,
 }
 
 async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, path: &str) -> Result<InodeId> {
@@ -654,7 +646,7 @@ async fn main() -> Result<()> {
         .init();
 
     // Do this first for --help to work without a database connection
-    let command = ExastashCommand::from_args();
+    let command = ExastashCommand::parse();
 
     if let ExastashCommand::License = command {
         print!("{}", include_str!("../LICENSE"));
@@ -875,7 +867,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                GoogleCommand::TokenService => {
+                GoogleCommand::TokenService(_) => {
                     transaction.commit().await?; // close unused transaction
                     let interval_sec = 305;
                     info!("will check access tokens every {} seconds", interval_sec);
