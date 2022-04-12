@@ -238,7 +238,7 @@ mod tests {
         let mut dst = BytesMut::new();
 
         let result = encoder.encode(Bytes::from_static(b""), &mut dst);
-        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM block must not be 0 bytes");
+        assert_eq!(result.expect_err("expected an error").to_string(), "AES-GCM block must not be 0 bytes");
 
         Ok(())
     }
@@ -251,7 +251,7 @@ mod tests {
         let mut dst = BytesMut::new();
 
         let result = encoder.encode(Bytes::from_static(b"too long"), &mut dst);
-        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM block must be shorter or same length as block size 7, was 8");
+        assert_eq!(result.expect_err("expected an error").to_string(), "AES-GCM block must be shorter or same length as block size 7, was 8");
 
         Ok(())
     }
@@ -265,7 +265,7 @@ mod tests {
         let mut frame_reader = FramedRead::new(buf.as_ref(), decoder);
 
         let result = frame_reader.next().await.expect("Some");
-        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM decryption failed, likely bad tag or data");
+        assert_eq!(result.expect_err("expected an error").to_string(), "AES-GCM decryption failed, likely bad tag or data");
 
         Ok(())
     }
@@ -279,7 +279,7 @@ mod tests {
         let mut frame_reader = FramedRead::new(buf.as_ref(), decoder);
 
         let result = frame_reader.next().await.expect("Some");
-        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM stream ended after a tag followed by no data");
+        assert_eq!(result.expect_err("expected an error").to_string(), "AES-GCM stream ended after a tag followed by no data");
 
         Ok(())
     }
@@ -293,7 +293,7 @@ mod tests {
         let mut frame_reader = FramedRead::new(buf.as_ref(), decoder);
 
         let result = frame_reader.next().await.expect("Some");
-        assert_eq!(result.err().expect("expected an error").to_string(), "AES-GCM stream ended in the middle of a tag");
+        assert_eq!(result.expect_err("expected an error").to_string(), "AES-GCM stream ended in the middle of a tag");
 
         Ok(())
     }

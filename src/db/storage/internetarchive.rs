@@ -146,7 +146,7 @@ mod tests {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.storage_internetarchive SET {column} = {value} WHERE file_id = $1");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
-                assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change file_id, ia_item, or pathname");
+                assert_eq!(result.expect_err("expected an error").to_string(), "error returned from database: cannot change file_id, ia_item, or pathname");
             }
 
             Ok(())

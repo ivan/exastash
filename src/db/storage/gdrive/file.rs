@@ -212,11 +212,11 @@ pub(crate) mod tests {
 
             // Duplicate id is not OK
             let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file1.id, &file2.id, &file1.id]).await;
-            assert_eq!(result.err().expect("expected an error").to_string(), format!("duplicate or nonexistent id given: {:?}", file1.id));
+            assert_eq!(result.expect_err("expected an error").to_string(), format!("duplicate or nonexistent id given: {:?}", file1.id));
 
             // Nonexistent id is not OK
             let result = GdriveFile::find_by_ids_in_order(&mut transaction, &[&file1.id, &file2.id, "nonexistent"]).await;
-            assert_eq!(result.err().expect("expected an error").to_string(), "duplicate or nonexistent id given: \"nonexistent\"");
+            assert_eq!(result.expect_err("expected an error").to_string(), "duplicate or nonexistent id given: \"nonexistent\"");
 
             Ok(())
         }
@@ -261,7 +261,7 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let result = GdriveFile::remove_by_ids(&mut transaction, &[&file.id]).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 format!("error returned from database: gdrive_files={} is still referenced by storage_gdrive={}", file.id, dummy.id)
             );
 
@@ -296,7 +296,7 @@ pub(crate) mod tests {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.gdrive_files SET {column} = {value} WHERE id = $1");
                 let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
-                assert_eq!(result.err().expect("expected an error").to_string(), "error returned from database: cannot change id, md5, crc32c, or size");
+                assert_eq!(result.expect_err("expected an error").to_string(), "error returned from database: cannot change id, md5, crc32c, or size");
             }
 
             Ok(())

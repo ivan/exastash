@@ -612,7 +612,7 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let _ = NewDir { mtime: util::now_no_nanos(), birth: Birth::here_and_now() }.create(&mut transaction).await?;
             let result = transaction.commit().await;
-            let msg = result.err().expect("expected an error").to_string();
+            let msg = result.expect_err("expected an error").to_string();
             assert_eq!(msg, "error returned from database: insert or update on table \"dirs\" violates foreign key constraint \"dirs_id_fkey\"");
             Ok(())
         }
@@ -733,7 +733,7 @@ pub(crate) mod tests {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.dirs SET {column} = {value} WHERE id = $1");
                 let result = sqlx::query(&query).bind(&1i64).execute(&mut transaction).await;
-                let msg = result.err().expect("expected an error").to_string();
+                let msg = result.expect_err("expected an error").to_string();
                 if column == "id" {
                     assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {
@@ -773,7 +773,7 @@ pub(crate) mod tests {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.files SET {column} = {value} WHERE id = $1");
                 let result = sqlx::query(&query).bind(file.id).execute(&mut transaction).await;
-                let msg = result.err().expect("expected an error").to_string();
+                let msg = result.expect_err("expected an error").to_string();
                 if column == "id" {
                     assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {
@@ -807,7 +807,7 @@ pub(crate) mod tests {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.symlinks SET {column} = {value} WHERE id = $1");
                 let result = sqlx::query(&query).bind(symlink.id).execute(&mut transaction).await;
-                let msg = result.err().expect("expected an error").to_string();
+                let msg = result.expect_err("expected an error").to_string();
                 if column == "id" {
                     assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
                 } else {

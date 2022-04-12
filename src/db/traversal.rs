@@ -158,7 +158,7 @@ mod tests {
             ] {
                 let result = resolve_inode(&mut transaction, root_dir.id, &segments).await;
                 assert_eq!(
-                    result.err().expect("expected an error").to_string(),
+                    result.expect_err("expected an error").to_string(),
                     format!("no such dirent {:?} under dir {:?}", segments.last().unwrap(), parent)
                 );
             }
@@ -170,7 +170,7 @@ mod tests {
             ] {
                 let result = resolve_inode(&mut transaction, parent, &segments).await;
                 assert_eq!(
-                    result.err().expect("expected an error").to_string(),
+                    result.expect_err("expected an error").to_string(),
                     format!("{:?} is not a dir", not_a_dir)
                 );
             }
@@ -190,7 +190,7 @@ mod tests {
             let no_components: Vec<&str> = vec![];
             let result = resolve_dirent(&mut transaction, root_dir.id, &no_components).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "resolve_dirent: need at least one path segment to traverse"
             );
 
@@ -213,7 +213,7 @@ mod tests {
             ] {
                 let result = resolve_dirent(&mut transaction, root_dir.id, &segments).await;
                 assert_eq!(
-                    result.err().expect("expected an error").to_string(),
+                    result.expect_err("expected an error").to_string(),
                     format!("no such dirent {:?} under dir {:?}", segments.last().unwrap(), parent)
                 );
             }
@@ -225,7 +225,7 @@ mod tests {
             ] {
                 let result = resolve_dirent(&mut transaction, parent, &segments).await;
                 assert_eq!(
-                    result.err().expect("expected an error").to_string(),
+                    result.expect_err("expected an error").to_string(),
                     format!("{:?} is not a dir", not_a_dir)
                 );
             }

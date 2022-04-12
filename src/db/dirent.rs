@@ -247,7 +247,7 @@ pub(crate) mod tests {
             let parent = inode::NewDir { mtime: Utc::now(), birth: inode::Birth::here_and_now() }.create(&mut transaction).await?;
             let result = Dirent::new(parent.id, "self", InodeId::Dir(parent.id)).create(&mut transaction).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "error returned from database: new row for relation \"dirents\" violates check constraint \"dirents_check\""
             );
 
@@ -266,7 +266,7 @@ pub(crate) mod tests {
             let _      = Dirent::new(one.id, make_basename("two"), InodeId::Dir(two.id)).create(&mut transaction).await?;
             let result = Dirent::new(two.id, make_basename("one"), InodeId::Dir(one.id)).create(&mut transaction).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "error returned from database: cannot insert or delete more than one dirent with a child_dir per transaction"
             );
 
@@ -305,7 +305,7 @@ pub(crate) mod tests {
             Dirent::remove_by_parent_basename(&mut transaction, a.id, "b").await?;
             let result = Dirent::new(c.id, "b", InodeId::Dir(b.id)).create(&mut transaction).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "error returned from database: cannot insert or delete more than one dirent with a child_dir per transaction"
             );
 
@@ -328,7 +328,7 @@ pub(crate) mod tests {
                 let query = format!("UPDATE stash.dirents SET {column} = {value} WHERE parent = $1 AND child_dir = $2");
                 let result = sqlx::query(&query).bind(1i64).bind(child_dir.id).execute(&mut transaction).await;
                 assert_eq!(
-                    result.err().expect("expected an error").to_string(),
+                    result.expect_err("expected an error").to_string(),
                     "error returned from database: cannot change parent, basename, or child_*"
                 );
             }
@@ -368,7 +368,7 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let result = Dirent::new(1, make_basename("child_dir_again"), InodeId::Dir(child_dir.id)).create(&mut transaction).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "error returned from database: duplicate key value violates unique constraint \"dirents_child_dir_index\""
             );
 
@@ -394,7 +394,7 @@ pub(crate) mod tests {
             let mut transaction = pool.begin().await?;
             let result = Dirent::new(1, make_basename("child"), InodeId::Dir(child.id)).create(&mut transaction).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "error returned from database: duplicate key value violates unique constraint \"dirents_child_dir_index\""
             );
 
@@ -420,7 +420,7 @@ pub(crate) mod tests {
                 let child = inode::NewFile { mtime: Utc::now(), birth: birth.clone(), size: 0, executable: false, b3sum: None }.create(&mut transaction).await?;
                 let result = Dirent::new(parent.id, basename.to_string(), InodeId::Dir(child.id)).create(&mut transaction).await;
                 assert_eq!(
-                    result.err().expect("expected an error").to_string(),
+                    result.expect_err("expected an error").to_string(),
                     "error returned from database: value for domain stash.linux_basename violates check constraint \"linux_basename_check\""
                 );
             }

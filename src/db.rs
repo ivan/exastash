@@ -133,7 +133,7 @@ pub fn apply_exastash_ddl(uri: &str) {
 pub async fn assert_cannot_truncate(transaction: &mut Transaction<'_, Postgres>, table: &str) {
     let statement = format!("TRUNCATE {table} CASCADE");
     let result = sqlx::query(&statement).execute(transaction).await;
-    let msg = result.err().expect("expected an error").to_string();
+    let msg = result.expect_err("expected an error").to_string();
     assert_eq!(msg, "error returned from database: truncate is forbidden");
 }
 

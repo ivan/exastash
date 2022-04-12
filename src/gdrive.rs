@@ -223,6 +223,6 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_file_id() {
         let result = request_gdrive_file("/invalid/", "").await;
-        assert_eq!(result.err().expect("expected an error").to_string(), "invalid gdrive file_id: \"/invalid/\"");
+        assert_eq!(result.expect_err("expected an error").to_string(), "invalid gdrive file_id: \"/invalid/\"");
     }
 }

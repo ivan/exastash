@@ -337,7 +337,7 @@ pub(crate) mod tests {
             let storage = Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file.id] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "error returned from database: gdrive_ids had 1 ids: {FileNeverAddedToDatabase} but only 0 of these are in gdrive_files"
             );
 
@@ -358,7 +358,7 @@ pub(crate) mod tests {
             let storage = Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![file1.id, file2.id] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "error returned from database: gdrive_ids had 2 ids: {FFFFFFFFFFFFFFFFFFFFFFFFFFFF,FileNeverAddedToDatabase} but only 1 of these are in gdrive_files"
             );
 
@@ -376,7 +376,7 @@ pub(crate) mod tests {
             let storage = Storage { file_id: dummy.id, google_domain: domain.id, cipher: Cipher::Aes128Gcm, cipher_key: [0; 16], gdrive_ids: vec![] };
             let result = storage.create(&mut transaction).await;
             assert_eq!(
-                result.err().expect("expected an error").to_string(),
+                result.expect_err("expected an error").to_string(),
                 "error returned from database: new row for relation \"storage_gdrive\" violates check constraint \"storage_gdrive_gdrive_ids_check\""
             );
 
@@ -418,7 +418,7 @@ pub(crate) mod tests {
                 let query = format!("UPDATE stash.storage_gdrive SET {column} = {value} WHERE file_id = $1");
                 let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
                 assert_eq!(
-                    result.err().expect("expected an error").to_string(),
+                    result.expect_err("expected an error").to_string(),
                     "error returned from database: cannot change file_id, google_domain, cipher, cipher_key, or gdrive_ids"
                 );
             }
