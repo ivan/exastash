@@ -76,6 +76,7 @@ INSERT INTO exastash_versions (id, version) VALUES
     (67, '2.4.5'),
     (68, '2.4.6'),
     (69, '2.4.7'),
-    (70, '2.5.0');
+    (70, '2.5.0'),
+    (71, '2.5.1');
 
 -- Remember to update src/lib.rs and schema/inodes.sql after adding an exastash version
