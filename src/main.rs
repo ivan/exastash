@@ -328,9 +328,6 @@ enum ServiceAccountCommand {
 }
 
 #[derive(Subcommand, Debug)]
-enum TokenServiceCommand {}
-
-#[derive(Subcommand, Debug)]
 enum GoogleCommand {
     /// Manage OAuth 2.0 application secrets (used with the "installed" application flow)
     #[clap(subcommand, name = "app-secret")]
@@ -345,8 +342,8 @@ enum GoogleCommand {
     ServiceAccount(ServiceAccountCommand),
 
     /// Run a loop that refreshes OAuth 2.0 access tokens every ~5 minutes
-    #[clap(subcommand, name = "token-service")]
-    TokenService(TokenServiceCommand),
+    #[clap(name = "token-service")]
+    TokenService,
 }
 
 #[derive(Subcommand, Debug)]
@@ -863,7 +860,7 @@ async fn main() -> Result<()> {
                         }
                     }
                 }
-                GoogleCommand::TokenService(_) => {
+                GoogleCommand::TokenService => {
                     transaction.commit().await?; // close unused transaction
                     let interval_sec = 305;
                     info!("will check access tokens every {} seconds", interval_sec);
