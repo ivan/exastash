@@ -633,7 +633,7 @@ async fn main() -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("warn"))
         .unwrap();
-    let _subscriber = tracing_subscriber::fmt()
+    tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_env_filter(env_filter)
         .init();
