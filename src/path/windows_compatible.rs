@@ -45,7 +45,6 @@ fn check_windows_segment_ending(segment: &str) -> Result<(), PathError> {
     }
 }
 
-#[cfg(not(tarpaulin_include))]
 fn check_windows_device_name(segment: &str) -> Result<(), PathError> {
     let before_dot = match segment.split('.').next() {
         Some(s) => s,
