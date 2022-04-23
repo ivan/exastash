@@ -60,7 +60,7 @@ tokio-util = { version = "0.7", features = ["codec", "compat"] }
 toml = "0.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-uuid = "0.8"
+uuid = "1.0"
 yansi = "0.5"
 yup-oauth2 = { git = "https://github.com/ludios/yup-oauth2", branch = "prime" }
 zstd = "0.11"
