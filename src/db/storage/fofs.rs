@@ -9,13 +9,13 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct Pile {
     /// Unique pile id
-    id: i32,
+    pub id: i32,
     /// The number of files to place in each cell before marking it full and making a new cell
-    files_per_cell: i32,
+    pub files_per_cell: i32,
     /// The machine on which the pile is stored
-    hostname: String,
-    /// The absolute path to the root directory of the pile on the machine
-    path: String,
+    pub hostname: String,
+    /// The absolute path to the root directory of the pile on the machine, not including the automatically suffixed /{id}
+    pub path: String,
 }
 
 impl Pile {
@@ -61,11 +61,11 @@ impl NewPile {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct Cell {
     /// Unique cell id
-    id: i32,
+    pub id: i32,
     /// The pile we are parented in
-    pile_id: i32,
+    pub pile_id: i32,
     /// Whether we are full because we have reached the per-cell file limit
-    full: bool,
+    pub full: bool,
 }
 
 impl Cell {
@@ -97,15 +97,25 @@ impl Cell {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize)]
 pub struct NewCell {
     /// The pile we are parented in
-    pile_id: i32,
+    pub pile_id: i32,
 }
 
 impl NewCell {
     /// Create an cell entity in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query!("INSERT INTO stash.cells (pile_id) VALUES ($1)", self.pile_id).execute(transaction).await?;
-        Ok(())
+    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<Cell> {
+        let id = sqlx::query_scalar!("
+            INSERT INTO stash.cells (pile_id)
+            VALUES ($1)
+            RETURNING id",
+            self.pile_id
+        ).fetch_one(transaction).await?;
+        assert!(id >= 1);
+        Ok(Cell {
+            id,
+            pile_id: self.pile_id,
+            full: false,
+        })
     }
 }
 

@@ -782,6 +782,26 @@
     },
     "query": "\n            INSERT INTO stash.symlinks (mtime, target, birth_time, birth_version, birth_hostname)\n            VALUES ($1, $2::text, $3, $4, $5::text)\n            RETURNING id"
   },
+  "8b3c336a6d6c92c15e69b4ce7ef854187f950ce04f6b48020df86e1c326263a5": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO stash.cells (pile_id)\n            VALUES ($1)\n            RETURNING id"
+  },
   "8ed12d7ce62e8c51e1390cd518325ea44eca74fb8d784de3abfdfce26751756a": {
     "describe": {
       "columns": [],
@@ -1486,18 +1506,6 @@
       }
     },
     "query": "SELECT file_id, google_domain, cipher as \"cipher: Cipher\", cipher_key, gdrive_ids\n             FROM stash.storage_gdrive\n             WHERE file_id = ANY($1)"
-  },
-  "eb085c341eceef569b8c49590d62733e9205608d14e299a72e48ddebd0c3f889": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int4"
-        ]
-      }
-    },
-    "query": "INSERT INTO stash.cells (pile_id) VALUES ($1)"
   },
   "ebdd7d920e8c679d5254c7a374676b2ff148cc8ee5b89565b688ce3aded993f1": {
     "describe": {

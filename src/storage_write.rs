@@ -19,7 +19,7 @@ use crate::crypto::{GcmEncoder, gcm_create_key};
 use crate::conceal_size::conceal_size;
 use crate::db;
 use crate::db::inode;
-use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}};
+use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}, fofs};
 use crate::blake3::{Blake3HashingReader, b3sum_bytes};
 use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::{create_gdrive_file, GdriveUploadError};
@@ -391,11 +391,39 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     desired: &DesiredStorages,
 ) -> Result<()> {
     let mut last_hash = None;
+    let pool = db::pgpool().await;
 
     if !desired.fofs.is_empty() {
-        unimplemented!();
+        let pile_ids = &desired.fofs;
+        let mut transaction = pool.begin().await?;
+        let piles = fofs::Pile::find_by_ids(&mut transaction, pile_ids).await?;
+        transaction.commit().await?; // close read-only transaction
+        for pile in piles {
+            dbg!(&pile);
+            let my_hostname = util::get_hostname();
+            if pile.hostname != my_hostname {
+                unimplemented!("uploading to another machine");
+            }
+            let mut transaction = pool.begin().await?;
+            let cells = fofs::Cell::find_by_pile_ids_and_fullness(&mut transaction, &[pile.id], false).await?;
+            // We don't need more than one cell, so take the first
+            let cell = match cells.into_iter().next() {
+                Some(cell) => cell,
+                None => fofs::NewCell { pile_id: pile.id }.create(&mut transaction).await?
+            };
+            transaction.commit().await?;
+
+            // TODO: as with gdrive below, make sure it's skipped if already exists
+
+            // TODO: if file is already available in some other storage, instead of POSTing the file over,
+            // call add-storages on that machine instead, so that we don't waste our own bandwidth
+            // transferring to that machine
+
+            // TODO: actually add to pile
+        }
     }
 
+    // TODO: make sure it's skipped if already exists
     if desired.inline {
         let mut reader = producer()?;
         let mut content = vec![];
@@ -412,7 +440,6 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         let compression_level = 19; // levels > 19 use a lot more memory to decompress
         let content_zstd = paranoid_zstd_encode_all(content, compression_level).await?;
 
-        let pool = db::pgpool().await;
         let mut transaction = pool.begin().await?;
         inline::Storage { file_id: file.id, content_zstd }.maybe_create(&mut transaction).await?;
         transaction.commit().await?;
@@ -420,7 +447,6 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
 
     if !desired.gdrive.is_empty() {
         let already_on_domains: HashSet<i16> = {
-            let pool = db::pgpool().await;
             let mut transaction = pool.begin().await?;
             let storages = gdrive::Storage::find_by_file_ids(&mut transaction, &[file.id]).await?;
             transaction.commit().await?; // close read-only transaction
@@ -456,7 +482,6 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             }
             last_hash = Some(hash_this_upload);
 
-            let pool = db::pgpool().await;
             let mut transaction = pool.begin().await?;
             gdrive_file.create(&mut transaction).await?;
             storage.create(&mut transaction).await?;
@@ -465,7 +490,6 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     }
 
     if let (None, Some(h)) = (file.b3sum, last_hash) {
-        let pool = db::pgpool().await;
         let mut transaction = pool.begin().await?;
         inode::File::set_b3sum(&mut transaction, file.id, h.as_bytes()).await?;
         transaction.commit().await?;
