@@ -401,9 +401,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         for pile in piles {
             dbg!(&pile);
             let my_hostname = util::get_hostname();
-            if pile.hostname != my_hostname {
-                unimplemented!("uploading to another machine");
-            }
+
             let mut transaction = pool.begin().await?;
             let cells = fofs::Cell::find_by_pile_ids_and_fullness(&mut transaction, &[pile.id], false).await?;
             // We don't need more than one cell, so take the first
@@ -413,13 +411,29 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             };
             transaction.commit().await?;
 
+            if pile.hostname == my_hostname {
+                let dir = format!("{}/{}/{}", pile.path, pile.id, cell.id);
+                std::fs::create_dir_all(&dir)?;
+
+                let fname = format!("{}/{}", dir, file.id);
+                let mut local_file = tokio::fs::File::create(&fname).await?;
+                let mut reader = producer()?;
+                tokio::io::copy(&mut reader, &mut local_file).await?;
+
+                let mut transaction = pool.begin().await?;
+                fofs::Storage { file_id: file.id, cell_id: cell.id }.create(&mut transaction).await?;
+                transaction.commit().await?;
+
+                // TODO: check for fullness of directory and flip the bit on the cell if needed
+            } else {
+                unimplemented!("uploading to another machine");
+            }
+
             // TODO: as with gdrive below, make sure it's skipped if already exists
 
             // TODO: if file is already available in some other storage, instead of POSTing the file over,
             // call add-storages on that machine instead, so that we don't waste our own bandwidth
             // transferring to that machine
-
-            // TODO: actually add to pile
         }
     }
 
