@@ -10,7 +10,8 @@ use serde::Serialize;
 pub struct Pile {
     /// Unique pile id
     pub id: i32,
-    /// The number of files to place in each cell before marking it full and making a new cell
+    /// The number of files to place in each cell before marking it full and making a new cell.
+    /// For performance reasons, this is not strictly enforced; the cell may go over the threshold.
     pub files_per_cell: i32,
     /// The machine on which the pile is stored
     pub hostname: String,

@@ -3,7 +3,8 @@
 CREATE TABLE piles (
     -- Limit of 1M can be raised if needed
     id              int       GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 1000000),
-    -- The number of files to place in each cell before marking it full and making a new cell
+    -- The number of files to place in each cell before marking it full and making a new cell.
+    -- For performance reasons, this is not strictly enforced; the cell may go over the threshold.
     files_per_cell  int       NOT NULL CHECK (files_per_cell >= 1),
     -- The machine on which the pile is stored
     hostname        hostname  NOT NULL,
