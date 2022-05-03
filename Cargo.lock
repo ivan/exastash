@@ -1582,6 +1582,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust_decimal"
+version = "1.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22dc69eadbf0ee2110b8d20418c0c6edbaefec2811c4963dc17b6344e11fe0f8"
+dependencies = [
+ "arrayvec 0.7.2",
+ "num-traits",
+ "serde",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1942,10 +1953,12 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
+ "num-bigint 0.4.3",
  "once_cell",
  "paste",
  "percent-encoding",
  "rand",
+ "rust_decimal",
  "rustls 0.20.4",
  "rustls-pemfile 1.0.0",
  "serde",

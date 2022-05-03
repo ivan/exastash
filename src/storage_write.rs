@@ -1,5 +1,6 @@
 //! Functions to write content to storage
 
+use num::ToPrimitive;
 use rand::Rng;
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 use std::pin::Pin;
@@ -399,7 +400,8 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         let piles = fofs::Pile::find_by_ids(&mut transaction, pile_ids).await?;
         transaction.commit().await?; // close read-only transaction
         for pile in piles {
-            dbg!(&pile);
+            info!(file_id = file.id, file_size = file.size, pile = pile.id, "storing file in pile");
+
             let my_hostname = util::get_hostname();
 
             let mut transaction = pool.begin().await?;
@@ -412,19 +414,29 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             transaction.commit().await?;
 
             if pile.hostname == my_hostname {
-                let dir = format!("{}/{}/{}", pile.path, pile.id, cell.id);
-                std::fs::create_dir_all(&dir)?;
+                let cell_dir = format!("{}/{}/{}", pile.path, pile.id, cell.id);
+                std::fs::create_dir_all(&cell_dir)?;
 
-                let fname = format!("{}/{}", dir, file.id);
+                let fname = format!("{}/{}", cell_dir, file.id);
                 let mut local_file = tokio::fs::File::create(&fname).await?;
                 let mut reader = producer()?;
                 tokio::io::copy(&mut reader, &mut local_file).await?;
 
+                let mut set_cell_full = false;
+                let random: f32 = rand::thread_rng().gen_range(0.0..1.0);
+                if random < pile.fullness_check_ratio.to_f32().expect("failed to convert fullness_check_ratio to f32") {
+                    let files_in_cell = std::fs::read_dir(cell_dir)?.count() as i32;
+                    if files_in_cell >= pile.files_per_cell {
+                        set_cell_full = true;
+                    }
+                }
+
                 let mut transaction = pool.begin().await?;
                 fofs::Storage { file_id: file.id, cell_id: cell.id }.create(&mut transaction).await?;
+                if set_cell_full {
+                    fofs::Cell::set_full(&mut transaction, cell.id, true).await?;
+                }
                 transaction.commit().await?;
-
-                // TODO: check for fullness of directory and flip the bit on the cell if needed
             } else {
                 unimplemented!("uploading to another machine");
             }
@@ -437,8 +449,10 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         }
     }
 
-    // TODO: make sure it's skipped if already exists
+    // We don't check if it already exists first because maybe_create is a no-op in that case
     if desired.inline {
+        info!(file_id = file.id, file_size = file.size, "storing file inline");
+
         let mut reader = producer()?;
         let mut content = vec![];
         reader.read_to_end(&mut content).await?;
@@ -469,8 +483,11 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
 
         for domain in &desired.gdrive {
             if already_on_domains.contains(domain) {
+                info!(file_id = file.id, file_size = file.size, domain = domain, "not storing file in gdrive (already in this domain)");
                 continue;
             }
+            info!(file_id = file.id, file_size = file.size, domain = domain, "storing file in gdrive");
+
             let reader = producer()?;
             let counting_reader = util::ByteCountingReader::new(reader);
             let length_arc = counting_reader.length();

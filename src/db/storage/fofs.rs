@@ -3,6 +3,7 @@
 use tracing::info;
 use anyhow::Result;
 use sqlx::{Postgres, Transaction};
+use sqlx::types::Decimal;
 use serde::Serialize;
 
 /// A pile entity
@@ -11,12 +12,21 @@ pub struct Pile {
     /// Unique pile id
     pub id: i32,
     /// The number of files to place in each cell before marking it full and making a new cell.
-    /// For performance reasons, this is not strictly enforced; the cell may go over the threshold.
+    /// For performance reasons, this is not strictly enforced unless fullness_check_ratio = 1;
+    /// the cell may go over the threshold.
+    ///
+    /// A typical value is 10000.
     pub files_per_cell: i32,
     /// The machine on which the pile is stored
     pub hostname: String,
-    /// The absolute path to the root directory of the pile on the machine, not including the automatically suffixed /{id}
+    /// The absolute path to the root directory of the pile on the machine
     pub path: String,
+    /// How often to check whether a cell in this pile has reached capacity before
+    /// marking it full; 0 = never, 1 = always
+    ///
+    /// For files_per_cell = 10000, a typical value for fullness_check_ratio is 0.01,
+    /// thus causing ~100 listdir calls on a 10000-sized cell as it grows to capacity.
+    pub fullness_check_ratio: Decimal,
 }
 
 impl Pile {
@@ -27,7 +37,7 @@ impl Pile {
             return Ok(vec![])
         }
         let piles = sqlx::query_as!(Pile, "
-            SELECT id, files_per_cell, hostname, path FROM stash.piles WHERE id = ANY($1)", ids
+            SELECT id, files_per_cell, hostname, path, fullness_check_ratio FROM stash.piles WHERE id = ANY($1)", ids
         ).fetch_all(transaction).await?;
         Ok(piles)
     }
@@ -36,12 +46,22 @@ impl Pile {
 /// A new pile entity
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct NewPile {
-    /// The number of files to place in each cell before marking it full and making a new cell
-    files_per_cell: i32,
+    /// The number of files to place in each cell before marking it full and making a new cell.
+    /// For performance reasons, this is not strictly enforced unless fullness_check_ratio = 1;
+    /// the cell may go over the threshold.
+    ///
+    /// A typical value is 10000.
+    pub files_per_cell: i32,
     /// The machine on which the pile is stored
-    hostname: String,
+    pub hostname: String,
     /// The absolute path to the root directory of the pile on the machine
-    path: String,
+    pub path: String,
+    /// How often to check whether a cell in this pile has reached capacity before
+    /// marking it full; 0 = never, 1 = always
+    ///
+    /// For files_per_cell = 10000, a typical value for fullness_check_ratio is 0.01,
+    /// thus causing ~100 listdir calls on a 10000-sized cell as it grows to capacity.
+    pub fullness_check_ratio: Decimal,
 }
 
 impl NewPile {
@@ -49,8 +69,8 @@ impl NewPile {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query!(
-            "INSERT INTO stash.piles (files_per_cell, hostname, path) VALUES ($1, $2::text, $3)",
-            self.files_per_cell, self.hostname, self.path
+            "INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio) VALUES ($1, $2::text, $3, $4)",
+            self.files_per_cell, self.hostname, self.path, self.fullness_check_ratio
         ).execute(transaction).await?;
         Ok(())
     }

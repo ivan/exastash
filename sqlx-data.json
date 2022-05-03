@@ -164,44 +164,6 @@
     },
     "query": "\n            DELETE FROM stash.dirents\n            WHERE child_dir = $1"
   },
-  "1979b43559f9341e73009320cdbd24617ae8bdcf3f45f02433b949a15d511065": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int4"
-        },
-        {
-          "name": "files_per_cell",
-          "ordinal": 1,
-          "type_info": "Int4"
-        },
-        {
-          "name": "hostname",
-          "ordinal": 2,
-          "type_info": "Text"
-        },
-        {
-          "name": "path",
-          "ordinal": 3,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int4Array"
-        ]
-      }
-    },
-    "query": "\n            SELECT id, files_per_cell, hostname, path FROM stash.piles WHERE id = ANY($1)"
-  },
   "1de8adffe88aaa9ea4d2bc2885e558cddd0d856c0325c8d64a7211939d1fe868": {
     "describe": {
       "columns": [
@@ -604,6 +566,21 @@
     },
     "query": "DELETE FROM stash.google_access_tokens WHERE owner_id = $1"
   },
+  "6602eb24c1d6eb397cece200058a1057f80dcf1fa5828d2b26774cc1e2f4e34c": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Text",
+          "Text",
+          "Numeric"
+        ]
+      }
+    },
+    "query": "INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio) VALUES ($1, $2::text, $3, $4)"
+  },
   "663d30f183d3e770b59b0a0e669765f2a6e40e9f252e64b903ff6e6d6edb5b30": {
     "describe": {
       "columns": [
@@ -757,6 +734,50 @@
       }
     },
     "query": "SELECT nextval($1)"
+  },
+  "822d9f43f0e139e7f34b2902bbda8751918a6bc90cf5e68dd68f33ce03746fd3": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        },
+        {
+          "name": "files_per_cell",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "hostname",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "path",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "fullness_check_ratio",
+          "ordinal": 4,
+          "type_info": "Numeric"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4Array"
+        ]
+      }
+    },
+    "query": "\n            SELECT id, files_per_cell, hostname, path, fullness_check_ratio FROM stash.piles WHERE id = ANY($1)"
   },
   "831d5727c5f31102e869e1bd3214a5ec9df9d43b1406c907d81cc5c3a739c5ae": {
     "describe": {
@@ -993,20 +1014,6 @@
       }
     },
     "query": "\n            INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)\n            VALUES ($1, $2::text, $3::text, $4, $5)"
-  },
-  "a5cc10394be35330479b3beca564af93957bf5296635c24937fdee30688dc724": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int4",
-          "Text",
-          "Text"
-        ]
-      }
-    },
-    "query": "INSERT INTO stash.piles (files_per_cell, hostname, path) VALUES ($1, $2::text, $3)"
   },
   "ab41ed76e2d142bcb736b823e0359885459ba7489855d007f08784de123cf1f9": {
     "describe": {

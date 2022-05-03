@@ -2,14 +2,22 @@
 -- pile per filesystem/storage device.
 CREATE TABLE piles (
     -- Limit of 1M can be raised if needed
-    id              int       GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 1000000),
+    id                    int       GENERATED ALWAYS AS IDENTITY PRIMARY KEY CHECK (id >= 1 AND id < 1000000),
     -- The number of files to place in each cell before marking it full and making a new cell.
-    -- For performance reasons, this is not strictly enforced; the cell may go over the threshold.
-    files_per_cell  int       NOT NULL CHECK (files_per_cell >= 1),
+    -- For performance reasons, this is not strictly enforced unless fullness_check_ratio = 1;
+    -- the cell may go over the threshold.
+    --
+    -- A typical value is 10000.
+    files_per_cell        int       NOT NULL CHECK (files_per_cell >= 1),
     -- The machine on which the pile is stored
-    hostname        hostname  NOT NULL,
+    hostname              hostname  NOT NULL,
     -- The absolute path to the root directory of the pile on the machine, not including the automatically suffixed /{id}
-    "path"          text      NOT NULL CHECK ("path" ~ '\A/.*[^/]\Z') -- Must start with /, must not end with /
+    "path"                text      NOT NULL CHECK ("path" ~ '\A/.*[^/]\Z'), -- Must start with /, must not end with /
+    -- How often to check whether the cell has reached capacity before marking it full; 0 = never, 1 = always
+    --
+    -- For files_per_cell = 10000, a typical value for fullness_check_ratio is 0.01,
+    -- thus causing ~100 listdir calls on a 10000-sized cell as it grows to capacity.
+    fullness_check_ratio  numeric   NOT NULL CHECK (fullness_check_ratio >= 0 AND fullness_check_ratio <= 1)
 );
 
 CREATE TRIGGER piles_check_update
