@@ -400,7 +400,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         let piles = fofs::Pile::find_by_ids(&mut transaction, pile_ids).await?;
         transaction.commit().await?; // close read-only transaction
         for pile in piles {
-            info!(file_id = file.id, file_size = file.size, pile = pile.id, "storing file in pile");
+            info!(file_id = file.id, file_size = file.size, pile = pile.id, "storing file in fofs pile");
 
             let my_hostname = util::get_hostname();
 
@@ -424,8 +424,9 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
 
                 let mut set_cell_full = false;
                 let random: f32 = rand::thread_rng().gen_range(0.0..1.0);
+                let mut files_in_cell = -1;
                 if random < pile.fullness_check_ratio.to_f32().expect("failed to convert fullness_check_ratio to f32") {
-                    let files_in_cell = std::fs::read_dir(cell_dir)?.count() as i32;
+                    files_in_cell = std::fs::read_dir(cell_dir)?.count() as i32;
                     if files_in_cell >= pile.files_per_cell {
                         set_cell_full = true;
                     }
@@ -434,6 +435,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 let mut transaction = pool.begin().await?;
                 fofs::Storage { file_id: file.id, cell_id: cell.id }.create(&mut transaction).await?;
                 if set_cell_full {
+                    info!(cell_id = cell.id, files_per_cell = pile.files_per_cell, files_in_cell = files_in_cell, "marking fofs cell as full");
                     fofs::Cell::set_full(&mut transaction, cell.id, true).await?;
                 }
                 transaction.commit().await?;
@@ -486,7 +488,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 info!(file_id = file.id, file_size = file.size, domain = domain, "not storing file in gdrive (already in this domain)");
                 continue;
             }
-            info!(file_id = file.id, file_size = file.size, domain = domain, "storing file in gdrive");
+            info!(file_id = file.id, file_size = file.size, domain = domain, "storing file in gdrive domain");
 
             let reader = producer()?;
             let counting_reader = util::ByteCountingReader::new(reader);
