@@ -207,6 +207,7 @@ async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlaceme
 
     // Mark current parent as full
     let mut transaction = pool.begin().await?;
+    info!("setting full = {} on gdrive_parent name = {:?}", true, &old_placement.parent);
     gdrive::GdriveParent::set_full(&mut transaction, &old_placement.parent, true).await?;
     transaction.commit().await?;
 
