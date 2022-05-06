@@ -60,7 +60,6 @@ impl GdriveParent {
 
     /// Set whether a parent is full or not
     pub async fn set_full(transaction: &mut Transaction<'_, Postgres>, name: &str, full: bool) -> Result<()> {
-        info!("setting full = {} on gdrive_parent name = {:?}", full, name);
         sqlx::query!(r#"UPDATE stash.gdrive_parents SET "full" = $1 WHERE name = $2"#, full, name)
             .execute(transaction).await?;
         Ok(())

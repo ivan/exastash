@@ -107,7 +107,6 @@ impl Cell {
 
     /// Set whether a cell is full or not
     pub async fn set_full(transaction: &mut Transaction<'_, Postgres>, id: i32, full: bool) -> Result<()> {
-        info!("setting full = {} on cell id = {:?}", full, id);
         sqlx::query!(r#"UPDATE stash.cells SET "full" = $1 WHERE id = $2"#, full, id)
             .execute(transaction).await?;
         Ok(())
