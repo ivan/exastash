@@ -1,6 +1,5 @@
 //! CRUD operations for storage_fofs entities in PostgreSQL
 
-use tracing::info;
 use anyhow::Result;
 use sqlx::{Postgres, Transaction};
 use sqlx::types::Decimal;

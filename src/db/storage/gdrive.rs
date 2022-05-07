@@ -1,6 +1,5 @@
 //! CRUD operations for storage_gdrive entities in PostgreSQL
 
-use tracing::info;
 use anyhow::Result;
 use futures_async_stream::for_await;
 use sqlx::{Postgres, Transaction};
