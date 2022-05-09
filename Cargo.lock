@@ -504,7 +504,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tokio-stream",
  "tokio-util 0.7.1",
  "toml",
  "tracing",

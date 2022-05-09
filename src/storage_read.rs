@@ -6,7 +6,6 @@ use tracing::{info, debug};
 use futures::{stream::{self, Stream, BoxStream, TryStreamExt}};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tokio::io::AsyncReadExt;
-use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
 use tokio_util::codec::FramedRead;
 use reqwest::StatusCode;
@@ -67,12 +66,15 @@ pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> 
     Ok(tokens)
 }
 
+/// Pinned boxed dyn Stream of bytes::Bytes
+pub type ReadStream = BoxStream<'static, Result<Bytes, Error>>;
+
 /// Takes a `Stream` of a gdrive response body and return a `Stream` that yields
 /// an Err if the crc32c or body length is correct.
 fn stream_add_validation(
     gdrive_file: &gdrive::file::GdriveFile,
     stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin + Send + 'static,
-) -> BoxStream<'static, Result<Bytes, Error>> {
+) -> ReadStream {
     let expected_crc = gdrive_file.crc32c;
     let expected_size = gdrive_file.size as u64;
     let mut crc = 0;
@@ -146,7 +148,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
     out
 }
 
-fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> BoxStream<'static, Result<Bytes, Error>> {
+fn stream_gdrive_ctr_chunks(file: &inode::File, storage: &gdrive::Storage) -> ReadStream {
     let file = file.clone();
     let storage = storage.clone();
 
@@ -201,9 +203,6 @@ pub(crate) fn get_aes_gcm_length(content_length: u64, block_size: usize) -> u64 
     let length_of_tags = 16 * number_of_tags;
     content_length + length_of_tags
 }
-
-/// Pinned boxed dyn Stream of bytes::Bytes
-pub type ReadStream = BoxStream<'static, Result<Bytes, Error>>;
 
 fn stream_gdrive_gcm_chunks(file: &inode::File, storage: &gdrive::Storage) -> ReadStream {
     let file = file.clone();
@@ -272,17 +271,26 @@ async fn stream_fofs_file(file: &inode::File, storage: &fofs::Storage) -> Result
     let pile_ids: Vec<i32> = cells.iter().map(|&cell| cell.id).collect();
     let piles = fofs::Pile::find_by_ids(&mut transaction, &pile_ids).await?;
     // TODO prefer fofs pile on local machine
-    let pile = piles[0]; // TODO
+    let pile = &piles[0]; // TODO
     let my_hostname = util::get_hostname();
     if pile.hostname != my_hostname {
         unimplemented!("reading from another machine");
     }
     let cells_for_this_pile: Vec<fofs::Cell> = cells.into_iter().filter(|cell| cell.pile_id == pile.id).collect();
-    let cell = cells_for_this_pile[0]; // TODO
+    let cell = &cells_for_this_pile[0]; // TODO
     let fname = format!("{}/{}/{}/{}", pile.path, pile.id, cell.id, file.id);
-    let file = tokio::fs::File::open(fname);
+    let file = tokio::fs::File::open(fname).await?;
     let stream = ReaderStream::new(file);
-    Ok(Box::pin(stream))
+    Ok(Box::pin(
+        #[try_stream]
+        async move {
+            #[for_await]
+            for item in stream {
+                let bytes = item?;
+                yield bytes;
+            }
+        }
+    ))
 }
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`
@@ -290,7 +298,7 @@ async fn read_storage_without_checks(file: &inode::File, storage: &Storage) -> R
     info!(id = file.id, "reading file");
     Ok(match storage {
         Storage::Fofs(fofs_storage) => {
-            stream_fofs_file(file, fofs_storage)
+            stream_fofs_file(file, fofs_storage).await?
         }
         Storage::Inline(inline::Storage { content_zstd, .. }) => {
             let content = zstd::stream::decode_all(content_zstd.as_slice())?;
