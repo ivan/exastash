@@ -268,16 +268,17 @@ async fn stream_fofs_file(file: &inode::File, storage: &fofs::Storage) -> Result
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
     let cells = fofs::Cell::find_by_ids(&mut transaction, &[storage.cell_id]).await?;
-    let pile_ids: Vec<i32> = cells.iter().map(|&cell| cell.id).collect();
+    let pile_ids: Vec<i32> = cells.iter().map(|&cell| cell.pile_id).collect();
     let piles = fofs::Pile::find_by_ids(&mut transaction, &pile_ids).await?;
-    // TODO prefer fofs pile on local machine
-    let pile = &piles[0]; // TODO
+    // TODO prefer fofs pile on local machine, but allow other piles
+    let pile = &piles[0]; // TODO don't crash
     let my_hostname = util::get_hostname();
     if pile.hostname != my_hostname {
+        // TODO make HTTP request to other machine if needed
         unimplemented!("reading from another machine");
     }
     let cells_for_this_pile: Vec<fofs::Cell> = cells.into_iter().filter(|cell| cell.pile_id == pile.id).collect();
-    let cell = &cells_for_this_pile[0]; // TODO
+    let cell = &cells_for_this_pile[0]; // TODO don't crash
     let fname = format!("{}/{}/{}/{}", pile.path, pile.id, cell.id, file.id);
     let file = tokio::fs::File::open(fname).await?;
     let stream = ReaderStream::new(file);
