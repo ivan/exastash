@@ -56,7 +56,8 @@ sqlx = { git = "https://github.com/launchbadge/sqlx", default-features = false, 
 tempfile = "3"
 thiserror = "1.0"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "fs", "io-util"] }
-tokio-util = { version = "0.7", features = ["codec", "compat"] }
+tokio-util = { version = "0.7", features = ["io", "codec", "compat"] }
+tokio-stream = "0.1"
 toml = "0.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

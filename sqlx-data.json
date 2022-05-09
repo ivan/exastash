@@ -369,6 +369,38 @@
     },
     "query": "\n            SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum\n            FROM stash.files\n            WHERE id = ANY($1)"
   },
+  "4dc3a3ec2d98e27eb85becf54f55627f0bb2ffa32bf353e9d0297a6dba62180f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        },
+        {
+          "name": "pile_id",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "full",
+          "ordinal": 2,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4Array"
+        ]
+      }
+    },
+    "query": "\n            SELECT id, pile_id, \"full\"\n            FROM stash.cells\n            WHERE id = ANY($1)"
+  },
   "4f095d3215af613b98967e838aae8fe0239ae050ffcc87866ed0a86fea552313": {
     "describe": {
       "columns": [],

@@ -6,6 +6,8 @@ use tracing::{info, debug};
 use futures::{stream::{self, Stream, BoxStream, TryStreamExt}};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tokio::io::AsyncReadExt;
+use tokio_stream::StreamExt;
+use tokio_util::io::ReaderStream;
 use tokio_util::codec::FramedRead;
 use reqwest::StatusCode;
 use aes::Aes128Ctr;
@@ -20,6 +22,7 @@ use crate::db::inode;
 use crate::db::storage::{get_storages, Storage, fofs, inline, gdrive, internetarchive};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::db::google_auth::{GoogleAccessToken, GoogleServiceAccount};
+use crate::util;
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
@@ -262,12 +265,32 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> ReadStr
     }
 }
 
+async fn stream_fofs_file(file: &inode::File, storage: &fofs::Storage) -> Result<ReadStream> {
+    let pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
+    let cells = fofs::Cell::find_by_ids(&mut transaction, &[storage.cell_id]).await?;
+    let pile_ids: Vec<i32> = cells.iter().map(|&cell| cell.id).collect();
+    let piles = fofs::Pile::find_by_ids(&mut transaction, &pile_ids).await?;
+    // TODO prefer fofs pile on local machine
+    let pile = piles[0]; // TODO
+    let my_hostname = util::get_hostname();
+    if pile.hostname != my_hostname {
+        unimplemented!("reading from another machine");
+    }
+    let cells_for_this_pile: Vec<fofs::Cell> = cells.into_iter().filter(|cell| cell.pile_id == pile.id).collect();
+    let cell = cells_for_this_pile[0]; // TODO
+    let fname = format!("{}/{}/{}/{}", pile.path, pile.id, cell.id, file.id);
+    let file = tokio::fs::File::open(fname);
+    let stream = ReaderStream::new(file);
+    Ok(Box::pin(stream))
+}
+
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`
 async fn read_storage_without_checks(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
     info!(id = file.id, "reading file");
     Ok(match storage {
-        Storage::Fofs(fofs::Storage { .. }) => {
-            unimplemented!()
+        Storage::Fofs(fofs_storage) => {
+            stream_fofs_file(file, fofs_storage)
         }
         Storage::Inline(inline::Storage { content_zstd, .. }) => {
             let content = zstd::stream::decode_all(content_zstd.as_slice())?;
