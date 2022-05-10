@@ -9,7 +9,7 @@ use crate::db;
 use anyhow::Result;
 use sqlx::{Postgres, Transaction};
 use serde::Serialize;
-use futures::join;
+use futures::try_join;
 
 /// A storage entity
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -33,25 +33,39 @@ pub enum Storage {
 pub async fn get_storages(file_ids: &[i64]) -> Result<Vec<Storage>> {
     let pool = db::pgpool().await;
 
-    let mut transaction = pool.begin().await?;
-    let fofs = fofs::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-        .into_iter().map(Storage::Fofs).collect::<Vec<_>>();
-    transaction.commit().await?; // close read-only transaction
+    let fofs = async {
+        let mut transaction = pool.begin().await?;
+        let storages = fofs::Storage::find_by_file_ids(&mut transaction, file_ids).await?
+            .into_iter().map(Storage::Fofs).collect::<Vec<_>>();
+        transaction.commit().await?; // close read-only transaction
+        anyhow::Ok(storages)
+    };
 
-    let mut transaction = pool.begin().await?;
-    let inline = inline::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-        .into_iter().map(Storage::Inline).collect::<Vec<_>>();
-    transaction.commit().await?; // close read-only transaction
+    let inline = async {
+        let mut transaction = pool.begin().await?;
+        let storages = inline::Storage::find_by_file_ids(&mut transaction, file_ids).await?
+            .into_iter().map(Storage::Inline).collect::<Vec<_>>();
+        transaction.commit().await?; // close read-only transaction
+        anyhow::Ok(storages)
+    };
 
-    let mut transaction = pool.begin().await?;
-    let gdrive = gdrive::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-        .into_iter().map(Storage::Gdrive).collect::<Vec<_>>();
-    transaction.commit().await?; // close read-only transaction
+    let gdrive = async {
+        let mut transaction = pool.begin().await?;
+        let storages = gdrive::Storage::find_by_file_ids(&mut transaction, file_ids).await?
+            .into_iter().map(Storage::Gdrive).collect::<Vec<_>>();
+        transaction.commit().await?; // close read-only transaction
+        anyhow::Ok(storages)
+    };
 
-    let mut transaction = pool.begin().await?;
-    let internetarchive = internetarchive::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-        .into_iter().map(Storage::InternetArchive).collect::<Vec<_>>();
-    transaction.commit().await?; // close read-only transaction
+    let internetarchive = async {
+        let mut transaction = pool.begin().await?;
+        let storages = internetarchive::Storage::find_by_file_ids(&mut transaction, file_ids).await?
+            .into_iter().map(Storage::InternetArchive).collect::<Vec<_>>();
+        transaction.commit().await?; // close read-only transaction
+        anyhow::Ok(storages)
+    };
+
+    let (fofs, inline, gdrive, internetarchive) = try_join!(fofs, inline, gdrive, internetarchive)?;
 
     Ok([
         &fofs[..],
