@@ -80,7 +80,7 @@ mod tests {
         }
 
         /// If we add four storages for a file, get_storages returns all of them, in order of:
-        /// inline, gdrive, internetarchive
+        /// fofs, inline, gdrive, internetarchive
         #[tokio::test]
         async fn test_create_storage_and_get_storage() -> Result<()> {
             let pool = new_primary_pool().await;
@@ -105,10 +105,16 @@ mod tests {
             let storage4 = inline::Storage { file_id: dummy.id, content_zstd: "invalid zstd is ok".into() };
             storage4.create(&mut transaction).await?;
 
+            // fofs
+            let pile = fofs::NewPile { files_per_cell: 10, hostname: "localhost".into(), path: "/tmp/fake-fofs".into(), fullness_check_ratio: 1.into() }.create(&mut transaction).await?;
+            let cell = fofs::NewCell { pile_id: pile.id }.create(&mut transaction).await?;
+            let storage5 = fofs::Storage { file_id: dummy.id, cell_id: cell.id };
+            storage5.create(&mut transaction).await?;
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
             assert_eq!(get_storages(&mut transaction, &[dummy.id]).await?, vec![
+                Storage::Fofs(storage5),
                 Storage::Inline(storage4),
                 Storage::Gdrive(storage3),
                 Storage::InternetArchive(storage1),

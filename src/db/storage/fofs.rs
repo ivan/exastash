@@ -66,12 +66,21 @@ pub struct NewPile {
 impl NewPile {
     /// Create an pile entity in the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query!(
-            "INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio) VALUES ($1, $2::text, $3, $4)",
+    pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<Pile> {
+        let id = sqlx::query_scalar!(
+            "INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio)
+            VALUES ($1, $2::text, $3, $4)
+            RETURNING id",
             self.files_per_cell, self.hostname, self.path, self.fullness_check_ratio
-        ).execute(transaction).await?;
-        Ok(())
+        ).fetch_one(transaction).await?;
+        assert!(id >= 1);
+        Ok(Pile {
+            id,
+            files_per_cell: self.files_per_cell,
+            hostname: self.hostname.clone(),
+            path: self.path.clone(),
+            fullness_check_ratio: self.fullness_check_ratio,
+        })
     }
 }
 

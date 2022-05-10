@@ -648,21 +648,6 @@
     },
     "query": "DELETE FROM stash.google_access_tokens WHERE owner_id = $1"
   },
-  "6602eb24c1d6eb397cece200058a1057f80dcf1fa5828d2b26774cc1e2f4e34c": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int4",
-          "Text",
-          "Text",
-          "Numeric"
-        ]
-      }
-    },
-    "query": "INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio) VALUES ($1, $2::text, $3, $4)"
-  },
   "663d30f183d3e770b59b0a0e669765f2a6e40e9f252e64b903ff6e6d6edb5b30": {
     "describe": {
       "columns": [
@@ -816,6 +801,29 @@
       }
     },
     "query": "SELECT nextval($1)"
+  },
+  "78d772ccb56e8c59c3c335f14dcc1d1e0a95d78037d244cc1affc63308d56ed4": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Text",
+          "Text",
+          "Numeric"
+        ]
+      }
+    },
+    "query": "INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio)\n            VALUES ($1, $2::text, $3, $4)\n            RETURNING id"
   },
   "822d9f43f0e139e7f34b2902bbda8751918a6bc90cf5e68dd68f33ce03746fd3": {
     "describe": {
