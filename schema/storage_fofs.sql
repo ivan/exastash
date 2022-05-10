@@ -81,3 +81,17 @@ CREATE TRIGGER storage_fofs_forbid_truncate
 
 -- Set the index to use for future CLUSTER operations
 ALTER TABLE storage_fofs CLUSTER ON storage_fofs_pkey;
+
+
+
+CREATE VIEW storage_fofs_view AS
+    SELECT
+        file_id,
+        cell_id,
+        pile_id, "full" AS cell_full,
+        files_per_cell,
+        hostname AS pile_hostname,
+        "path" AS pile_path
+    FROM stash.storage_fofs
+    LEFT JOIN stash.cells ON cells.id = cell_id
+    LEFT JOIN stash.piles ON piles.id = pile_id;
