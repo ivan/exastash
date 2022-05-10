@@ -203,3 +203,43 @@ impl Storage {
         Ok(storages)
     }
 }
+
+
+
+/// A storage_fofs_view entity
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
+pub struct StorageView {
+    /// The id of the exastash file for which this storage exists
+    pub file_id: i64,
+    /// The fofs cell that contains a copy of this file
+    pub cell_id: i32,
+    /// The fofs pile that the cell is parented in
+    pub pile_id: i32,
+    /// The number of files to place in each cell before marking it full and making a new cell
+    pub files_per_cell: i32,
+    /// The machine on which the pile is stored
+    pub pile_hostname: String,
+    /// The absolute path to the root directory of the pile on the machine
+    pub pile_path: String,
+}
+
+impl StorageView {
+    /// Get fofs storage entities by exastash file ids.
+    /// Entities which are not found will not be included in the resulting `Vec`.
+    pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<StorageView>> {
+        if file_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        // Note that we can get more than one row per unique file_id.
+        //
+        // All the columns should be NOT NULL, but PostgreSQL doesn't have the
+        // necessary NULL tracking for views, so we use query_as_unchecked!.
+        let storages = sqlx::query_as_unchecked!(StorageView, "
+            SELECT file_id, cell_id, pile_id, files_per_cell, pile_hostname, pile_path
+            FROM stash.storage_fofs_view
+            WHERE file_id = ANY($1)",
+            file_ids
+        ).fetch_all(transaction).await?;
+        Ok(storages)
+    }
+}

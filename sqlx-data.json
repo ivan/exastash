@@ -228,6 +228,56 @@
     },
     "query": "INSERT INTO stash.gdrive_parents (name, parent, \"full\") VALUES ($1, $2, $3)"
   },
+  "2f6db74ccf338fe6281d31562a204759fb9ce5c297dc90e933efc66242fe40dc": {
+    "describe": {
+      "columns": [
+        {
+          "name": "file_id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "cell_id",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "pile_id",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "files_per_cell",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "pile_hostname",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "pile_path",
+          "ordinal": 5,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8Array"
+        ]
+      }
+    },
+    "query": "\n            SELECT file_id, cell_id, pile_id, files_per_cell, pile_hostname, pile_path\n            FROM stash.storage_fofs_view\n            WHERE file_id = ANY($1)"
+  },
   "330a5f689e6f5c6729d4a63476f0a7911d2306e9b7983c89416472c362733667": {
     "describe": {
       "columns": [],

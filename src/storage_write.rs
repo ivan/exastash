@@ -395,12 +395,22 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     let mut last_hash = None;
     let pool = db::pgpool().await;
 
-    if !desired.fofs.is_empty() {
+    if !desired.fofs.is_empty() {     
         let pile_ids = &desired.fofs;
         let mut transaction = pool.begin().await?;
         let piles = fofs::Pile::find_by_ids(&mut transaction, pile_ids).await?;
-        transaction.commit().await?; // close read-only transaction
+        let already_in_piles: HashSet<i32> = {
+            let storages = fofs::StorageView::find_by_file_ids(&mut transaction, &[file.id]).await?;
+            transaction.commit().await?; // close read-only transaction
+            storages.iter().map(|storage| storage.pile_id).collect()
+        };
+
         for pile in piles {
+            if already_in_piles.contains(&pile.id) {
+                info!(file_id = file.id, file_size = file.size, pile = pile.id, "not storing file in fofs pile (already in this pile)");
+                continue;
+            }
+
             info!(file_id = file.id, file_size = file.size, pile = pile.id, "storing file in fofs pile");
 
             let my_hostname = util::get_hostname();
@@ -443,8 +453,6 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             } else {
                 unimplemented!("uploading to another machine");
             }
-
-            // TODO: as with gdrive below, make sure it's skipped if already exists
 
             // TODO: if file is already available in some other storage, instead of POSTing the file over,
             // call add-storages on that machine instead, so that we don't waste our own bandwidth
