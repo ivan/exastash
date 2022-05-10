@@ -5,6 +5,7 @@
     generators,
     proc_macro_hygiene,
     stmt_expr_attributes,
+    lint_reasons,
 )]
 #![warn(
     nonstandard_style,
@@ -20,9 +21,8 @@
     unused_import_braces,
     variant_size_differences,
 )]
-#![allow(
+#![expect(
     clippy::len_zero,
-    clippy::needless_collect,
 )]
 
 pub(crate) mod conceal_size;

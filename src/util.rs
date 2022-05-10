@@ -115,7 +115,7 @@ pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 }
 /// Decodes an AsyncRead to a stream of Bytes of fixed length,
 /// except for the last chunk which may be shorter.
-#[allow(missing_copy_implementations)]
+#[expect(missing_copy_implementations)]
 #[derive(Debug)]
 pub struct FixedReadSizeDecoder {
     /// Length of each Bytes

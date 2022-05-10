@@ -1,5 +1,5 @@
 //! Range will be used later to support reads from the middle of a file
-#![allow(dead_code)]
+#![allow(unused)]
 
 use std::cmp::{min, max};
 

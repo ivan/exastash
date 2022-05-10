@@ -75,7 +75,6 @@ pub(crate) struct GdriveUploadResponse {
 }
 
 /// Reasons why the upload to Google Drive failed.
-#[allow(variant_size_differences)]
 #[derive(Debug, Eq, thiserror::Error, PartialEq)]
 pub enum GdriveUploadError {
     #[error("expected status 200 in response to initial upload request, got {0} with body {}", .1.to_string())]

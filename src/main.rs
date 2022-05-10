@@ -1,3 +1,5 @@
+#![feature(lint_reasons)]
+
 use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
@@ -214,7 +216,7 @@ enum SymlinkCommand {
 }
 
 #[derive(ArgEnum, Clone, Debug)]
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 enum ResolveKind {
     dir,
     file,
@@ -428,7 +430,7 @@ enum FuseCommand {
 }
 
 #[derive(ArgEnum, Copy, Clone, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 enum FindKind {
     d, // dir
     f, // file
@@ -436,7 +438,7 @@ enum FindKind {
 }
 
 #[derive(ArgEnum, Clone, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 enum ExistingFileBehavior {
     stop,
     skip,
@@ -549,7 +551,7 @@ enum PathCommand {
 }
 
 #[derive(ArgEnum, Clone, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 enum SortOrder {
     name,
     mtime,

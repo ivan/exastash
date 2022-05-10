@@ -1,9 +1,7 @@
 //! Functions to check filenames for Windows compatibility
 
-use std::result::Result;
-
 /// Reasons why a path segment cannot be used on Windows.
-#[allow(variant_size_differences)]
+#[expect(variant_size_differences)]
 #[derive(Debug, Eq, thiserror::Error, PartialEq)]
 pub enum PathError {
     #[error("the path contains the character {0:?}, which is not allowed on Windows")]
