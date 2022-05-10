@@ -362,6 +362,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     let mut transaction = pool.begin().await?;
 
     let mut files = inode::File::find_by_ids(&mut transaction, &[file_id]).await?;
+    transaction.commit().await?; // close read-only transaction
     ensure!(files.len() == 1, "no such file with id={}", file_id);
     let file = files.pop().unwrap();
     let file_size = file.size;
@@ -371,8 +372,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
         return Ok((Box::pin(stream::iter::<_>(vec![Ok(bytes)])), file));
     }
 
-    let storages = get_storages(&mut transaction, &[file_id]).await?;
-    transaction.commit().await?; // close read-only transaction
+    let storages = get_storages(&[file_id]).await?;
     let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
     let underlying_stream = match storages.get(0) {
         Some(storage) => read_storage(&file, storage, b3sum.clone()).await?,

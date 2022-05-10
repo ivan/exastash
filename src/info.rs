@@ -4,7 +4,6 @@ use anyhow::Result;
 use serde::Serialize;
 use chrono::DateTime;
 use chrono::Utc;
-use sqlx::{Postgres, Transaction};
 use serde_hex::{SerHexOpt, Strict};
 use crate::db::inode::{Inode, Dir, Symlink, Birth};
 use crate::db::storage::{Storage, get_storages};
@@ -33,11 +32,11 @@ enum InodeWithStorages<'a> {
 }
 
 /// Return information about a file, dir, or symlink in JSON format
-pub async fn json_info(transaction: &mut Transaction<'_, Postgres>, inode: &Inode) -> Result<String> {
+pub async fn json_info(inode: &Inode) -> Result<String> {
     let fws;
     let inode = match inode {
         Inode::File(file) => {
-            let storages = get_storages(transaction, &[file.id]).await?;
+            let storages = get_storages(&[file.id]).await?;
             fws = FileWithStorages {
                 id: file.id,
                 mtime: file.mtime,

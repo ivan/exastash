@@ -5,9 +5,11 @@ pub mod inline;
 pub mod gdrive;
 pub mod internetarchive;
 
+use crate::db;
 use anyhow::Result;
 use sqlx::{Postgres, Transaction};
 use serde::Serialize;
+use futures::join;
 
 /// A storage entity
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -28,15 +30,28 @@ pub enum Storage {
 }
 
 /// Return a list of places where the data for a file can be retrieved
-pub async fn get_storages(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
-    let fofs = fofs::Storage::find_by_file_ids(transaction, file_ids).await?
+pub async fn get_storages(file_ids: &[i64]) -> Result<Vec<Storage>> {
+    let pool = db::pgpool().await;
+
+    let mut transaction = pool.begin().await?;
+    let fofs = fofs::Storage::find_by_file_ids(&mut transaction, file_ids).await?
         .into_iter().map(Storage::Fofs).collect::<Vec<_>>();
-    let inline = inline::Storage::find_by_file_ids(transaction, file_ids).await?
+    transaction.commit().await?; // close read-only transaction
+
+    let mut transaction = pool.begin().await?;
+    let inline = inline::Storage::find_by_file_ids(&mut transaction, file_ids).await?
         .into_iter().map(Storage::Inline).collect::<Vec<_>>();
-    let gdrive = gdrive::Storage::find_by_file_ids(transaction, file_ids).await?
+    transaction.commit().await?; // close read-only transaction
+
+    let mut transaction = pool.begin().await?;
+    let gdrive = gdrive::Storage::find_by_file_ids(&mut transaction, file_ids).await?
         .into_iter().map(Storage::Gdrive).collect::<Vec<_>>();
-    let internetarchive = internetarchive::Storage::find_by_file_ids(transaction, file_ids).await?
+    transaction.commit().await?; // close read-only transaction
+
+    let mut transaction = pool.begin().await?;
+    let internetarchive = internetarchive::Storage::find_by_file_ids(&mut transaction, file_ids).await?
         .into_iter().map(Storage::InternetArchive).collect::<Vec<_>>();
+    transaction.commit().await?; // close read-only transaction
 
     Ok([
         &fofs[..],
@@ -73,8 +88,7 @@ mod tests {
             let dummy = create_dummy_file(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = pool.begin().await?;
-            assert_eq!(get_storages(&mut transaction, &[dummy.id]).await?, vec![]);
+            assert_eq!(get_storages(&[dummy.id]).await?, vec![]);
 
             Ok(())
         }
@@ -112,8 +126,7 @@ mod tests {
             storage5.create(&mut transaction).await?;
             transaction.commit().await?;
 
-            let mut transaction = pool.begin().await?;
-            assert_eq!(get_storages(&mut transaction, &[dummy.id]).await?, vec![
+            assert_eq!(get_storages(&[dummy.id]).await?, vec![
                 Storage::Fofs(storage5),
                 Storage::Inline(storage4),
                 Storage::Gdrive(storage3),

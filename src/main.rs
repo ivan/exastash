@@ -675,7 +675,7 @@ async fn main() -> Result<()> {
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
                     for inode_id in inode_ids {
                         let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
-                        println!("{}", json_info(&mut transaction, inode).await?);
+                        println!("{}", json_info(inode).await?);
                     }
                     transaction.commit().await?; // close read-only transaction
                 }
@@ -735,7 +735,7 @@ async fn main() -> Result<()> {
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
                     for inode_id in inode_ids {
                         let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
-                        println!("{}", json_info(&mut transaction, inode).await?);
+                        println!("{}", json_info(inode).await?);
                     }
                     transaction.commit().await?; // close read-only transaction
                 }
@@ -773,7 +773,7 @@ async fn main() -> Result<()> {
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
                     for inode_id in inode_ids {
                         let inode = inodes.get(&inode_id).ok_or_else(|| anyhow!("{:?} not found in database", inode_id))?;
-                        println!("{}", json_info(&mut transaction, inode).await?);
+                        println!("{}", json_info(inode).await?);
                     }
                     transaction.commit().await?; // close read-only transaction
                 }
@@ -945,7 +945,7 @@ async fn main() -> Result<()> {
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
                     for inode_id in inode_ids {
                         let inode = inodes.get(&inode_id).unwrap();
-                        println!("{}", json_info(&mut transaction, inode).await?);
+                        println!("{}", json_info(inode).await?);
                     }
                     transaction.commit().await?; // close read-only transaction
                 }
