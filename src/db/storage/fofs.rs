@@ -242,11 +242,17 @@ impl StorageView {
         // Note that we can get more than one row per unique file_id.
         //
         // All the columns should be NOT NULL, but PostgreSQL doesn't have the
-        // necessary NULL tracking for views, so we use query_as_unchecked!.
-        let storages = sqlx::query_as_unchecked!(StorageView, "
-            SELECT file_id, cell_id, pile_id, files_per_cell, pile_hostname, pile_path
+        // necessary NULL tracking for views.
+        let storages = sqlx::query_as!(StorageView, r#"
+            SELECT
+                file_id AS "file_id!",
+                cell_id AS "cell_id!",
+                pile_id AS "pile_id!",
+                files_per_cell AS "files_per_cell!",
+                pile_hostname AS "pile_hostname!",
+                pile_path AS "pile_path!"
             FROM stash.storage_fofs_view
-            WHERE file_id = ANY($1)",
+            WHERE file_id = ANY($1)"#,
             file_ids
         ).fetch_all(transaction).await?;
         Ok(storages)
