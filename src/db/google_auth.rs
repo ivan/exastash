@@ -263,6 +263,7 @@ mod tests {
         }
 
         /// If there is no google_access_token for an owner, `find_by_owner_ids` and `find_by_expires_at` return an empty Vec
+        #[expect(clippy::needless_collect)]
         #[tokio::test]
         async fn test_no_google_access_tokens() -> Result<()> {
             let pool = new_primary_pool().await;

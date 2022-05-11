@@ -588,6 +588,7 @@ pub async fn create_stash_file_from_local_file(path: String, metadata: &Relevant
 mod tests {
     use super::*;
 
+    #[expect(clippy::needless_collect)]
     #[test]
     fn test_random_padding() {
         let out: Vec<Bytes> = RandomPadding::new(0).collect();
