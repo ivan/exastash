@@ -33,18 +33,18 @@ pub enum Storage {
 pub async fn get_storages(file_ids: &[i64]) -> Result<Vec<Storage>> {
     let pool = db::pgpool().await;
 
-    let fofs = async {
-        let mut transaction = pool.begin().await?;
-        let storages = fofs::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-            .into_iter().map(Storage::Fofs).collect::<Vec<_>>();
-        transaction.commit().await?; // close read-only transaction
-        anyhow::Ok(storages)
-    };
-
     let inline = async {
         let mut transaction = pool.begin().await?;
         let storages = inline::Storage::find_by_file_ids(&mut transaction, file_ids).await?
             .into_iter().map(Storage::Inline).collect::<Vec<_>>();
+        transaction.commit().await?; // close read-only transaction
+        anyhow::Ok(storages)
+    };
+
+    let fofs = async {
+        let mut transaction = pool.begin().await?;
+        let storages = fofs::Storage::find_by_file_ids(&mut transaction, file_ids).await?
+            .into_iter().map(Storage::Fofs).collect::<Vec<_>>();
         transaction.commit().await?; // close read-only transaction
         anyhow::Ok(storages)
     };
@@ -68,8 +68,8 @@ pub async fn get_storages(file_ids: &[i64]) -> Result<Vec<Storage>> {
     let (fofs, inline, gdrive, internetarchive) = try_join!(fofs, inline, gdrive, internetarchive)?;
 
     Ok([
-        &fofs[..],
         &inline[..],
+        &fofs[..],
         &gdrive[..],
         &internetarchive[..],
     ].concat())
