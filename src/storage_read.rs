@@ -18,7 +18,7 @@ use parking_lot::Mutex;
 use crate::blake3::Blake3HashingStream;
 use crate::db;
 use crate::db::inode;
-use crate::db::storage::{get_storages, Storage, fofs, inline, gdrive, internetarchive};
+use crate::db::storage::{get_storage_views, StorageView, fofs, inline, gdrive, internetarchive};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::db::google_auth::{GoogleAccessToken, GoogleServiceAccount};
 use crate::util;
@@ -264,22 +264,13 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> ReadStr
     }
 }
 
-async fn stream_fofs_file(file: &inode::File, storage: &fofs::Storage) -> Result<ReadStream> {
-    let pool = db::pgpool().await;
-    let mut transaction = pool.begin().await?;
-    let cells = fofs::Cell::find_by_ids(&mut transaction, &[storage.cell_id]).await?;
-    let pile_ids: Vec<i32> = cells.iter().map(|&cell| cell.pile_id).collect();
-    let piles = fofs::Pile::find_by_ids(&mut transaction, &pile_ids).await?;
-    // TODO prefer fofs pile on local machine, but allow other piles
-    let pile = &piles[0]; // TODO don't crash
+async fn stream_fofs_file(file: &inode::File, storage: &fofs::StorageView) -> Result<ReadStream> {
     let my_hostname = util::get_hostname();
-    if pile.hostname != my_hostname {
+    if storage.pile_hostname != my_hostname {
         // TODO make HTTP request to other machine if needed
         unimplemented!("reading from another machine");
     }
-    let cells_for_this_pile: Vec<fofs::Cell> = cells.into_iter().filter(|cell| cell.pile_id == pile.id).collect();
-    let cell = &cells_for_this_pile[0]; // TODO don't crash
-    let fname = format!("{}/{}/{}/{}", pile.path, pile.id, cell.id, file.id);
+    let fname = format!("{}/{}/{}/{}", storage.pile_path, storage.pile_id, storage.cell_id, file.id);
     let file = tokio::fs::File::open(fname).await?;
     let stream = ReaderStream::new(file);
     Ok(Box::pin(
@@ -295,13 +286,10 @@ async fn stream_fofs_file(file: &inode::File, storage: &fofs::Storage) -> Result
 }
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`
-async fn read_storage_without_checks(file: &inode::File, storage: &Storage) -> Result<ReadStream> {
+async fn read_storage_without_checks(file: &inode::File, storage: &StorageView) -> Result<ReadStream> {
     info!(id = file.id, "reading file");
     Ok(match storage {
-        Storage::Fofs(fofs_storage) => {
-            stream_fofs_file(file, fofs_storage).await?
-        }
-        Storage::Inline(inline::Storage { content_zstd, .. }) => {
+        StorageView::Inline(inline::Storage { content_zstd, .. }) => {
             let content = zstd::stream::decode_all(content_zstd.as_slice())?;
             ensure!(
                 content.len() as i64 == file.size,
@@ -312,10 +300,13 @@ async fn read_storage_without_checks(file: &inode::File, storage: &Storage) -> R
             bytes.put(&content[..]);
             Box::pin(stream::iter::<_>(vec![Ok(bytes.copy_to_bytes(bytes.remaining()))]))
         }
-        Storage::Gdrive(gdrive_storage) => {
+        StorageView::Fofs(fofs_storage) => {
+            stream_fofs_file(file, fofs_storage).await?
+        }
+        StorageView::Gdrive(gdrive_storage) => {
             stream_gdrive_files(file, gdrive_storage)
         }
-        Storage::InternetArchive(internetarchive::Storage { .. }) => {
+        StorageView::InternetArchive(internetarchive::Storage { .. }) => {
             unimplemented!()
         }
     })
@@ -323,7 +314,7 @@ async fn read_storage_without_checks(file: &inode::File, storage: &Storage) -> R
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`,
 /// while also verifying the size and the b3sum of the file (if it has a known b3sum).
-pub async fn read_storage(file: &inode::File, storage: &Storage, b3sum: Arc<Mutex<blake3::Hasher>>) -> Result<ReadStream> {
+pub async fn read_storage(file: &inode::File, storage: &StorageView, b3sum: Arc<Mutex<blake3::Hasher>>) -> Result<ReadStream> {
     let underlying_stream = read_storage_without_checks(file, storage).await?;
     let hashing_stream = Blake3HashingStream::new(underlying_stream, b3sum.clone());
     let file = file.clone();
@@ -355,6 +346,24 @@ pub async fn read_storage(file: &inode::File, storage: &Storage, b3sum: Arc<Mute
     ))
 }
 
+/// Sort a slice of StorageView by priority, best first
+fn sort_storage_views_by_priority(storages: &mut [StorageView]) {
+    storages.sort_by_cached_key(|storage| {
+        match storage {
+            // Prefer inline because it already has the file content
+            StorageView::Inline(inline::Storage { .. }) => 0,
+            // Prefer fofs over gdrive to reduce unnecessary API calls to Google.
+            // Prefer localhost fofs over other fofs.
+            StorageView::Fofs(fofs::StorageView { pile_hostname, .. }) => {
+                if pile_hostname == &util::get_hostname() { 1 } else { 2 }
+            },
+            // Prefer gdrive over internetarchive because internetarchive is very slow now
+            StorageView::Gdrive { .. } => 3,
+            StorageView::InternetArchive(internetarchive::Storage { .. }) => 4,
+        }
+    });
+}
+
 /// Return the content of a file as a pinned boxed Stream on which caller can call `.into_async_read()`
 /// If the file is missing a b3sum but was otherwise read without error, add the b3sum to the database.
 pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
@@ -372,7 +381,8 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
         return Ok((Box::pin(stream::iter::<_>(vec![Ok(bytes)])), file));
     }
 
-    let storages = get_storages(&[file_id]).await?;
+    let mut storages = get_storage_views(&[file_id]).await?;
+    sort_storage_views_by_priority(&mut storages);
     let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
     let underlying_stream = match storages.get(0) {
         Some(storage) => read_storage(&file, storage, b3sum.clone()).await?,

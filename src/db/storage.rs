@@ -29,43 +29,66 @@ pub enum Storage {
     InternetArchive(internetarchive::Storage),
 }
 
+/// Like storage, but containing additional information for some types,
+/// to avoid round trips to the database.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type")]
+pub enum StorageView {
+    /// A storage entity backed by a file on a filesystem we control
+    #[serde(rename = "fofs")]
+    Fofs(fofs::StorageView),
+    /// A storage entity stored directly in the database
+    #[serde(rename = "inline")]
+    Inline(inline::Storage),
+    /// A storage entity backed by Google Drive
+    #[serde(rename = "gdrive")]
+    Gdrive(gdrive::Storage),
+    /// A storage entity backed by a file accessible at Internet Archive
+    #[serde(rename = "internetarchive")]
+    InternetArchive(internetarchive::Storage),
+}
+
+macro_rules! find_by_file_ids {
+    ($pool:ident, $t:ty, $variant:path, $ids:ident) => {
+        async {
+            let mut transaction = $pool.begin().await?;
+            let storages = <$t>::find_by_file_ids(&mut transaction, $ids).await?
+                .into_iter().map($variant).collect::<Vec<_>>();
+            transaction.commit().await?; // close read-only transaction
+            anyhow::Ok(storages)
+        }
+    }
+}
+
 /// Return a list of places where the data for a file can be retrieved
 pub async fn get_storages(file_ids: &[i64]) -> Result<Vec<Storage>> {
     let pool = db::pgpool().await;
 
-    let inline = async {
-        let mut transaction = pool.begin().await?;
-        let storages = inline::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-            .into_iter().map(Storage::Inline).collect::<Vec<_>>();
-        transaction.commit().await?; // close read-only transaction
-        anyhow::Ok(storages)
-    };
+    let (fofs, inline, gdrive, internetarchive) = try_join!(
+        find_by_file_ids!(pool, inline::Storage,          Storage::Inline,          file_ids),
+        find_by_file_ids!(pool, fofs::Storage,            Storage::Fofs,            file_ids),
+        find_by_file_ids!(pool, gdrive::Storage,          Storage::Gdrive,          file_ids),
+        find_by_file_ids!(pool, internetarchive::Storage, Storage::InternetArchive, file_ids)
+    )?;
 
-    let fofs = async {
-        let mut transaction = pool.begin().await?;
-        let storages = fofs::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-            .into_iter().map(Storage::Fofs).collect::<Vec<_>>();
-        transaction.commit().await?; // close read-only transaction
-        anyhow::Ok(storages)
-    };
+    Ok([
+        &inline[..],
+        &fofs[..],
+        &gdrive[..],
+        &internetarchive[..],
+    ].concat())
+}
 
-    let gdrive = async {
-        let mut transaction = pool.begin().await?;
-        let storages = gdrive::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-            .into_iter().map(Storage::Gdrive).collect::<Vec<_>>();
-        transaction.commit().await?; // close read-only transaction
-        anyhow::Ok(storages)
-    };
+/// Return a list of places where the data for a file can be retrieved
+pub async fn get_storage_views(file_ids: &[i64]) -> Result<Vec<StorageView>> {
+    let pool = db::pgpool().await;
 
-    let internetarchive = async {
-        let mut transaction = pool.begin().await?;
-        let storages = internetarchive::Storage::find_by_file_ids(&mut transaction, file_ids).await?
-            .into_iter().map(Storage::InternetArchive).collect::<Vec<_>>();
-        transaction.commit().await?; // close read-only transaction
-        anyhow::Ok(storages)
-    };
-
-    let (fofs, inline, gdrive, internetarchive) = try_join!(fofs, inline, gdrive, internetarchive)?;
+    let (fofs, inline, gdrive, internetarchive) = try_join!(
+        find_by_file_ids!(pool, inline::Storage,          StorageView::Inline,          file_ids),
+        find_by_file_ids!(pool, fofs::StorageView,        StorageView::Fofs,            file_ids),
+        find_by_file_ids!(pool, gdrive::Storage,          StorageView::Gdrive,          file_ids),
+        find_by_file_ids!(pool, internetarchive::Storage, StorageView::InternetArchive, file_ids)
+    )?;
 
     Ok([
         &inline[..],
