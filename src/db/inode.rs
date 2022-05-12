@@ -727,6 +727,7 @@ pub(crate) mod tests {
 
         /// Cannot change id, birth_time, birth_version, or birth_hostname on a dir
         #[tokio::test]
+        #[serial]
         async fn test_cannot_change_dir_immutables() -> Result<()> {
             let pool = new_primary_pool().await;
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
@@ -764,6 +765,7 @@ pub(crate) mod tests {
 
         /// Cannot change id, birth_time, birth_version, or birth_hostname on a file
         #[tokio::test]
+        #[serial]
         async fn test_cannot_change_file_immutables() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
@@ -798,6 +800,7 @@ pub(crate) mod tests {
 
         /// Cannot change id, symlink_target, birth_time, birth_version, or birth_hostname on a symlink
         #[tokio::test]
+        #[serial]
         async fn test_cannot_change_symlink_immutables() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
