@@ -62,15 +62,22 @@ enum ExastashCommand {
     #[clap(subcommand, name = "storage")]
     Storage(StorageCommand),
 
-    /// (nonfunctional) FUSE server
-    #[clap(subcommand, name = "fuse")]
-    Fuse(FuseCommand),
-
     /// Commands that operate based on paths relative to cwd. To resolve paths,
     /// exastash walks up to find a root directory that points to some stash
     /// dir inode. Root directories can be configured in ~/.config/exastash/config.toml
     #[clap(subcommand, name = "x")]
     Path(PathCommand),
+
+    /// (nonfunctional) FUSE server
+    #[clap(subcommand, name = "fuse")]
+    Fuse(FuseCommand),
+
+    /// (nonfunctional) FUSE server
+    #[clap(name = "web")]
+    Web {
+        #[clap(long)]
+        port: u16,
+    },
 
     /// Print license information
     License,
@@ -924,15 +931,6 @@ async fn main() -> Result<()> {
                 }
             }
         }
-        ExastashCommand::Fuse(command) => {
-            match command {
-                FuseCommand::Run { mountpoint } => {
-                    dbg!(mountpoint);
-                    panic!("FUSE server was not built");
-                    //fuse::run(mountpoint.into()).await?;
-                }
-            }
-        }
         ExastashCommand::Path(command) => {
             match command {
                 PathCommand::Info { paths: path_args } => {
@@ -1244,6 +1242,18 @@ async fn main() -> Result<()> {
                     }
                 }
             }
+        }
+        ExastashCommand::Fuse(command) => {
+            match command {
+                FuseCommand::Run { mountpoint } => {
+                    dbg!(mountpoint);
+                    panic!("FUSE server was not built");
+                    //fuse::run(mountpoint.into()).await?;
+                }
+            }
+        }
+        ExastashCommand::Web { port } => {
+            exastash::web::run(port).await?;
         }
     };
 
