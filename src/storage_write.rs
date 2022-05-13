@@ -2,7 +2,7 @@
 
 use num::ToPrimitive;
 use rand::Rng;
-use std::{collections::{HashMap, HashSet}, path::PathBuf, sync::Arc};
+use std::{collections::{HashMap, HashSet}, path::{PathBuf, Path}, sync::Arc};
 use std::pin::Pin;
 use std::cmp::min;
 use std::fs::Metadata;
@@ -384,6 +384,13 @@ impl TryFrom<Metadata> for RelevantFileMetadata {
 }
 
 
+async fn make_readonly(path: impl AsRef<Path>) -> Result<()> {
+    let mut permissions = tokio::fs::metadata(&path).await?.permissions();
+    permissions.set_readonly(true);
+    tokio::fs::set_permissions(path, permissions).await?;
+    Ok(())
+}
+
 /// Add storages for a file and commit them to the database.
 /// If a particular storage for a file already exists, it will be skipped.
 /// If a b3sum is calculated and the file does not already have one in the database, fix it.
@@ -439,6 +446,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 let mut local_file = tokio::fs::File::create(&fname).await?;
                 let mut reader = producer()?;
                 tokio::io::copy(&mut reader, &mut local_file).await?;
+                make_readonly(&fname).await?;
 
                 let mut set_cell_full = false;
                 let random: f32 = rand::thread_rng().gen_range(0.0..1.0);
