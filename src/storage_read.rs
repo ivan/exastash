@@ -271,6 +271,10 @@ async fn stream_fofs_file(file: &inode::File, storage: &fofs::StorageView) -> Re
         unimplemented!("reading from another machine");
     }
     let fname = format!("{}/{}/{}/{}", storage.pile_path, storage.pile_id, storage.cell_id, file.id);
+    let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
+    if fofs_file_size != file.size as u64 {
+        bail!("file in fofs {:?} had unexpected size={} instead of size={}", fname, fofs_file_size, file.size)
+    }
     let file = tokio::fs::File::open(fname).await?;
     let stream = ReaderStream::new(file);
     Ok(Box::pin(
