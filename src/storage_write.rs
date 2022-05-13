@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 use chrono::{DateTime, Utc};
 use anyhow::{anyhow, bail};
 use futures::{ready, stream::{self, Stream, StreamExt, TryStreamExt}, task::{Context, Poll}};
-use tracing::info;
+use tracing::{info, warn};
 use anyhow::Result;
 use bytes::{Bytes, BytesMut};
 use tokio::{fs, io::{AsyncRead, AsyncReadExt}};
@@ -443,6 +443,14 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 std::fs::create_dir_all(&cell_dir)?;
 
                 let fname = format!("{}/{}", cell_dir, file.id);
+
+                // Rarely, we might have a fofs file that was never recorded in the database.
+                // Remove it before overwriting, because it might be read-only.
+                let result = tokio::fs::remove_file(&fname).await;
+                if result.is_ok() {
+                    warn!("removed existing fofs file {:?}", fname);
+                }
+
                 let mut local_file = tokio::fs::File::create(&fname).await?;
                 let mut reader = producer()?;
                 tokio::io::copy(&mut reader, &mut local_file).await?;
