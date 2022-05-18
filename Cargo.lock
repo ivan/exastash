@@ -177,6 +177,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-macros"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3dc20c9d065f7232b92740f99001addacef62697ed3a030369ef193140d7621c"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -509,6 +521,7 @@ dependencies = [
  "async-recursion",
  "atomic-counter",
  "axum",
+ "axum-macros",
  "blake3",
  "byteorder",
  "bytes",

@@ -6,6 +6,7 @@
     proc_macro_hygiene,
     stmt_expr_attributes,
     lint_reasons,
+    try_blocks,
 )]
 #![warn(
     nonstandard_style,
