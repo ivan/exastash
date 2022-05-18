@@ -3,8 +3,9 @@
 use axum::{
     routing::{get, post},
     extract::Path,
-    http::StatusCode,
+    http::{StatusCode, Uri},
     response::{Response, IntoResponse},
+    handler::Handler,
     Router,
 };
 #[allow(unused)]
@@ -20,7 +21,8 @@ pub async fn run(port: u16) -> Result<(), hyper::Error> {
         .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get))
         // Don't let axum serve with trailing slash. Thanks axum.
         // https://github.com/tokio-rs/axum/pull/410/files
-        .route("/fofs/:pile_id/:cell_id/:file_id/", get(not_found));
+        .route("/fofs/:pile_id/:cell_id/:file_id/", get(not_found))
+        .fallback(fallback.into_service());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("listening on {}", addr);
@@ -41,6 +43,10 @@ pub enum Error {
     #[error("access forbidden")]
     Forbidden,
 
+    /// Access forbidden
+    #[error("route not found")]
+    NoSuchRoute,
+
     /// Bad request
     #[error("bad request")]
     BadRequest,
@@ -58,6 +64,7 @@ impl Error {
     fn status_code(&self) -> StatusCode {
         match self {
             Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::NoSuchRoute => StatusCode::NOT_FOUND,
             Self::BadRequest => StatusCode::BAD_REQUEST,
             Self::Sqlx(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -82,6 +89,10 @@ impl IntoResponse for Error {
 
 async fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "not found").into_response()
+}
+
+async fn fallback(_: Uri) -> impl IntoResponse {
+    Error::NoSuchRoute
 }
 
 async fn fofs_get(
