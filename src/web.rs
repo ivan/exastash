@@ -7,6 +7,7 @@ use axum::{
     response::{Response, IntoResponse},
     Router,
 };
+#[allow(unused)]
 use axum_macros::debug_handler;
 use std::net::SocketAddr;
 use crate::util;
@@ -16,7 +17,10 @@ pub async fn run(port: u16) -> Result<(), hyper::Error> {
     // build our application with a route
     let app = Router::new()
         .route("/", get(root))
-        .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get));
+        .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get))
+        // Don't let axum serve with trailing slash. Thanks axum.
+        // https://github.com/tokio-rs/axum/pull/410/files
+        .route("/fofs/:pile_id/:cell_id/:file_id/", get(not_found));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("listening on {}", addr);
@@ -76,8 +80,12 @@ impl IntoResponse for Error {
     }
 }
 
-#[debug_handler]
+async fn not_found() -> Response {
+    (StatusCode::NOT_FOUND, "not found").into_response()
+}
+
 async fn fofs_get(
+    // TODO: don't allow leading 0's on the path parameters
     Path((pile_id, cell_id, file_id)): Path<(i64, i64, i64)>,
 ) -> Result<Response, Error> {
     if pile_id < 1 || cell_id < 1 || file_id < 1 {
