@@ -2,7 +2,7 @@
 
 use num::ToPrimitive;
 use rand::Rng;
-use std::{collections::HashMap, path::{PathBuf, Path}, sync::Arc};
+use std::{collections::{HashMap, HashSet}, path::{PathBuf, Path}, sync::Arc};
 use std::pin::Pin;
 use std::cmp::min;
 use std::fs::Metadata;
@@ -316,15 +316,17 @@ pub async fn paranoid_zstd_encode_all(bytes: Vec<u8>, level: i32) -> Result<Vec<
     }).await?
 }
 
+
+
 /// Descriptor indicating which storages should be used for a new file
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DesiredStorages {
-    /// A list of fofs pile ids in which to store the file
-    pub fofs: Vec<i32>,
+    /// A set of fofs pile ids in which to store the file
+    pub fofs: HashSet<i32>,
     /// Whether to store inline in the database
     pub inline: bool,
-    /// A list of google_domain ids in which to store the file
-    pub gdrive: Vec<i16>,
+    /// A set of google_domain ids in which to store the file
+    pub gdrive: HashSet<i16>,
 }
 
 impl DesiredStorages {
@@ -396,16 +398,16 @@ pub async fn desired_storages_without_those_that_already_exist(file_id: i64, des
     let storages = get_storage_views(&[file_id]).await?;
     let mut desired: DesiredStorages = desired.clone();
 
-    for storage in storages {
+    for storage in &storages {
         match storage {
             StorageView::Inline { .. } => {
                 desired.inline = false;
             }
             StorageView::Gdrive(gdrive::Storage { google_domain, .. }) => {
-                desired.gdrive.retain_mut(|item| *item != google_domain);
+                desired.gdrive.remove(google_domain);
             }
             StorageView::Fofs(fofs::StorageView { pile_id, .. }) => {
-                desired.fofs.retain_mut(|item| *item != pile_id);
+                desired.fofs.remove(pile_id);
             }
             StorageView::InternetArchive { .. } => {
                 // DesiredStorages doesn't have internetarchive
@@ -434,13 +436,13 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     let pool = db::pgpool().await;
 
     if !desired.fofs.is_empty() {     
-        let pile_ids = &desired.fofs;
+        let pile_ids: Vec<i32> = desired.fofs.iter().cloned().collect();
         let mut transaction = pool.begin().await?;
-        let piles: HashMap<i32, fofs::Pile> = fofs::Pile::find_by_ids(&mut transaction, pile_ids).await?
+        let piles: HashMap<i32, fofs::Pile> = fofs::Pile::find_by_ids(&mut transaction, &pile_ids).await?
             .into_iter()
             .map(|pile| (pile.id, pile))
             .collect();
-        for pile_id in pile_ids {
+        for pile_id in &pile_ids {
             if !piles.contains_key(pile_id) {
                 bail!("while adding fofs storage, a fofs pile with id={} was not found", pile_id);
             }

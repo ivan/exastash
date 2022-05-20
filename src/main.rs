@@ -696,14 +696,20 @@ async fn main() -> Result<()> {
         ExastashCommand::File(command) => {
             match command {
                 FileCommand::Create { path, store_inline, store_fofs, store_gdrive } => {
-                    transaction.commit().await?; // close unused transaction
+                    let store_fofs = store_fofs.into_iter().collect();
+                    let store_gdrive = store_gdrive.into_iter().collect();
                     let desired = storage_write::DesiredStorages { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
+
+                    transaction.commit().await?; // close unused transaction
+
                     let attr = fs::metadata(path.clone()).await?;
                     let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
                     let file_id = storage_write::create_stash_file_from_local_file(path, &metadata, &desired).await?;
                     println!("{}", file_id);
                 }
                 FileCommand::AddStorages { ids, store_inline, store_fofs, store_gdrive } => {
+                    let store_fofs = store_fofs.into_iter().collect();
+                    let store_gdrive = store_gdrive.into_iter().collect();
                     let desired = storage_write::DesiredStorages { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
 
                     let files = File::find_by_ids(&mut transaction, &ids).await?;

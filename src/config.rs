@@ -1,7 +1,7 @@
 //! code for loading ~/.config/exastash/*
 
 use std::fs;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use anyhow::{bail, Result};
 use serde_derive::Deserialize;
 use tracing::info;
@@ -66,7 +66,7 @@ impl TryFrom<JsValue> for DesiredStorages {
 
     /// Convert JS object e.g. {inline: true, gdrive: [1]} to a DesiredStorages
     fn try_from(js_obj: JsValue) -> Result<DesiredStorages> {
-        let mut desired_storage = DesiredStorages { inline: false, fofs: vec![], gdrive: vec![] };
+        let mut desired_storage = DesiredStorages { inline: false, fofs: HashSet::new(), gdrive: HashSet::new() };
 
         if let JsValue::Object(map) = js_obj {
             if let Some(val) = map.get("inline") {
@@ -81,7 +81,7 @@ impl TryFrom<JsValue> for DesiredStorages {
                 if let JsValue::Array(fofs_ids) = val {
                     for val in fofs_ids {
                         if let JsValue::Int(fofs_pile_id) = val {
-                            desired_storage.fofs.push(*fofs_pile_id);
+                            desired_storage.fofs.insert(*fofs_pile_id);
                         } else {
                             bail!("newFileStorages returned an object with property \
                                    'fofs' but some array element was not an integer");
@@ -97,7 +97,7 @@ impl TryFrom<JsValue> for DesiredStorages {
                     for val in gdrive_ids {
                         if let JsValue::Int(gdrive_id) = val {
                             let gdrive_id = i16::try_from(*gdrive_id)?;
-                            desired_storage.gdrive.push(gdrive_id);
+                            desired_storage.gdrive.insert(gdrive_id);
                         } else {
                             bail!("newFileStorages returned an object with property \
                                    'gdrive' but some array element was not an integer");
@@ -160,10 +160,10 @@ pub fn get_policy() -> Result<Policy> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use literally::{hmap, hset};
 
     mod config {
         use super::*;
-        use literally::hmap;
 
         #[test]
         fn test_parse_config() -> Result<()> {
@@ -222,29 +222,29 @@ mod tests {
 
             assert_eq!(
                 policy.new_file_storages(&["parent", "something.json"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: true, fofs: vec![2], gdrive: vec![1] }
+                DesiredStorages { inline: true, fofs: hset![2], gdrive: hset![1_i16] }
             );
 
             assert_eq!(
                 policy.new_file_storages(&["something.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: false, fofs: vec![], gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
             );
             assert_eq!(
                 policy.new_file_storages(&["something"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: false, fofs: vec![], gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
             );
             assert_eq!(
                 policy.new_file_storages(&["第四十七集 动漫 怪物弹珠二０十六 (中文简体字幕)-qD8VHZ3lxBw.webm"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: false, fofs: vec![], gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
             );
             assert_eq!(
                 policy.new_file_storages(&["Sam Needham 'Life is a Journey' - Crankworx Whistler Deep Summer Photo Challenge 2015-WVA3QDiy7Bc.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: false, fofs: vec![], gdrive: vec![1, 2] }
+                DesiredStorages { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
             );
 
             assert_eq!(
                 policy.new_file_storages(&["small"], &RelevantFileMetadata { size: 50, mtime: Utc::now(), executable: false })?,
-                DesiredStorages { inline: true, fofs: vec![], gdrive: vec![] }
+                DesiredStorages { inline: true, fofs: hset![], gdrive: hset![] }
             );
 
             Ok(())
