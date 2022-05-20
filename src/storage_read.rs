@@ -361,7 +361,7 @@ fn sort_storage_views_by_priority(storages: &mut [StorageView]) {
             // Prefer fofs over gdrive to reduce unnecessary API calls to Google.
             // Prefer localhost fofs over other fofs.
             StorageView::Fofs(fofs::StorageView { pile_hostname, .. }) => {
-                if pile_hostname == &util::get_hostname() { 1 } else { 2 }
+                if pile_hostname == &util::get_hostname() { 1 } else { 200 }
             },
             // Prefer gdrive over internetarchive because internetarchive is very slow now
             StorageView::Gdrive { .. } => 3,
