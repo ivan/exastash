@@ -2,7 +2,7 @@
 
 use num::ToPrimitive;
 use rand::Rng;
-use std::{collections::{HashMap, HashSet}, path::{PathBuf, Path}, sync::Arc};
+use std::{collections::HashMap, path::{PathBuf, Path}, sync::Arc};
 use std::pin::Pin;
 use std::cmp::min;
 use std::fs::Metadata;
@@ -415,10 +415,7 @@ pub async fn desired_storages_without_those_that_already_exist(file_id: i64, des
     Ok(desired)
 }
 
-// TODO move the logic from add_storages so that it doesn't have to be repeated there
-
 /// Add storages for a file and commit them to the database.
-/// If a particular storage for a file already exists, it will be skipped.
 /// If a b3sum is calculated and the file does not already have one in the database, fix it.
 pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     mut producer: impl FnMut() -> Result<A>,
@@ -440,17 +437,8 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 bail!("while adding fofs storage, a fofs pile with id={} was not found", pile_id);
             }
         }
-        let already_in_piles: HashSet<i32> = {
-            let storages = fofs::StorageView::find_by_file_ids(&mut transaction, &[file.id]).await?;
-            transaction.commit().await?; // close read-only transaction
-            storages.iter().map(|storage| storage.pile_id).collect()
-        };
 
         for pile in piles.values() {
-            if already_in_piles.contains(&pile.id) {
-                info!(file_id = file.id, file_size = file.size, pile = pile.id, "not storing file in fofs pile (already in this pile)");
-                continue;
-            }
             info!(file_id = file.id, file_size = file.size, pile = pile.id, "storing file in fofs pile");
 
             let my_hostname = util::get_hostname();
@@ -509,7 +497,6 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         }
     }
 
-    // We don't check if it already exists first because maybe_create is a no-op in that case
     if desired.inline {
         info!(file_id = file.id, file_size = file.size, "storing file inline");
 
@@ -534,18 +521,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     }
 
     if !desired.gdrive.is_empty() {
-        let already_on_domains: HashSet<i16> = {
-            let mut transaction = pool.begin().await?;
-            let storages = gdrive::Storage::find_by_file_ids(&mut transaction, &[file.id]).await?;
-            transaction.commit().await?; // close read-only transaction
-            storages.iter().map(|storage| storage.google_domain).collect()
-        };
-
         for domain in &desired.gdrive {
-            if already_on_domains.contains(domain) {
-                info!(file_id = file.id, file_size = file.size, domain = domain, "not storing file in gdrive (already in this domain)");
-                continue;
-            }
             info!(file_id = file.id, file_size = file.size, domain = domain, "storing file in gdrive domain");
 
             let reader = producer()?;
