@@ -416,7 +416,11 @@ pub async fn desired_storages_without_those_that_already_exist(file_id: i64, des
 }
 
 /// Add storages for a file and commit them to the database.
+/// 
 /// If a b3sum is calculated and the file does not already have one in the database, fix it.
+/// 
+/// We need to set b3sum on files here, not just storage_read, because add_storages is also
+/// used for initial file creation.
 pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     mut producer: impl FnMut() -> Result<A>,
     file: &inode::File,
