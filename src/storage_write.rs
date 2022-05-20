@@ -426,6 +426,10 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     file: &inode::File,
     desired: &DesiredStorages,
 ) -> Result<()> {
+    if desired.is_empty() {
+        return Ok(());
+    }
+
     let mut last_hash = None;
     let pool = db::pgpool().await;
 
@@ -470,8 +474,11 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 }
 
                 let mut local_file = tokio::fs::File::create(&fname).await?;
-                let mut reader = producer()?;
-                tokio::io::copy(&mut reader, &mut local_file).await?;
+                let reader = producer()?;
+                let mut hashing_reader = Blake3HashingReader::new(reader);
+                let b3sum = hashing_reader.b3sum();
+                tokio::io::copy(&mut hashing_reader, &mut local_file).await?;
+                last_hash = Some(blake3::Hasher::finalize(&b3sum.lock().clone()));
                 make_readonly(&fname).await?;
 
                 let mut set_cell_full = false;
@@ -560,7 +567,12 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         }
     }
 
-    if let (None, Some(h)) = (file.b3sum, last_hash) {
+    if last_hash.is_none() {
+        bail!("add_storages: we should have computed a b3sum but last_hash was None");
+    }
+
+    if file.b3sum.is_none() {
+        let h = last_hash.unwrap();
         let mut transaction = pool.begin().await?;
         inode::File::set_b3sum(&mut transaction, file.id, h.as_bytes()).await?;
         transaction.commit().await?;
