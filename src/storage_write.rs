@@ -478,7 +478,13 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 let mut hashing_reader = Blake3HashingReader::new(reader);
                 let b3sum = hashing_reader.b3sum();
                 tokio::io::copy(&mut hashing_reader, &mut local_file).await?;
-                last_hash = Some(blake3::Hasher::finalize(&b3sum.lock().clone()));
+                let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
+                if let Some(file_hash) = file.b3sum {
+                    if hash_this_upload != file_hash {
+                        bail!("while adding fofs storage, content had b3sum={:?} but file has b3sum={:?}", hash_this_upload, file_hash);
+                    }
+                }
+                last_hash = Some(hash_this_upload);
                 make_readonly(&fname).await?;
 
                 let mut set_cell_full = false;
@@ -514,15 +520,16 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
         let mut reader = producer()?;
         let mut content = vec![];
         reader.read_to_end(&mut content).await?;
-        last_hash = Some(b3sum_bytes(&content));
+        let hash_this_upload = b3sum_bytes(&content);
         if content.len() as i64 != file.size {
             bail!("while adding inline storage, read {} bytes from file but file has size={}", content.len(), file.size);
         }
         if let Some(file_hash) = file.b3sum {
-            if last_hash.unwrap() != file_hash {
-                bail!("while adding inline storage, content had b3sum={:?} but file has b3sum={:?}", last_hash.unwrap(), file_hash);
+            if hash_this_upload != file_hash {
+                bail!("while adding inline storage, content had b3sum={:?} but file has b3sum={:?}", hash_this_upload, file_hash);
             }
         }
+        last_hash = Some(hash_this_upload);
         let compression_level = 19; // levels > 19 use a lot more memory to decompress
         let content_zstd = paranoid_zstd_encode_all(content, compression_level).await?;
 
