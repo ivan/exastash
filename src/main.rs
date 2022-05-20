@@ -716,6 +716,12 @@ async fn main() -> Result<()> {
                     for id in ids {
                         let file = map.get(&id).ok_or_else(|| anyhow!("no file with id={}", id))?;
 
+                        let desired_new = storage_write::desired_storages_without_those_that_already_exist(id, &desired).await?;
+                        if desired_new.is_empty() {
+                            info!(file_id = id, "file is already present in all desired storages");
+                            continue;
+                        }
+
                         // Read to temporary file because we need an AsyncRead we can Send,
                         // and because when adding more than one storage, we want to avoid
                         // reading a file more than once from existing storage.
@@ -725,11 +731,11 @@ async fn main() -> Result<()> {
                         let mut local_file = tokio::fs::File::create(path.clone()).await?;
                         storage_read::write_stream_to_sink(stream, &mut local_file).await?;
 
-                        let mut readers = storage_write::readers_for_file(path, desired.len()).await?;
+                        let mut readers = storage_write::readers_for_file(path, desired_new.len()).await?;
                         let producer = move || {
                             readers.pop().ok_or_else(|| anyhow!("no readers left"))
                         };
-                        storage_write::add_storages(producer, file, &desired).await?;
+                        storage_write::add_storages(producer, file, &desired_new).await?;
                     }
                 }
                 FileCommand::Remove { file_id } => {

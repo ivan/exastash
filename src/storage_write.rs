@@ -20,7 +20,7 @@ use crate::crypto::{GcmEncoder, gcm_create_key};
 use crate::conceal_size::conceal_size;
 use crate::db;
 use crate::db::inode;
-use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}, fofs};
+use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}, fofs, StorageView, get_storage_views};
 use crate::blake3::{Blake3HashingReader, b3sum_bytes};
 use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::{create_gdrive_file, GdriveUploadError};
@@ -317,7 +317,7 @@ pub async fn paranoid_zstd_encode_all(bytes: Vec<u8>, level: i32) -> Result<Vec<
 }
 
 /// Descriptor indicating which storages should be used for a new file
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DesiredStorages {
     /// A list of fofs pile ids in which to store the file
     pub fofs: Vec<i32>,
@@ -390,6 +390,32 @@ async fn make_readonly(path: impl AsRef<Path>) -> Result<()> {
     tokio::fs::set_permissions(path, permissions).await?;
     Ok(())
 }
+
+/// Return a DesiredStorages containing only those that don't already store the file
+pub async fn desired_storages_without_those_that_already_exist(file_id: i64, desired: &DesiredStorages) -> Result<DesiredStorages> {
+    let storages = get_storage_views(&[file_id]).await?;
+    let mut desired: DesiredStorages = desired.clone();
+
+    for storage in storages {
+        match storage {
+            StorageView::Inline { .. } => {
+                desired.inline = false;
+            }
+            StorageView::Gdrive(gdrive::Storage { google_domain, .. }) => {
+                desired.gdrive.retain_mut(|item| *item != google_domain);
+            }
+            StorageView::Fofs(fofs::StorageView { pile_id, .. }) => {
+                desired.fofs.retain_mut(|item| *item != pile_id);
+            }
+            StorageView::InternetArchive { .. } => {
+                // DesiredStorages doesn't have internetarchive
+            }
+        }
+    }
+    Ok(desired)
+}
+
+// TODO move the logic from add_storages so that it doesn't have to be repeated there
 
 /// Add storages for a file and commit them to the database.
 /// If a particular storage for a file already exists, it will be skipped.
