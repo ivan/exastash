@@ -9,8 +9,7 @@ use tokio::io::AsyncReadExt;
 use tokio_util::io::ReaderStream;
 use tokio_util::codec::FramedRead;
 use reqwest::StatusCode;
-use aes::Aes128Ctr;
-use aes::cipher::{NewCipher, StreamCipher, StreamCipherSeek};
+use aes::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
 use aes::cipher::generic_array::GenericArray;
 use futures_async_stream::try_stream;
 use std::sync::Arc;
@@ -24,6 +23,8 @@ use crate::db::google_auth::{GoogleAccessToken, GoogleServiceAccount};
 use crate::util;
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
+
+type Aes128Ctr = ctr::Ctr64BE<aes::Aes128>;
 
 /// Return a Vec of access tokens potentially suitable for read and delete operations
 /// on a file.
