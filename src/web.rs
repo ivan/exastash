@@ -1,6 +1,6 @@
 //! web server for exastash
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, str::FromStr};
 use hyper::Request;
 use tokio_util::io::ReaderStream;
 use axum::{
@@ -89,7 +89,7 @@ pub enum Error {
     #[error("pile not found")]
     PileNotFound,
 
-    /// Pile was not found
+    /// Pile was found, but it's not on this machine
     #[error("pile was found, but it's not on this machine")]
     PileNotOnThisMachine,
 
@@ -104,6 +104,10 @@ pub enum Error {
     /// Some other error created by anyhow
     #[error("an internal server error occurred")]
     Anyhow(#[from] anyhow::Error),
+
+    /// Some number given could not be parsed
+    #[error("number could not be strictly parsed as a natural number")]
+    ParseNaturalNumber,
 }
 
 impl Error {
@@ -111,6 +115,7 @@ impl Error {
         match self {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NoSuchRoute => StatusCode::NOT_FOUND,
+            Self::ParseNaturalNumber => StatusCode::BAD_REQUEST,
             Self::BadRequest => StatusCode::BAD_REQUEST,
             Self::FileNotFound => StatusCode::NOT_FOUND,
             Self::PileNotFound => StatusCode::NOT_FOUND,
@@ -168,18 +173,25 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
     Ok(pile.path)
 }
 
+/// Parse strictly, forbidding leading '0' or '+'
+fn parse_natural_number<T: FromStr>(s: &str) -> Result<T, Error> {
+    if s.starts_with('0') || s.starts_with('+') {
+        return Err(Error::ParseNaturalNumber)
+    }
+    s.parse::<T>().map_err(|_| Error::ParseNaturalNumber)
+}
+
 /// Note that we sort of trust the client here and allow them to
 /// fetch any {cell_id}/{file_id} file a local pile might have,
 /// even if it isn't in the database for some reason.
 #[debug_handler]
 async fn fofs_get(
-    // TODO: don't allow leading 0's or +'s on the path parameters
-    Path((pile_id, cell_id, file_id)): Path<(i32, i32, i64)>,
+    Path((pile_id, cell_id, file_id)): Path<(String, String, String)>,
     Extension(state): Extension<SharedState>,
 ) -> Result<Response, Error> {
-    if pile_id < 1 || cell_id < 1 || file_id < 1 {
-        return Err(Error::BadRequest);
-    }
+    let pile_id: i32 = parse_natural_number(&pile_id)?;
+    let cell_id: i32 = parse_natural_number(&cell_id)?;
+    let file_id: i64 = parse_natural_number(&file_id)?;
 
     let cached_pile_path = {
         let mut lock = state.lock().await;
