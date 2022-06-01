@@ -165,11 +165,12 @@ async fn fofs_get(
         return Err(Error::BadRequest);
     }
 
-    let mut lock = state.lock().await;
-    let fofs_pile_paths = &mut lock.fofs_pile_paths;
-    let existing_pile_path = fofs_pile_paths.get(&pile_id).cloned();
-    drop(lock);
-    let pile_path: String = match existing_pile_path {
+    let cached_pile_path = {
+        let mut lock = state.lock().await;
+        let fofs_pile_paths = &mut lock.fofs_pile_paths;
+        fofs_pile_paths.get(&pile_id).cloned()
+    };
+    let pile_path: String = match cached_pile_path {
         Some(path) => path.clone(),
         None => {
             info!(pile_id, "looking up pile path");
@@ -177,7 +178,6 @@ async fn fofs_get(
             let mut lock = state.lock().await;
             let fofs_pile_paths = &mut lock.fofs_pile_paths;
             fofs_pile_paths.insert(pile_id, path.clone());
-            drop(lock);
             path
         }
     };
