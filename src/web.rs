@@ -17,6 +17,7 @@ use std::{
     collections::HashMap,
     sync::Arc,
 };
+use once_cell::sync::Lazy;
 use futures::lock::Mutex;
 use axum_macros::debug_handler;
 use crate::util;
@@ -152,6 +153,9 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
     Ok(pile.path)
 }
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+static SERVER: Lazy<String> = Lazy::new(|| format!("es web/{VERSION}"));
+
 /// Note that we sort of trust the client here and allow them to
 /// fetch any {cell_id}/{file_id} file a local pile might have,
 /// even if it isn't in the database for some reason.
@@ -189,7 +193,9 @@ async fn fofs_get(
     let body = axum::body::boxed(StreamBody::new(stream));
     let response = Response::builder()
         .status(StatusCode::OK)
-        .header("Content-Length", fofs_file_size)
+        .header("server", &*SERVER)
+        .header("content-length", fofs_file_size)
+        .header("content-type", "application/octet-stream")
         .body(body)
         .unwrap();
     Ok(response)
