@@ -176,6 +176,7 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
 }
 
 /// Parse strictly, forbidding leading '0' or '+'
+#[inline]
 fn parse_natural_number<T: FromStr>(s: &str) -> Result<T, Error> {
     if s.starts_with('0') || s.starts_with('+') {
         return Err(Error::ParseNaturalNumber)
@@ -190,10 +191,7 @@ where
     T::Err: fmt::Display,
 {
     let s = String::deserialize(de)?;
-    if s.starts_with('+') || s.starts_with('0') {
-        return Err(de::Error::custom(Error::ParseNaturalNumber));
-    }
-    s.parse::<T>().map_err(|_| de::Error::custom(Error::ParseNaturalNumber))
+    parse_natural_number(&s).map_err(de::Error::custom)
 }
 
 /// Strictly-parsed natural number, forbidding leading '0' or '+'
