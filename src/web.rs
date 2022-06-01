@@ -1,15 +1,17 @@
 //! web server for exastash
 
 use std::net::SocketAddr;
+use hyper::Request;
 use tokio_util::io::ReaderStream;
 use axum::{
+    middleware,
     body::StreamBody,
     routing::{get, post},
     extract::Path,
-    http::{StatusCode, Uri},
+    http::{StatusCode, Uri, HeaderValue},
     response::{Response, IntoResponse},
     handler::Handler,
-    Router, Extension,
+    Router, Extension, middleware::Next,
 };
 use tower::ServiceBuilder;
 use tracing::info;
@@ -22,6 +24,22 @@ use futures::lock::Mutex;
 use axum_macros::debug_handler;
 use crate::util;
 use crate::db;
+
+fn leak_string(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+static SERVER: Lazy<HeaderValue> = Lazy::new(|| {
+    let version = env!("CARGO_PKG_VERSION");
+    let s = leak_string(format!("es web/{version}"));
+    s.try_into().unwrap()
+});
+
+async fn add_common_headers<B>(req: Request<B>, next: Next<B>) -> Response {
+    let mut response = next.run(req).await;
+    response.headers_mut().insert("server", SERVER.clone());
+    response
+}
 
 /// Start a web server with fofs serving capabilities
 pub async fn run(port: u16) -> Result<(), hyper::Error> {
@@ -36,6 +54,7 @@ pub async fn run(port: u16) -> Result<(), hyper::Error> {
         .layer(
             ServiceBuilder::new()
                 .layer(Extension(SharedState::default()))
+                .layer(middleware::from_fn(add_common_headers))
                 .into_inner(),
         );
 
@@ -153,9 +172,6 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
     Ok(pile.path)
 }
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-static SERVER: Lazy<String> = Lazy::new(|| format!("es web/{VERSION}"));
-
 /// Note that we sort of trust the client here and allow them to
 /// fetch any {cell_id}/{file_id} file a local pile might have,
 /// even if it isn't in the database for some reason.
@@ -193,7 +209,6 @@ async fn fofs_get(
     let body = axum::body::boxed(StreamBody::new(stream));
     let response = Response::builder()
         .status(StatusCode::OK)
-        .header("server", &*SERVER)
         .header("content-length", fofs_file_size)
         .header("content-type", "application/octet-stream")
         .body(body)
