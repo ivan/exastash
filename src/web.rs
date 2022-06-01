@@ -19,9 +19,11 @@ use std::{
     collections::HashMap,
     sync::Arc,
 };
+use std::fmt;
 use once_cell::sync::Lazy;
 use futures::lock::Mutex;
 use axum_macros::debug_handler;
+use serde::{de, Deserialize, Deserializer};
 use crate::util;
 use crate::db;
 
@@ -106,7 +108,7 @@ pub enum Error {
     Anyhow(#[from] anyhow::Error),
 
     /// Some number given could not be parsed
-    #[error("number could not be strictly parsed as a natural number")]
+    #[error("number could not be parsed strictly as a natural number")]
     ParseNaturalNumber,
 }
 
@@ -181,18 +183,35 @@ fn parse_natural_number<T: FromStr>(s: &str) -> Result<T, Error> {
     s.parse::<T>().map_err(|_| Error::ParseNaturalNumber)
 }
 
+fn serde_parse_natural_number<'de, D, T: FromStr>(de: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr,
+    T::Err: fmt::Display,
+{
+    let s = String::deserialize(de)?;
+    if s.starts_with('+') || s.starts_with('0') {
+        return Err(de::Error::custom(Error::ParseNaturalNumber));
+    }
+    s.parse::<T>().map_err(|_| de::Error::custom(Error::ParseNaturalNumber))
+}
+
+/// Strictly-parsed natural number, forbidding leading '0' or '+'
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct NatNum<T: FromStr> (
+    #[serde(default, deserialize_with = "serde_parse_natural_number")]
+    T
+) where T::Err: fmt::Display;
+
 /// Note that we sort of trust the client here and allow them to
 /// fetch any {cell_id}/{file_id} file a local pile might have,
 /// even if it isn't in the database for some reason.
 #[debug_handler]
 async fn fofs_get(
-    Path((pile_id, cell_id, file_id)): Path<(String, String, String)>,
+    Path((NatNum(pile_id), NatNum(cell_id), NatNum(file_id))): Path<(NatNum<i32>, NatNum<i32>, NatNum<i64>)>,
     Extension(state): Extension<SharedState>,
 ) -> Result<Response, Error> {
-    let pile_id: i32 = parse_natural_number(&pile_id)?;
-    let cell_id: i32 = parse_natural_number(&cell_id)?;
-    let file_id: i64 = parse_natural_number(&file_id)?;
-
     let cached_pile_path = {
         let mut lock = state.lock().await;
         let fofs_pile_paths = &mut lock.fofs_pile_paths;
