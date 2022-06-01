@@ -25,13 +25,9 @@ use axum_macros::debug_handler;
 use crate::util;
 use crate::db;
 
-fn leak_string(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
-}
-
 static SERVER: Lazy<HeaderValue> = Lazy::new(|| {
     let version = env!("CARGO_PKG_VERSION");
-    let s = leak_string(format!("es web/{version}"));
+    let s = format!("es web/{version}");
     s.try_into().unwrap()
 });
 
