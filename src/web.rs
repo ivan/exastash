@@ -173,7 +173,7 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
 /// even if it isn't in the database for some reason.
 #[debug_handler]
 async fn fofs_get(
-    // TODO: don't allow leading 0's on the path parameters
+    // TODO: don't allow leading 0's or +'s on the path parameters
     Path((pile_id, cell_id, file_id)): Path<(i32, i32, i64)>,
     Extension(state): Extension<SharedState>,
 ) -> Result<Response, Error> {
