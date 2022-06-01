@@ -24,6 +24,7 @@ use once_cell::sync::Lazy;
 use futures::lock::Mutex;
 use axum_macros::debug_handler;
 use serde::{de, Deserialize, Deserializer};
+use smol_str::SmolStr;
 use crate::util;
 use crate::db;
 
@@ -190,7 +191,7 @@ where
     T: FromStr,
     T::Err: fmt::Display,
 {
-    let s = String::deserialize(de)?;
+    let s = SmolStr::deserialize(de)?;
     parse_natural_number(&s).map_err(de::Error::custom)
 }
 
