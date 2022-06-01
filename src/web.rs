@@ -153,7 +153,7 @@ async fn fallback(_: Uri) -> impl IntoResponse {
     Error::NoSuchRoute
 }
 
-type FofsPilePaths = HashMap<i32, String>;
+type FofsPilePaths = HashMap<i32, SmolStr>;
 
 #[derive(Default)]
 struct State {
@@ -162,7 +162,7 @@ struct State {
 
 type SharedState = Arc<Mutex<State>>;
 
-async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
+async fn get_fofs_pile_path(pile_id: i32) -> Result<SmolStr, Error> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
     let mut piles = db::storage::fofs::Pile::find_by_ids(&mut transaction, &[pile_id]).await?;
@@ -173,7 +173,7 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
     if pile.hostname != util::get_hostname() {
         return Err(Error::PileNotOnThisMachine)
     }
-    Ok(pile.path)
+    Ok(pile.path.into())
 }
 
 /// Parse strictly, forbidding leading '0' or '+'
@@ -215,7 +215,7 @@ async fn fofs_get(
         let fofs_pile_paths = &mut lock.fofs_pile_paths;
         fofs_pile_paths.get(&pile_id).cloned()
     };
-    let pile_path: String = match cached_pile_path {
+    let pile_path: SmolStr = match cached_pile_path {
         Some(path) => path,
         None => {
             info!(pile_id, "looking up pile path");
