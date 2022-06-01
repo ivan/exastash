@@ -12,6 +12,7 @@ use axum::{
     Router, Extension,
 };
 use tower::ServiceBuilder;
+use tracing::info;
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -166,15 +167,20 @@ async fn fofs_get(
 
     let mut lock = state.lock().await;
     let fofs_pile_paths = &mut lock.fofs_pile_paths;
-    let pile_path: String = match fofs_pile_paths.get(&pile_id) {
+    let existing_pile_path = fofs_pile_paths.get(&pile_id).cloned();
+    drop(lock);
+    let pile_path: String = match existing_pile_path {
         Some(path) => path.clone(),
         None => {
+            info!(pile_id, "looking up pile path");
             let path = get_fofs_pile_path(pile_id).await?;
+            let mut lock = state.lock().await;
+            let fofs_pile_paths = &mut lock.fofs_pile_paths;
             fofs_pile_paths.insert(pile_id, path.clone());
+            drop(lock);
             path
         }
     };
-    drop(lock);
 
     let fname = format!("{}/{}/{}/{}", pile_path, pile_id, cell_id, file_id);
     let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
