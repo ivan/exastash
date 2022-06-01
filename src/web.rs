@@ -164,7 +164,8 @@ async fn fofs_get(
         return Err(Error::BadRequest);
     }
 
-    let fofs_pile_paths = &mut state.lock().await.fofs_pile_paths;
+    let mut lock = state.lock().await;
+    let fofs_pile_paths = &mut lock.fofs_pile_paths;
     let pile_path: String = match fofs_pile_paths.get(&pile_id) {
         Some(path) => path.clone(),
         None => {
@@ -173,18 +174,17 @@ async fn fofs_get(
             path
         }
     };
+    drop(lock);
 
     let fname = format!("{}/{}/{}/{}", pile_path, pile_id, cell_id, file_id);
     let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
     let file = tokio::fs::File::open(fname).await?;
     let stream = ReaderStream::new(file);
     let body = axum::body::boxed(StreamBody::new(stream));
-
     let response = Response::builder()
         .status(StatusCode::OK)
         .header("Content-Length", fofs_file_size)
         .body(body)
         .unwrap();
-
     Ok(response)
 }
