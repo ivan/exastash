@@ -9,11 +9,16 @@ use axum::{
     http::{StatusCode, Uri},
     response::{Response, IntoResponse},
     handler::Handler,
-    Router,
+    Router, Extension,
 };
-#[allow(unused)]
+use tower::ServiceBuilder;
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 use axum_macros::debug_handler;
 use crate::util;
+use crate::db;
 
 /// Start a web server with fofs serving capabilities
 pub async fn run(port: u16) -> Result<(), hyper::Error> {
@@ -24,7 +29,12 @@ pub async fn run(port: u16) -> Result<(), hyper::Error> {
         // Don't let axum serve with trailing slash. Thanks axum.
         // https://github.com/tokio-rs/axum/pull/410/files
         .route("/fofs/:pile_id/:cell_id/:file_id/", get(not_found))
-        .fallback(fallback.into_service());
+        .fallback(fallback.into_service())
+        .layer(
+            ServiceBuilder::new()
+                .layer(Extension(SharedState::default()))
+                .into_inner(),
+        );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("listening on {}", addr);
@@ -57,6 +67,14 @@ pub enum Error {
     #[error("file not found")]
     FileNotFound,
 
+    /// Pile was not found
+    #[error("pile not found")]
+    PileNotFound,
+
+    /// Pile was not found
+    #[error("pile was found, but it's not on this machine")]
+    PileNotOnThisMachine,
+
     /// A problem with the database
     #[error("an error occurred with the database")]
     Sqlx(#[from] sqlx::Error),
@@ -77,6 +95,8 @@ impl Error {
             Self::NoSuchRoute => StatusCode::NOT_FOUND,
             Self::BadRequest => StatusCode::BAD_REQUEST,
             Self::FileNotFound => StatusCode::NOT_FOUND,
+            Self::PileNotFound => StatusCode::NOT_FOUND,
+            Self::PileNotOnThisMachine => StatusCode::NOT_FOUND,
             Self::Io(e) if e.kind() == std::io::ErrorKind::NotFound => StatusCode::NOT_FOUND,
             Self::Sqlx(_) | Self::Anyhow(_) | Self::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -107,19 +127,55 @@ async fn fallback(_: Uri) -> impl IntoResponse {
     Error::NoSuchRoute
 }
 
+type FofsPilePaths = HashMap<i32, String>;
+
+#[derive(Default)]
+struct State {
+    fofs_pile_paths: FofsPilePaths,
+}
+
+type SharedState = Arc<RwLock<State>>;
+
+async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
+    let pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
+    let mut piles = db::storage::fofs::Pile::find_by_ids(&mut transaction, &[pile_id]).await?;
+    let pile = match piles.pop() {
+        Some(pile) => pile,
+        None => return Err(Error::PileNotFound),
+    };
+    if pile.hostname != util::get_hostname() {
+        return Err(Error::PileNotOnThisMachine)
+    }
+    Ok(pile.path.clone())
+}
+
 /// Note that we sort of trust the client here and allow them to
-/// fetch any /fofs/{pile_id}/{cell_id}/{file_id} file we have,
-/// even if it isn't in the database.
+/// fetch any {cell_id}/{file_id} file a local pile might have,
+/// even if it isn't in the database for some reason.
+#[debug_handler]
 async fn fofs_get(
     // TODO: don't allow leading 0's on the path parameters
-    Path((pile_id, cell_id, file_id)): Path<(i64, i64, i64)>,
+    Path((pile_id, cell_id, file_id)): Path<(i32, i32, i64)>,
+    Extension(state): Extension<SharedState>,
 ) -> Result<Response, Error> {
     if pile_id < 1 || cell_id < 1 || file_id < 1 {
         return Err(Error::BadRequest);
     }
 
-    // TODO: maintain in-memory cache of fofs pile paths instead of assuming /fofs
-    let pile_path = "/fofs";
+    let lock = state.read();
+    let fofs_pile_paths = &lock.as_ref().unwrap().fofs_pile_paths;
+    let pile_path: String = match fofs_pile_paths.get(&pile_id) {
+        Some(path) => path.clone(),
+        None => {
+            //let path = get_fofs_pile_path(pile_id).await?;
+            //state.write().unwrap().fofs_pile_paths.insert(pile_id, path.clone());
+            //path
+            String::from("asdf")
+        }
+    };
+    drop(lock);
+
     let fname = format!("{}/{}/{}/{}", pile_path, pile_id, cell_id, file_id);
     let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
     let file = tokio::fs::File::open(fname).await?;

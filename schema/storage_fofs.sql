@@ -11,7 +11,8 @@ CREATE TABLE piles (
     files_per_cell        int       NOT NULL CHECK (files_per_cell >= 1),
     -- The machine on which the pile is stored
     hostname              hostname  NOT NULL,
-    -- The absolute path to the root directory of the pile on the machine, not including the automatically suffixed /{id}
+    -- The absolute path to the root directory of the pile on the machine, not including the automatically suffixed /{id}.
+    -- Note that `es web` will cache this value until restarted.
     "path"                text      NOT NULL CHECK ("path" ~ '\A/.*[^/]\Z'), -- Must start with /, must not end with /
     -- How often to check whether the cell has reached capacity before marking it full; 0 = never, 1 = always
     --
