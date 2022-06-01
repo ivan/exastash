@@ -171,7 +171,7 @@ async fn fofs_get(
         fofs_pile_paths.get(&pile_id).cloned()
     };
     let pile_path: String = match cached_pile_path {
-        Some(path) => path.clone(),
+        Some(path) => path,
         None => {
             info!(pile_id, "looking up pile path");
             let path = get_fofs_pile_path(pile_id).await?;
