@@ -14,8 +14,9 @@ use axum::{
 use tower::ServiceBuilder;
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
+use futures::lock::Mutex;
 use axum_macros::debug_handler;
 use crate::util;
 use crate::db;
@@ -134,7 +135,7 @@ struct State {
     fofs_pile_paths: FofsPilePaths,
 }
 
-type SharedState = Arc<RwLock<State>>;
+type SharedState = Arc<Mutex<State>>;
 
 async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
     let pool = db::pgpool().await;
@@ -163,18 +164,15 @@ async fn fofs_get(
         return Err(Error::BadRequest);
     }
 
-    let lock = state.read();
-    let fofs_pile_paths = &lock.as_ref().unwrap().fofs_pile_paths;
+    let fofs_pile_paths = &mut state.lock().await.fofs_pile_paths;
     let pile_path: String = match fofs_pile_paths.get(&pile_id) {
         Some(path) => path.clone(),
         None => {
-            //let path = get_fofs_pile_path(pile_id).await?;
-            //state.write().unwrap().fofs_pile_paths.insert(pile_id, path.clone());
-            //path
-            String::from("asdf")
+            let path = get_fofs_pile_path(pile_id).await?;
+            fofs_pile_paths.insert(pile_id, path.clone());
+            path
         }
     };
-    drop(lock);
 
     let fname = format!("{}/{}/{}/{}", pile_path, pile_id, cell_id, file_id);
     let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
