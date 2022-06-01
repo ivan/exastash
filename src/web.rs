@@ -148,7 +148,7 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<String, Error> {
     if pile.hostname != util::get_hostname() {
         return Err(Error::PileNotOnThisMachine)
     }
-    Ok(pile.path.clone())
+    Ok(pile.path)
 }
 
 /// Note that we sort of trust the client here and allow them to
