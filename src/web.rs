@@ -196,7 +196,6 @@ where
 
 /// Strictly-parsed natural number, forbidding leading '0' or '+'
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct NatNum<T: FromStr> (
     #[serde(default, deserialize_with = "serde_parse_natural_number")]
     T
