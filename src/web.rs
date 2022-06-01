@@ -1,6 +1,9 @@
 //! web server for exastash
 
+use std::net::SocketAddr;
+use tokio_util::io::ReaderStream;
 use axum::{
+    body::StreamBody,
     routing::{get, post},
     extract::Path,
     http::{StatusCode, Uri},
@@ -10,7 +13,6 @@ use axum::{
 };
 #[allow(unused)]
 use axum_macros::debug_handler;
-use std::net::SocketAddr;
 use crate::util;
 
 /// Start a web server with fofs serving capabilities
@@ -51,9 +53,17 @@ pub enum Error {
     #[error("bad request")]
     BadRequest,
 
+    /// File was not found
+    #[error("file not found")]
+    FileNotFound,
+
     /// A problem with the database
     #[error("an error occurred with the database")]
     Sqlx(#[from] sqlx::Error),
+
+    /// Some problem doing IO
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 
     /// Some other error created by anyhow
     #[error("an internal server error occurred")]
@@ -66,7 +76,9 @@ impl Error {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NoSuchRoute => StatusCode::NOT_FOUND,
             Self::BadRequest => StatusCode::BAD_REQUEST,
-            Self::Sqlx(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::FileNotFound => StatusCode::NOT_FOUND,
+            Self::Io(e) if e.kind() == std::io::ErrorKind::NotFound => StatusCode::NOT_FOUND,
+            Self::Sqlx(_) | Self::Anyhow(_) | Self::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -95,6 +107,9 @@ async fn fallback(_: Uri) -> impl IntoResponse {
     Error::NoSuchRoute
 }
 
+/// Note that we sort of trust the client here and allow them to
+/// fetch any /fofs/{pile_id}/{cell_id}/{file_id} file we have,
+/// even if it isn't in the database.
 async fn fofs_get(
     // TODO: don't allow leading 0's on the path parameters
     Path((pile_id, cell_id, file_id)): Path<(i64, i64, i64)>,
@@ -102,5 +117,20 @@ async fn fofs_get(
     if pile_id < 1 || cell_id < 1 || file_id < 1 {
         return Err(Error::BadRequest);
     }
-    Ok((StatusCode::OK, "OK").into_response())
+
+    // TODO: maintain in-memory cache of fofs pile paths instead of assuming /fofs
+    let pile_path = "/fofs";
+    let fname = format!("{}/{}/{}/{}", pile_path, pile_id, cell_id, file_id);
+    let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
+    let file = tokio::fs::File::open(fname).await?;
+    let stream = ReaderStream::new(file);
+    let body = axum::body::boxed(StreamBody::new(stream));
+
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Length", fofs_file_size)
+        .body(body)
+        .unwrap();
+
+    Ok(response)
 }
