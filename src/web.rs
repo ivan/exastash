@@ -28,46 +28,6 @@ use smol_str::SmolStr;
 use crate::util;
 use crate::db;
 
-static SERVER: Lazy<HeaderValue> = Lazy::new(|| {
-    let version = env!("CARGO_PKG_VERSION");
-    let s = format!("es web/{version}");
-    s.try_into().unwrap()
-});
-
-async fn add_common_headers<B>(req: Request<B>, next: Next<B>) -> Response {
-    let mut response = next.run(req).await;
-    response.headers_mut().insert("server", SERVER.clone());
-    response
-}
-
-/// Start a web server with fofs serving capabilities
-pub async fn run(port: u16) -> Result<(), hyper::Error> {
-    // build our application with a route
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get))
-        // Don't let axum serve with trailing slash. Thanks axum.
-        // https://github.com/tokio-rs/axum/pull/410/files
-        .route("/fofs/:pile_id/:cell_id/:file_id/", get(not_found))
-        .fallback(fallback.into_service())
-        .layer(
-            ServiceBuilder::new()
-                .layer(Extension(SharedState::default()))
-                .layer(middleware::from_fn(add_common_headers))
-                .into_inner(),
-        );
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    tracing::info!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-}
-
-async fn root() -> String {
-    format!("es web on {}", util::get_hostname())
-}
-
 /// Errors used by our web server
 #[derive(thiserror::Error, Debug)]
 #[allow(variant_size_differences)]
@@ -239,4 +199,44 @@ async fn fofs_get(
         .body(body)
         .unwrap();
     Ok(response)
+}
+
+async fn root() -> String {
+    format!("es web on {}", util::get_hostname())
+}
+
+static SERVER: Lazy<HeaderValue> = Lazy::new(|| {
+    let version = env!("CARGO_PKG_VERSION");
+    let s = format!("es web/{version}");
+    s.try_into().unwrap()
+});
+
+async fn add_common_headers<B>(req: Request<B>, next: Next<B>) -> Response {
+    let mut response = next.run(req).await;
+    response.headers_mut().insert("server", SERVER.clone());
+    response
+}
+
+/// Start a web server with fofs serving capabilities
+pub async fn run(port: u16) -> Result<(), hyper::Error> {
+    // build our application with a route
+    let app = Router::new()
+        .route("/", get(root))
+        .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get))
+        // Don't let axum serve with trailing slash. Thanks axum.
+        // https://github.com/tokio-rs/axum/pull/410/files
+        .route("/fofs/:pile_id/:cell_id/:file_id/", get(not_found))
+        .fallback(fallback.into_service())
+        .layer(
+            ServiceBuilder::new()
+                .layer(Extension(SharedState::default()))
+                .layer(middleware::from_fn(add_common_headers))
+                .into_inner(),
+        );
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    tracing::info!("listening on {}", addr);
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await
 }
