@@ -201,10 +201,6 @@ async fn fofs_get(
     Ok(response)
 }
 
-async fn root() -> String {
-    format!("es web on {}", util::get_hostname())
-}
-
 static SERVER: Lazy<HeaderValue> = Lazy::new(|| {
     let version = env!("CARGO_PKG_VERSION");
     let s = format!("es web/{version}");
@@ -215,6 +211,10 @@ async fn add_common_headers<B>(req: Request<B>, next: Next<B>) -> Response {
     let mut response = next.run(req).await;
     response.headers_mut().insert("server", SERVER.clone());
     response
+}
+
+async fn root() -> String {
+    format!("{} on {}", SERVER.to_str().unwrap(), util::get_hostname())
 }
 
 /// Start a web server with fofs serving capabilities
