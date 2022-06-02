@@ -1,6 +1,6 @@
 //! web server for exastash
 
-use std::{net::SocketAddr, str::FromStr};
+use std::net::SocketAddr;
 use hyper::Request;
 use tokio_util::io::ReaderStream;
 use axum::{
@@ -19,13 +19,11 @@ use std::{
     collections::HashMap,
     sync::Arc,
 };
-use std::fmt;
 use once_cell::sync::Lazy;
 use futures::lock::Mutex;
 use axum_macros::debug_handler;
-use serde::{de, Deserialize, Deserializer};
 use smol_str::SmolStr;
-use crate::util;
+use crate::util::{self, NatNum};
 use crate::db;
 
 /// Errors used by our web server
@@ -70,7 +68,7 @@ pub enum Error {
 
     /// Some number given could not be parsed
     #[error("number could not be parsed strictly as a natural number")]
-    ParseNaturalNumber,
+    ParseNaturalNumber(#[from] util::ParseNaturalNumberError),
 }
 
 impl Error {
@@ -78,7 +76,7 @@ impl Error {
         match self {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NoSuchRoute => StatusCode::NOT_FOUND,
-            Self::ParseNaturalNumber => StatusCode::BAD_REQUEST,
+            Self::ParseNaturalNumber(_) => StatusCode::BAD_REQUEST,
             Self::BadRequest => StatusCode::BAD_REQUEST,
             Self::FileNotFound => StatusCode::NOT_FOUND,
             Self::PileNotFound => StatusCode::NOT_FOUND,
@@ -135,32 +133,6 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<SmolStr, Error> {
     }
     Ok(pile.path.into())
 }
-
-/// Parse strictly, forbidding leading '0' or '+'
-#[inline]
-fn parse_natural_number<T: FromStr>(s: &str) -> Result<T, Error> {
-    if s.starts_with('0') || s.starts_with('+') {
-        return Err(Error::ParseNaturalNumber)
-    }
-    s.parse::<T>().map_err(|_| Error::ParseNaturalNumber)
-}
-
-fn serde_parse_natural_number<'de, D, T: FromStr>(de: D) -> Result<T, D::Error>
-where
-    D: Deserializer<'de>,
-    T: FromStr,
-    T::Err: fmt::Display,
-{
-    let s = SmolStr::deserialize(de)?;
-    parse_natural_number(&s).map_err(de::Error::custom)
-}
-
-/// Strictly-parsed natural number, forbidding leading '0' or '+'
-#[derive(Debug, Deserialize)]
-struct NatNum<T: FromStr> (
-    #[serde(default, deserialize_with = "serde_parse_natural_number")]
-    T
-) where T::Err: fmt::Display;
 
 /// Note that we sort of trust the client here and allow them to
 /// fetch any {cell_id}/{file_id} file a local pile might have,

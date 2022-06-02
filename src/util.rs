@@ -6,11 +6,14 @@ use std::path::{Path, PathBuf};
 use std::path::Component;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
+use serde::{de, Deserialize, Deserializer};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc, Timelike};
 use bytes::{Bytes, BytesMut, Buf};
 use tokio_util::codec::Decoder;
+use smol_str::SmolStr;
 use pin_project::pin_project;
 use futures::task::{Context, Poll};
 use tokio::io::{AsyncRead, ReadBuf};
@@ -113,6 +116,42 @@ pub(crate) fn utf8_path_to_components(path: &str) -> Vec<String> {
 pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "...")
 }
+
+
+
+/// Error indicating failure to parse strictly a natural number
+#[derive(thiserror::Error, Debug, Clone)]
+#[error("could not parse as natural number without leading 0 or +")]
+pub struct ParseNaturalNumberError;
+
+/// Parse strictly, forbidding leading '0' or '+'
+#[inline]
+fn parse_natural_number<T: FromStr>(s: &str) -> Result<T, ParseNaturalNumberError> {
+    if s.starts_with('0') || s.starts_with('+') {
+        return Err(ParseNaturalNumberError)
+    }
+    s.parse::<T>().map_err(|_| ParseNaturalNumberError)
+}
+
+fn serde_parse_natural_number<'de, D, T: FromStr>(de: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr,
+    T::Err: fmt::Display,
+{
+    let s = SmolStr::deserialize(de)?;
+    parse_natural_number(&s).map_err(de::Error::custom)
+}
+
+/// Strictly-parsed natural number, forbidding leading '0' or '+'
+#[derive(Debug, Deserialize)]
+pub(crate) struct NatNum<T: FromStr> (
+    #[serde(default, deserialize_with = "serde_parse_natural_number")]
+    pub T
+) where T::Err: fmt::Display;
+
+
+
 /// Decodes an AsyncRead to a stream of Bytes of fixed length,
 /// except for the last chunk which may be shorter.
 #[expect(missing_copy_implementations)]

@@ -14,7 +14,6 @@
     rust_2018_idioms,
     unused,
     macro_use_extern_crate,
-    missing_copy_implementations,
     missing_debug_implementations,
     missing_docs,
     trivial_casts,
