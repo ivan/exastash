@@ -717,6 +717,7 @@ pub(crate) mod tests {
 
         /// Can change mtime on a dir
         #[tokio::test]
+        #[serial]
         async fn test_can_change_dir_mutables() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
