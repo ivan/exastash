@@ -24,10 +24,12 @@ use exastash::db::google_auth::{GoogleApplicationSecret, GoogleServiceAccount};
 use exastash::db::traversal;
 use exastash::path;
 use exastash::config;
+use exastash::policy;
 use exastash::info::json_info;
 use exastash::oauth;
 use exastash::retry::Decayer;
-use exastash::{storage_read, storage_write};
+use exastash::storage_read;
+use exastash::storage_write;
 use yup_oauth2::ServiceAccountKey;
 use mimalloc::MiMalloc;
 
@@ -1055,7 +1057,7 @@ async fn main() -> Result<()> {
                     transaction.commit().await?; // close unused transaction
 
                     let config = config::get_config()?;
-                    let policy = config::get_policy()?;
+                    let policy = policy::get_policy()?;
                     for path_arg in &path_args {
                         let mut transaction = pool.begin().await?;
                         let path_components = path::resolve_local_path_to_path_components(Some(path_arg))?;

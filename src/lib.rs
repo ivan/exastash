@@ -36,6 +36,7 @@ pub mod web;
 pub mod path;
 pub mod blake3;
 pub mod config;
+pub mod policy;
 pub(crate) mod gdrive;
 pub(crate) mod crypto;
 pub mod info;
