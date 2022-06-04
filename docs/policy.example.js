@@ -1,17 +1,15 @@
-function newFileStorages({ stashPath, size, mtime, executable }) {
+function new_file_storages({ stash_path, size, mtime, executable }) {
     if (size == 0) {
         return {};
     }
 
-    let remoteStorageThreshold;
-    if (stashPath.length && stashPath[0] == "Stuff") {
-        remoteStorageThreshold = 204800;
-    } else {
-        remoteStorageThreshold = 60000;
+    let remote_storage_threshold = 60000;
+    if (stash_path.length && stash_path[0] == "Stuff") {
+        remote_storage_threshold = 204800;
     }
 
-    let lastSegment = stashPath[stashPath.length - 1];
-    if (size > remoteStorageThreshold || lastSegment.endsWith(".jpg")) {
+    const last_segment = stash_path[stash_path.length - 1];
+    if (size > remote_storage_threshold || last_segment.endsWith(".jpg")) {
         // 1 is the google_domain
         return {gdrive: [1]};
     } else {

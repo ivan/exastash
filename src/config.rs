@@ -73,7 +73,7 @@ impl TryFrom<JsValue> for DesiredStorages {
                 if let JsValue::Bool(inline) = val {
                     desired_storage.inline = *inline;
                 } else {
-                    bail!("newFileStorages returned an object with property \
+                    bail!("new_file_storages returned an object with property \
                            'inline' but value was not a boolean");
                 }
             }
@@ -83,12 +83,12 @@ impl TryFrom<JsValue> for DesiredStorages {
                         if let JsValue::Int(fofs_pile_id) = val {
                             desired_storage.fofs.insert(*fofs_pile_id);
                         } else {
-                            bail!("newFileStorages returned an object with property \
+                            bail!("new_file_storages returned an object with property \
                                    'fofs' but some array element was not an integer");
                         }
                     }
                 } else {
-                    bail!("newFileStorages returned an object with property \
+                    bail!("new_file_storages returned an object with property \
                            'fofs' but value was not an array");
                 }
             }
@@ -99,17 +99,17 @@ impl TryFrom<JsValue> for DesiredStorages {
                             let gdrive_id = i16::try_from(*gdrive_id)?;
                             desired_storage.gdrive.insert(gdrive_id);
                         } else {
-                            bail!("newFileStorages returned an object with property \
+                            bail!("new_file_storages returned an object with property \
                                    'gdrive' but some array element was not an integer");
                         }
                     }
                 } else {
-                    bail!("newFileStorages returned an object with property \
+                    bail!("new_file_storages returned an object with property \
                            'gdrive' but value was not an array");
                 }
             }
         } else {
-            bail!("newFileStorages did not return an object");
+            bail!("new_file_storages did not return an object");
         }
 
         Ok(desired_storage)
@@ -124,20 +124,20 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// Call policy.js's newFileStorages and convert the result to a DesiredStorages
+    /// Call policy.js's new_file_storages and convert the result to a DesiredStorages
     pub fn new_file_storages(&self, stash_path: &[&str], metadata: &RelevantFileMetadata) -> Result<DesiredStorages> {
         let mut properties: HashMap<String, JsValue> = HashMap::new();
         let stash_path_js = stash_path
             .iter()
             .map(|&s| JsValue::String(s.into()))
             .collect();
-        properties.insert("stashPath".into(),  JsValue::Array(stash_path_js));
+        properties.insert("stash_path".into(), JsValue::Array(stash_path_js));
         properties.insert("size".into(),       JsValue::BigInt(metadata.size.into()));
         properties.insert("mtime".into(),      JsValue::Date(metadata.mtime));
         properties.insert("executable".into(), JsValue::Bool(metadata.executable));
 
-        let desired_storages = self.js_context.call_function("newFileStorages", vec![JsValue::Object(properties)])?.try_into()?;
-        info!("policy.js:newFileStorages returned {:?} for stash_path={:?}", desired_storages, stash_path);
+        let desired_storages = self.js_context.call_function("new_file_storages", vec![JsValue::Object(properties)])?.try_into()?;
+        info!("policy.js:new_file_storages returned {:?} for stash_path={:?}", desired_storages, stash_path);
         Ok(desired_storages)
     }
 }
@@ -176,7 +176,7 @@ mod tests {
             "#)?;
 
             let expected_path_roots = hmap!{
-                vec!["some".into(), "path".into()] => PathRootsValue { dir_id: 1, new_dirent_requirements: vec![] },
+                vec!["some".into(),  "path".into()] => PathRootsValue { dir_id: 1, new_dirent_requirements: vec![] },
                 vec!["other".into(), "path".into()] => PathRootsValue { dir_id: 2, new_dirent_requirements: vec![String::from("windows_compatible")] },
                 vec![] => PathRootsValue { dir_id: 3, new_dirent_requirements: vec![] },
             };
@@ -194,7 +194,7 @@ mod tests {
         #[test]
         fn test_parse_policy() -> Result<()> {
             let script = r#"
-                function newFileStorages({ stashPath, size, mtime, executable }) {
+                function new_file_storages({ stash_path, size, mtime, executable }) {
                     return {inline: true};
                 }
             "#;
@@ -206,8 +206,8 @@ mod tests {
         #[test]
         fn test_new_file_storages() -> Result<()> {
             let script = r#"
-                function newFileStorages({ stashPath, size, mtime, executable }) {
-                    let path = stashPath.join("/");
+                function new_file_storages({ stash_path, size, mtime, executable }) {
+                    let path = stash_path.join("/");
                     if (path.endsWith(".json")) {
                         // Not something we'd do in practice
                         return {inline: true, gdrive: [1], fofs: [2]};
