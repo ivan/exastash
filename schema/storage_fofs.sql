@@ -68,6 +68,9 @@ CREATE TABLE storage_fofs (
     cell_id       int     NOT NULL REFERENCES cells (id),
 
     -- A file can be stored in multiple cells (because we may want to store it on multiple machines)
+    --
+    -- Note that nothing in the SQL prevents a file from being stored in different cells in the same
+    -- pile, though it would be undesired.
     PRIMARY KEY (file_id, cell_id)
 );
 
