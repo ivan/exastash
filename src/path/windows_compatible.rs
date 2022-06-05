@@ -102,13 +102,13 @@ mod tests {
 
     #[test]
     fn test_check_segment() {
-        assert_eq!(check_segment("filename"), Ok(()));
-        assert_eq!(check_segment("filename.ext"), Ok(()));
-        assert_eq!(check_segment("with spaces"), Ok(()));
+        assert_eq!(check_segment("filename"),         Ok(()));
+        assert_eq!(check_segment("filename.ext"),     Ok(()));
+        assert_eq!(check_segment("with spaces"),      Ok(()));
         assert_eq!(check_segment("multiple.ext.ext"), Ok(()));
 
-        assert_eq!(check_segment("with CR\r"), Err(PathError::ContainsInvalidWindowsCharacter('\r')));
-        assert_eq!(check_segment("ends with dot."), Err(PathError::InvalidWindowsNameEnding('.')));
+        assert_eq!(check_segment("with CR\r"),        Err(PathError::ContainsInvalidWindowsCharacter('\r')));
+        assert_eq!(check_segment("ends with dot."),   Err(PathError::InvalidWindowsNameEnding('.')));
         assert_eq!(check_segment("ends with space "), Err(PathError::InvalidWindowsNameEnding(' ')));
 
         let mut invalid_chars = vec!['"', '*', ':', '<', '>', '?', '\\', '|'];
