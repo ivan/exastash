@@ -45,38 +45,37 @@ mod tests {
 
     #[test]
     fn test_get_concealment_size() {
-        assert_eq!(get_concealment_size(0), 16);
-        assert_eq!(get_concealment_size(1), 16);
-        assert_eq!(get_concealment_size(128), 16);
-        assert_eq!(get_concealment_size(256), 16);
+        assert_eq!(get_concealment_size(0),    16);
+        assert_eq!(get_concealment_size(1),    16);
+        assert_eq!(get_concealment_size(128),  16);
+        assert_eq!(get_concealment_size(256),  16);
         assert_eq!(get_concealment_size(1024), 16);
         assert_eq!(get_concealment_size(1536), 16);
-        assert_eq!(get_concealment_size(2*1024), 16);
-        assert_eq!(get_concealment_size(128*1024), 1024);
+        assert_eq!(get_concealment_size(2 * 1024),   16);
+        assert_eq!(get_concealment_size(128 * 1024), 1024);
 
-        assert_eq!(get_concealment_size(1024*1024), 1024*1024/128);
-
-        assert_eq!(get_concealment_size(1024*1024*1024 - 1), 1024*1024*1024/256);
-        assert_eq!(get_concealment_size(1024*1024*1024), 1024*1024*1024/128);
-        assert_eq!(get_concealment_size(1024*1024*1024 + 1), 1024*1024*1024/128);
-        assert_eq!(get_concealment_size(1024*1024*1024 + 1024*1024), 1024*1024*1024/128);
+        assert_eq!(get_concealment_size(1024 * 1024),                      1024 * 1024 / 128);
+        assert_eq!(get_concealment_size(1024 * 1024 * 1024 - 1),           1024 * 1024 * 1024 / 256);
+        assert_eq!(get_concealment_size(1024 * 1024 * 1024),               1024 * 1024 * 1024 / 128);
+        assert_eq!(get_concealment_size(1024 * 1024 * 1024 + 1),           1024 * 1024 * 1024 / 128);
+        assert_eq!(get_concealment_size(1024 * 1024 * 1024 + 1024 * 1024), 1024 * 1024 * 1024 / 128);
     }
 
     #[test]
     fn test_conceal_size() {
-        assert_eq!(conceal_size(0), 16);
-        assert_eq!(conceal_size(1), 16);
-        assert_eq!(conceal_size(128), 128);
-        assert_eq!(conceal_size(256), 256);
+        assert_eq!(conceal_size(0),    16);
+        assert_eq!(conceal_size(1),    16);
+        assert_eq!(conceal_size(128),  128);
+        assert_eq!(conceal_size(256),  256);
         assert_eq!(conceal_size(1024), 1024);
         assert_eq!(conceal_size(1025), 1024 + 16);
         assert_eq!(conceal_size(1536), 1536);
-        assert_eq!(conceal_size(2*1024), 2*1024);
-        assert_eq!(conceal_size(2*1024+1), 2*1024 + 16);
+        assert_eq!(conceal_size(2 * 1024),     2 * 1024);
+        assert_eq!(conceal_size(2 * 1024 + 1), 2 * 1024 + 16);
 
-        assert_eq!(conceal_size(1024*1024*1024 - 1), 1024*1024*1024);
-        assert_eq!(conceal_size(1024*1024*1024), 1024*1024*1024);
-        assert_eq!(conceal_size(1024*1024*1024 + 1), 1024*1024*1024 + 1024*1024*1024/128);
-        assert_eq!(conceal_size(1024*1024*1024 + 1024*1024), 1024*1024*1024 + 1024*1024*1024/128);
+        assert_eq!(conceal_size(1024 * 1024 * 1024 - 1),           1024 * 1024 * 1024);
+        assert_eq!(conceal_size(1024 * 1024 * 1024),               1024 * 1024 * 1024);
+        assert_eq!(conceal_size(1024 * 1024 * 1024 + 1),           1024 * 1024 * 1024 + 1024 * 1024 * 1024 / 128);
+        assert_eq!(conceal_size(1024 * 1024 * 1024 + 1024 * 1024), 1024 * 1024 * 1024 + 1024 * 1024 * 1024 / 128);
     }
 }
