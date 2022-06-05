@@ -21,6 +21,7 @@ use crate::db::storage::{get_storage_views, StorageView, fofs, inline, gdrive, i
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::db::google_auth::{GoogleAccessToken, GoogleServiceAccount};
 use crate::util;
+use crate::policy;
 use crate::gdrive::{request_gdrive_file, get_crc32c_in_response};
 use crate::crypto::{GcmDecoder, gcm_create_key};
 
@@ -265,29 +266,61 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> ReadStr
     }
 }
 
+pub(crate) async fn request_remote_fofs_file(file: &inode::File, storage: &fofs::StorageView) -> Result<reqwest::Response> {
+    let policy = policy::get_policy()?;
+    let base_url = policy.fofs_base_url(&storage.pile_hostname)?;
+    let url = format!("{}/fofs/{}/{}/{}", base_url, storage.pile_id, storage.cell_id, file.id);
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .send().await?;
+    Ok(response)
+}
+
 async fn stream_fofs_file(file: &inode::File, storage: &fofs::StorageView) -> Result<ReadStream> {
     let my_hostname = util::get_hostname();
     if storage.pile_hostname != my_hostname {
-        // TODO make HTTP request to other machine if needed
-        unimplemented!("reading from another machine");
-    }
-    let fname = format!("{}/{}/{}/{}", storage.pile_path, storage.pile_id, storage.cell_id, file.id);
-    let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
-    if fofs_file_size != file.size as u64 {
-        bail!("file in fofs {:?} had unexpected size={} instead of size={}", fname, fofs_file_size, file.size)
-    }
-    let file = tokio::fs::File::open(fname).await?;
-    let stream = ReaderStream::new(file);
-    Ok(Box::pin(
-        #[try_stream]
-        async move {
-            #[for_await]
-            for item in stream {
-                let bytes = item?;
-                yield bytes;
-            }
+        let response = request_remote_fofs_file(file, storage).await?;
+
+        let content_length = response.content_length().ok_or_else(|| {
+            anyhow!("remote fofs host {} responded without a Content-Length", storage.pile_hostname)
+        })?;
+        if content_length != file.size as u64 {
+            bail!("file should be {} bytes but remote fofs host {} responded with Content-Length: {}",
+            file.size, storage.pile_hostname, content_length);
         }
-    ))
+        let stream = response.bytes_stream();
+
+        Ok(Box::pin(
+            #[try_stream]
+            async move {
+                #[for_await]
+                for item in stream {
+                    let bytes = item?;
+                    yield bytes;
+                }
+            }
+        ))
+    } else {
+        let fname = format!("{}/{}/{}/{}", storage.pile_path, storage.pile_id, storage.cell_id, file.id);
+        let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
+        if fofs_file_size != file.size as u64 {
+            bail!("file in fofs {:?} had unexpected size={} instead of size={}", fname, fofs_file_size, file.size)
+        }
+        let file = tokio::fs::File::open(fname).await?;
+        let stream = ReaderStream::new(file);
+
+        Ok(Box::pin(
+            #[try_stream]
+            async move {
+                #[for_await]
+                for item in stream {
+                    let bytes = item?;
+                    yield bytes;
+                }
+            }
+        ))
+    }
 }
 
 /// Return the content of a storage as a pinned boxed Stream on which caller can call `.into_async_read()`
@@ -362,7 +395,7 @@ fn sort_storage_views_by_priority(storages: &mut [StorageView]) {
             // Prefer fofs over gdrive to reduce unnecessary API calls to Google.
             // Prefer localhost fofs over other fofs.
             StorageView::Fofs(fofs::StorageView { pile_hostname, .. }) => {
-                if pile_hostname == &util::get_hostname() { 1 } else { 200 }
+                if pile_hostname == &util::get_hostname() { 1 } else { 2 }
             },
             // Prefer gdrive over internetarchive because internetarchive is very slow now
             StorageView::Gdrive { .. } => 3,
