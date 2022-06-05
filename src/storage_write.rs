@@ -227,8 +227,8 @@ async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlaceme
             anyhow!("cannot replace placement {:?} because there are no non-full gdrive_parents", old_placement)
         })?;
 
-    // Remove the original placement
-    old_placement.remove(&mut transaction).await?;
+    // Delete the original placement
+    old_placement.delete(&mut transaction).await?;
 
     // Add the new placement
     let new_placement = gdrive::GdriveFilePlacement {
@@ -367,7 +367,7 @@ impl TryFrom<&Metadata> for RelevantFileMetadata {
     fn try_from(attr: &Metadata) -> Result<RelevantFileMetadata> {
         use std::os::unix::fs::PermissionsExt;
 
-        // Remove the nanoseconds so that a RelevantFileMetadata's mtime
+        // Zero out the nanoseconds so that a RelevantFileMetadata's mtime
         // can be compared directly with a timestamptz from PostgreSQL.
         let mtime = util::without_nanos(attr.modified()?.into());
         let size = attr.len() as i64;

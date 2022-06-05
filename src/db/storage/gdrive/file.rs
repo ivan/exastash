@@ -129,9 +129,9 @@ impl GdriveFile {
         Ok(())
     }
 
-    /// Remove gdrive files in the database.
+    /// Delete references to gdrive files from the database.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn remove_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<()> {
+    pub async fn delete_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<()> {
         if ids.is_empty() {
             return Ok(());
         }
@@ -221,9 +221,9 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        // Can remove gdrive files not referenced by storage_gdrive
+        // Can delete gdrive_file entities not referenced by storage_gdrive
         #[tokio::test]
-        async fn test_remove_gdrive_files() -> Result<()> {
+        async fn test_delete_gdrive_files() -> Result<()> {
             let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
@@ -234,15 +234,15 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            GdriveFile::remove_by_ids(&mut transaction, &[&file.id]).await?;
+            GdriveFile::delete_by_ids(&mut transaction, &[&file.id]).await?;
             transaction.commit().await?;
 
             Ok(())
         }
 
-        // Cannot remove gdrive files that are referenced by storage_gdrive
+        // Cannot delete gdrive_file entities that are referenced by storage_gdrive
         #[tokio::test]
-        async fn test_cannot_remove_gdrive_files_still_referenced() -> Result<()> {
+        async fn test_cannot_delete_gdrive_files_still_referenced() -> Result<()> {
             let pool = new_primary_pool().await;
 
             let mut transaction = pool.begin().await?;
@@ -259,7 +259,7 @@ pub(crate) mod tests {
             transaction.commit().await?;
 
             let mut transaction = pool.begin().await?;
-            let result = GdriveFile::remove_by_ids(&mut transaction, &[&file.id]).await;
+            let result = GdriveFile::delete_by_ids(&mut transaction, &[&file.id]).await;
             assert_eq!(
                 result.expect_err("expected an error").to_string(),
                 format!("error returned from database: gdrive_files={} is still referenced by storage_gdrive={}", file.id, dummy.id)

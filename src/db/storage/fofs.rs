@@ -185,9 +185,9 @@ impl Storage {
         Ok(())
     }
 
-    /// Remove storages with given `ids`.
+    /// Delete the database references to fofs storages with given `file_ids`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn remove_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
+    pub async fn delete_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
         if file_ids.is_empty() {
             return Ok(());
         }
@@ -196,7 +196,7 @@ impl Storage {
         Ok(())
     }
 
-    /// Get fofs storage entities by exastash file ids.
+    /// Get fofs storage entities with the given `file_ids`.
     /// Entities which are not found will not be included in the resulting `Vec`.
     pub async fn find_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<Vec<Storage>> {
         if file_ids.is_empty() {

@@ -98,9 +98,9 @@ enum DirCommand {
         basename: String,
     },
 
-    /// Remove an empty directory and its associated dirent where it is a child_dir
+    /// Delete an empty directory and its associated dirent where it is a child_dir
     #[clap(name = "remove")]
-    Remove {
+    Delete {
         #[clap(name = "DIR_ID")]
         dir_id: i64,
     },
@@ -163,7 +163,7 @@ enum FileCommand {
         store_gdrive: Vec<i16>,
     },
 
-    /// Remove storages for stash files. Skips removing storages that are not present.
+    /// Delete storages for stash files. Skips deleting storages that are not present.
     #[clap(name = "delete-storages")]
     DeleteStorages {
         /// file id
@@ -185,9 +185,9 @@ enum FileCommand {
         delete_gdrive: Vec<i16>,
     },
 
-    /// Remove a file and its associated storages
-    #[clap(name = "remove")]
-    Remove {
+    /// Delete a file and all of its storages
+    #[clap(name = "delete")]
+    Delete {
         #[clap(name = "FILE_ID")]
         file_id: i64,
     },
@@ -228,9 +228,9 @@ enum SymlinkCommand {
         target: String,
     },
 
-    /// Remove a symlink
-    #[clap(name = "remove")]
-    Remove {
+    /// Delete a symlink
+    #[clap(name = "delete")]
+    Delete {
         #[clap(name = "SYMLINK_ID")]
         symlink_id: i64,
     },
@@ -276,7 +276,7 @@ enum DirentCommand {
         child_symlink: Option<i64>,
     },
 
-    /// Remove a dirent. If dirent has a child_dir, use `es dir remove` instead.
+    /// Remove a dirent. If dirent has a child_dir, use `es dir delete` instead.
     #[clap(name = "remove")]
     Remove {
         #[clap(name = "PARENT_DIR_ID")]
@@ -571,7 +571,7 @@ enum PathCommand {
         paths: Vec<String>,
     },
 
-    /// Delete a directory entry. Also deletes the corresponding dir when removing
+    /// Remove a directory entry. Also deletes the corresponding dir when removing
     /// a child_dir dirent. Does not delete files or symlinks, even when removing
     /// the last dirent to a file or symlink.
     #[clap(name = "rm")]
@@ -697,9 +697,9 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", dir.id);
                 }
-                DirCommand::Remove { dir_id } => {
+                DirCommand::Delete { dir_id } => {
                     Dirent::remove_by_child_dir(&mut transaction, dir_id).await?;
-                    Dir::remove(&mut transaction, &[dir_id]).await?;
+                    Dir::delete(&mut transaction, &[dir_id]).await?;
                     transaction.commit().await?;
                 }
                 DirCommand::Info { ids } => {
@@ -776,9 +776,9 @@ async fn main() -> Result<()> {
 
                     unimplemented!();
                 }
-                FileCommand::Remove { file_id } => {
-                    // TODO call something in storage_delete so we can remove the file if it has any storages
-                    File::remove(&mut transaction, &[file_id]).await?;
+                FileCommand::Delete { file_id } => {
+                    // TODO call something in storage_delete so we can delete the file if it has any storages
+                    File::delete(&mut transaction, &[file_id]).await?;
                     transaction.commit().await?;
                 }
                 FileCommand::Info { ids } => {
@@ -815,8 +815,8 @@ async fn main() -> Result<()> {
                     transaction.commit().await?;
                     println!("{}", symlink.id);
                 }
-                SymlinkCommand::Remove { symlink_id } => {
-                    Symlink::remove(&mut transaction, &[symlink_id]).await?;
+                SymlinkCommand::Delete { symlink_id } => {
+                    Symlink::delete(&mut transaction, &[symlink_id]).await?;
                     transaction.commit().await?;
                 }
                 SymlinkCommand::Info { ids } => {
@@ -1279,7 +1279,7 @@ async fn main() -> Result<()> {
                         let dirent = traversal::resolve_dirent(&mut transaction, base_dir, remaining_components).await?;
                         dirent.remove(&mut transaction).await?;
                         if let InodeId::Dir(dir_id) = dirent.child {
-                            Dir::remove(&mut transaction, &[dir_id]).await?;
+                            Dir::delete(&mut transaction, &[dir_id]).await?;
                         }
 
                         transaction.commit().await?;

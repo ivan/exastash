@@ -79,7 +79,7 @@ impl Dirent {
         Ok(())
     }
 
-    /// Remove this directory entry.
+    /// Remove this directory entry, moving it to the dirents_history table.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query!("
@@ -89,7 +89,7 @@ impl Dirent {
         Ok(())
     }
 
-    /// Remove a directory entry by `parent` and `basename`.
+    /// Remove a directory entry by `parent` and `basename`, moving it to the dirents_history table.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_parent_basename(transaction: &mut Transaction<'_, Postgres>, parent: i64, basename: &str) -> Result<()> {
         sqlx::query!("
@@ -99,7 +99,7 @@ impl Dirent {
         Ok(())
     }
 
-    /// Remove a directory entry by `child_dir`.
+    /// Remove a directory entry by `child_dir`, moving it to the dirents_history table.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn remove_by_child_dir(transaction: &mut Transaction<'_, Postgres>, child_dir: i64) -> Result<()> {
         sqlx::query!("

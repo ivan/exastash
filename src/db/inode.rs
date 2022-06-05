@@ -124,13 +124,13 @@ impl Dir {
         Ok(dirs)
     }
 
-    /// Remove dirs with given `ids`.
+    /// Delete dirs with given `ids`.
     ///
     /// Note that that foreign key constraints in the database require removing
     /// the associated dirents first (where `child_dir` is one of the `ids`).
     ///
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+    pub async fn delete(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
         if ids.is_empty() {
             return Ok(());
         }
@@ -274,9 +274,9 @@ impl File {
         Ok(())
     }
 
-    /// Remove files with given `ids`.
+    /// Delete files with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+    pub async fn delete(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
         if ids.is_empty() {
             return Ok(());
         }
@@ -395,9 +395,9 @@ impl Symlink {
         Ok(symlinks)
     }
 
-    /// Remove symlinks with given `ids`.
+    /// Delete symlinks with given `ids`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn remove(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
+    pub async fn delete(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<()> {
         if ids.is_empty() {
             return Ok(());
         }
@@ -588,9 +588,9 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        /// Dir::remove removes dirs with given `ids`.
+        /// Dir::delete removes dirs with given `ids`.
         #[tokio::test]
-        async fn test_dir_remove() -> Result<()> {
+        async fn test_dir_delete() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
 
@@ -598,7 +598,7 @@ pub(crate) mod tests {
             let dirs = Dir::find_by_ids(&mut transaction, &[dir.id]).await?;
             assert_eq!(dirs, vec![dir.clone()]);
 
-            Dir::remove(&mut transaction, &[dir.id]).await?;
+            Dir::delete(&mut transaction, &[dir.id]).await?;
             let dirs = Dir::find_by_ids(&mut transaction, &[dir.id]).await?;
             assert_eq!(dirs, vec![]);
 
@@ -640,9 +640,9 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        /// Dir::remove removes dirs with given `ids`.
+        /// Dir::delete removes dirs with given `ids`.
         #[tokio::test]
-        async fn test_file_remove() -> Result<()> {
+        async fn test_file_delete() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
 
@@ -651,7 +651,7 @@ pub(crate) mod tests {
             let files = File::find_by_ids(&mut transaction, &[file.id]).await?;
             assert_eq!(files, vec![file.clone()]);
 
-            File::remove(&mut transaction, &[file.id]).await?;
+            File::delete(&mut transaction, &[file.id]).await?;
             let files = File::find_by_ids(&mut transaction, &[file.id]).await?;
             assert_eq!(files, vec![]);
 
@@ -680,9 +680,9 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        /// Dir::remove removes dirs with given `ids`.
+        /// Dir::delete removes dirs with given `ids`.
         #[tokio::test]
-        async fn test_symlink_remove() -> Result<()> {
+        async fn test_symlink_delete() -> Result<()> {
             let pool = new_primary_pool().await;
             let mut transaction = pool.begin().await?;
 
@@ -690,7 +690,7 @@ pub(crate) mod tests {
             let symlinks = Symlink::find_by_ids(&mut transaction, &[symlink.id]).await?;
             assert_eq!(symlinks, vec![symlink.clone()]);
 
-            Symlink::remove(&mut transaction, &[symlink.id]).await?;
+            Symlink::delete(&mut transaction, &[symlink.id]).await?;
             let symlinks = Symlink::find_by_ids(&mut transaction, &[symlink.id]).await?;
             assert_eq!(symlinks, vec![]);
 
