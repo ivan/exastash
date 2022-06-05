@@ -73,7 +73,8 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// Call policy.js's new_file_storages and convert the result to a DesiredStorages
+    /// Call policy.js's `new_file_storages` and convert the result to a `DesiredStorages`.
+    /// These are the storages into which the new file should be stored.
     pub fn new_file_storages(&self, stash_path: &[&str], metadata: &RelevantFileMetadata) -> Result<DesiredStorages> {
         let mut properties: HashMap<String, JsValue> = HashMap::new();
         let stash_path_js = stash_path
@@ -85,9 +86,18 @@ impl Policy {
         properties.insert("mtime".into(),      JsValue::Date(metadata.mtime));
         properties.insert("executable".into(), JsValue::Bool(metadata.executable));
 
-        let desired_storages = self.js_context.call_function("new_file_storages", vec![JsValue::Object(properties)])?.try_into()?;
+        let args = vec![JsValue::Object(properties)];
+        let desired_storages = self.js_context.call_function("new_file_storages", args)?.try_into()?;
         info!("policy.js:new_file_storages returned {:?} for stash_path={:?}", desired_storages, stash_path);
         Ok(desired_storages)
+    }
+
+    /// Call policy.js's `fofs_base_url` and convert the result to a `String`.
+    /// The string is the URL at which a remote (i.e. not on localhost) fofs pile is reachable
+    pub fn fofs_base_url(&self, pile_hostname: &str) -> Result<String> {
+        let args = vec![JsValue::String(pile_hostname.to_string())];
+        let base_url = self.js_context.call_function("fofs_base_url", args)?.try_into()?;
+        Ok(base_url)
     }
 }
 
@@ -167,6 +177,19 @@ mod tests {
             policy.new_file_storages(&["small"], &RelevantFileMetadata { size: 50, mtime: Utc::now(), executable: false })?,
             DesiredStorages { inline: true, fofs: hset![], gdrive: hset![] }
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_fofs_base_url() -> Result<()> {
+        let script = r#"
+            function fofs_base_url(pile_hostname) {
+                return `http://${pile_hostname}.wg:31415`;
+            }
+        "#;
+        let policy = parse_policy(script)?;
+        assert_eq!(policy.fofs_base_url("somehost")?, String::from("http://somehost.wg:31415"));
 
         Ok(())
     }

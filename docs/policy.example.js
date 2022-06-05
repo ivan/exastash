@@ -1,3 +1,4 @@
+// Return an object indicating which storages a new file should be stored into.
 function new_file_storages({ stash_path, size, mtime, executable }) {
     if (size == 0) {
         return {};
@@ -11,8 +12,14 @@ function new_file_storages({ stash_path, size, mtime, executable }) {
     const last_segment = stash_path[stash_path.length - 1];
     if (size > remote_storage_threshold || last_segment.endsWith(".jpg")) {
         // 1 is the google_domain
-        return {gdrive: [1]};
+        // 5 is the fofs pile id
+        return {gdrive: [1], fofs: [5]};
     } else {
         return {inline: true};
     }
+}
+
+// Return a string, the URL at which a remote (i.e. not on localhost) fofs pile is reachable
+function fofs_base_url(pile_hostname) {
+    return `http://${pile_hostname}.wg:31415`;
 }
