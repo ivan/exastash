@@ -30,6 +30,7 @@ use exastash::oauth;
 use exastash::retry::Decayer;
 use exastash::storage_read;
 use exastash::storage_write;
+use exastash::storage_delete;
 use yup_oauth2::ServiceAccountKey;
 use mimalloc::MiMalloc;
 
@@ -160,6 +161,28 @@ enum FileCommand {
         /// Can be specified multiple times and with other --store-* options.
         #[clap(long)]
         store_gdrive: Vec<i16>,
+    },
+
+    /// Remove storages for stash files. Skips removing storages that are not present.
+    #[clap(name = "delete-storages")]
+    DeleteStorages {
+        /// file id
+        #[clap(name = "ID")]
+        ids: Vec<i64>,
+
+        /// Delete the inline storage from the database. Can be specified with other --delete-* options.
+        #[clap(long)]
+        delete_inline: bool,
+
+        /// Delete the fofs storage from some pile (specified by id), both on disk and the database reference to it.
+        /// Can be specified multiple times and with other --delete-* options.
+        #[clap(long)]
+        delete_fofs: Vec<i32>,
+
+        /// Delete the gdrive storage from some google domain (specified by id), both from Google and the database reference to it.
+        /// Can be specified multiple times and with other --delete-* options.
+        #[clap(long)]
+        delete_gdrive: Vec<i16>,
     },
 
     /// Remove a file and its associated storages
@@ -745,6 +768,13 @@ async fn main() -> Result<()> {
                         };
                         storage_write::add_storages(producer, file, &desired_new).await?;
                     }
+                }
+                FileCommand::DeleteStorages { ids, delete_inline, delete_fofs, delete_gdrive } => {
+                    let delete_fofs = delete_fofs.into_iter().collect();
+                    let delete_gdrive = delete_gdrive.into_iter().collect();
+                    let undesired = storage_write::DesiredStorages { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
+
+                    unimplemented!();
                 }
                 FileCommand::Remove { file_id } => {
                     // TODO call something in storage_delete so we can remove the file if it has any storages

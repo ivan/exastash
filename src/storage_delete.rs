@@ -1,0 +1,2 @@
+//! Functions to delete storage
+

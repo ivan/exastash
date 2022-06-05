@@ -43,6 +43,7 @@ pub mod info;
 pub mod oauth;
 pub mod storage_read;
 pub mod storage_write;
+pub mod storage_delete;
 
 /// Rows in database will be created with birth_version set to this value.
 /// See `exastash_versions.sql`.
