@@ -14,16 +14,6 @@ pub enum PathError {
     ReservedWindowsDeviceName(&'static str),
 }
 
-/// Check whether a UTF-8 path segment is valid without doing any validation that
-/// would be redundant with path-normalization code or the CHECK in PostgreSQL.
-pub(crate) fn check_segment(segment: &str) -> Result<(), PathError> {
-    check_windows_special_characters(segment)?;
-    check_windows_segment_ending(segment)?;
-    check_windows_device_name(segment)?;
-
-    Ok(())
-}
-
 fn check_windows_special_characters(segment: &str) -> Result<(), PathError> {
     for c in segment.chars() {
         if matches!(c, '"' | '*' | ':' | '<' | '>' | '?' | '\\' | '|' | '\0'..='\x1F') {
@@ -94,6 +84,16 @@ fn check_windows_device_name(segment: &str) -> Result<(), PathError> {
         }
         _ => Ok(())
     }
+}
+
+/// Check whether a UTF-8 path segment is valid without doing any validation that
+/// would be redundant with path-normalization code or the CHECK in PostgreSQL.
+pub(crate) fn check_segment(segment: &str) -> Result<(), PathError> {
+    check_windows_special_characters(segment)?;
+    check_windows_segment_ending(segment)?;
+    check_windows_device_name(segment)?;
+
+    Ok(())
 }
 
 #[cfg(test)]
