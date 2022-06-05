@@ -128,7 +128,7 @@ pub struct ParseNaturalNumberError;
 #[inline]
 fn parse_natural_number<T: FromStr>(s: &str) -> Result<T, ParseNaturalNumberError> {
     if s.starts_with('0') || s.starts_with('+') {
-        return Err(ParseNaturalNumberError)
+        return Err(ParseNaturalNumberError);
     }
     s.parse::<T>().map_err(|_| ParseNaturalNumberError)
 }
@@ -185,7 +185,7 @@ impl Decoder for FixedReadSizeDecoder {
     // Last chunk is not necessarily full-sized
     fn decode_eof(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if src.is_empty() {
-            return Ok(None)
+            return Ok(None);
         }
         Ok(Some(src.copy_to_bytes(src.remaining())))
     }

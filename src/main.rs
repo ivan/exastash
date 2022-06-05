@@ -677,7 +677,7 @@ async fn main() -> Result<()> {
 
     if let ExastashCommand::License = command {
         print!("{}", include_str!("../LICENSE"));
-        return Ok(())
+        return Ok(());
     }
 
     let mut pool = db::pgpool().await;

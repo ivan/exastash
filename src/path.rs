@@ -19,7 +19,7 @@ mod windows_compatible;
 /// resolve_root_of_local_path(config, ["a", "b", "c", "d"]) -> (PathRootsValue { dir_id: 1, ... }, idx 2 - indicating ["c", "d"])
 pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(
     config: &Config,
-    path_components: &[S]
+    path_components: &[S],
 ) -> Result<(PathRootsValue, usize)> {
     let mut idx = path_components.len();
     // Need a Vec<String> to query the HashMap, can't use &[&str]
@@ -47,7 +47,7 @@ pub fn resolve_root_of_local_path<S: AsRef<str> + ToString + Clone>(
 pub async fn resolve_local_absolute_path<S: AsRef<str> + ToString + Clone>(
     config: &Config,
     transaction: &mut Transaction<'_, Postgres>,
-    path_components: &[S]
+    path_components: &[S],
 ) -> Result<InodeId>
 {
     let (path_roots_value, idx) = resolve_root_of_local_path(config, path_components)?;
@@ -73,7 +73,7 @@ pub fn resolve_local_path_to_path_components(path_arg: Option<&str>) -> Result<V
 pub async fn resolve_path_components<S: AsRef<str> + ToString + Clone>(
     config: &Config,
     transaction: &mut Transaction<'_, Postgres>,
-    path_components: &[S]
+    path_components: &[S],
 ) -> Result<InodeId> {
     resolve_local_absolute_path(config, transaction, path_components).await
 }

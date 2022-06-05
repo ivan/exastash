@@ -129,7 +129,7 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<SmolStr, Error> {
         None => return Err(Error::PileNotFound),
     };
     if pile.hostname != util::get_hostname() {
-        return Err(Error::PileNotOnThisMachine)
+        return Err(Error::PileNotOnThisMachine);
     }
     Ok(pile.path.into())
 }

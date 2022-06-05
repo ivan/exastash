@@ -99,7 +99,7 @@ pub async fn create_gdrive_file_on_domain<S: Stream<Item = std::io::Result<Bytes
     domain_id: i16,
     owner_id: i32,
     parent: &str,
-    filename: &str
+    filename: &str,
 ) -> Result<GdriveFile> {
     let access_token_fn = async || -> Result<String> {
         let mut access_tokens = get_access_tokens(Some(owner_id), domain_id).await?;
@@ -161,7 +161,7 @@ impl Iterator for RandomPadding {
 
     fn next(&mut self) -> Option<Bytes> {
         if self.bytes_left == 0 {
-            return None
+            return None;
         }
         let count = min(65536, self.bytes_left);
         self.bytes_left -= count;
@@ -177,7 +177,7 @@ async fn encrypt_reader<A: AsyncRead + Send + Sync + 'static>(
     reader: A,
     block_size: usize,
     cipher_key: [u8; 16],
-    padding_size: u64
+    padding_size: u64,
 ) -> Result<Pin<Box<dyn Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static>>> {
     // Re-chunk the stream to make sure each chunk is appropriately-sized for the GcmEncoder
     let rechunked = {
@@ -252,7 +252,7 @@ async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlaceme
 pub async fn write_to_gdrive<A: AsyncRead + Send + Sync + 'static>(
     reader: A,
     file: &inode::File,
-    domain_id: i16
+    domain_id: i16,
 ) -> Result<(GdriveFile, gdrive::Storage)> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;

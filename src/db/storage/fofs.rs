@@ -33,7 +33,7 @@ impl Pile {
     /// There is no error on missing piles.
     pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i32]) -> Result<Vec<Pile>> {
         if ids.is_empty() {
-            return Ok(vec![])
+            return Ok(vec![]);
         }
         let piles = sqlx::query_as!(Pile, "
             SELECT id, files_per_cell, hostname, path, fullness_check_ratio FROM stash.piles WHERE id = ANY($1)", ids

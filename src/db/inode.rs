@@ -110,7 +110,7 @@ impl Dir {
     /// There is no error on missing dirs.
     pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<Dir>> {
         if ids.is_empty() {
-            return Ok(vec![])
+            return Ok(vec![]);
         }
         let cursor = sqlx::query_as!(DirRow, "
             SELECT id, mtime, birth_time, birth_version, birth_hostname FROM stash.dirs WHERE id = ANY($1)", ids
@@ -232,7 +232,7 @@ impl File {
     /// There is no error on missing files.
     pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<File>> {
         if ids.is_empty() {
-            return Ok(vec![])
+            return Ok(vec![]);
         }
         let cursor = sqlx::query_as!(FileRow, "
             SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum
@@ -379,7 +379,7 @@ impl Symlink {
     /// There is no error on missing symlinks.
     pub async fn find_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[i64]) -> Result<Vec<Symlink>> {
         if ids.is_empty() {
-            return Ok(vec![])
+            return Ok(vec![]);
         }
         let cursor = sqlx::query_as!(SymlinkRow, "
             SELECT id, mtime, target, birth_time, birth_version, birth_hostname

@@ -146,7 +146,7 @@ pub(crate) async fn create_gdrive_file<S: Stream<Item = std::io::Result<Bytes>> 
     access_token_fn: impl Fn() -> A,
     size: u64,
     parent: &str,
-    filename: &str
+    filename: &str,
 ) -> Result<GdriveUploadResponse>
 where
     A: Future<Output=Result<String>>
