@@ -267,8 +267,12 @@ fn stream_gdrive_files(file: &inode::File, storage: &gdrive::Storage) -> ReadStr
 }
 
 pub(crate) async fn request_remote_fofs_file(file: &inode::File, storage: &fofs::StorageView) -> Result<reqwest::Response> {
-    let policy = policy::get_policy()?;
-    let base_url = policy.fofs_base_url(&storage.pile_hostname)?;
+    // We need `policy` to go out of scope because trait `std::marker::Send`
+    // is not implemented for `*mut libquickjs_sys::JSRuntime`
+    let base_url = {
+        let policy = policy::get_policy()?;
+        policy.fofs_base_url(&storage.pile_hostname)?
+    };
     let url = format!("{}/fofs/{}/{}/{}", base_url, storage.pile_id, storage.cell_id, file.id);
     let client = reqwest::Client::new();
     let response = client
@@ -466,4 +470,19 @@ where
         .compat();
     tokio::io::copy(&mut read, sink).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ensure_send<T: Send>(_: T) {}
+
+    /// Ensure the future returned by `read` is Send, to avoid breaking callers
+    /// e.g. tubekit that require Send.
+    #[test]
+    fn test_read_is_send() {
+        let fut = read(0);
+        ensure_send(fut);
+    }
 }
