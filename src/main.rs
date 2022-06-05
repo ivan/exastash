@@ -747,7 +747,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 FileCommand::Remove { file_id } => {
-                    db::storage::remove_storages(&mut transaction, &[file_id]).await?;
+                    // TODO call something in storage_delete so we can remove the file if it has any storages
                     File::remove(&mut transaction, &[file_id]).await?;
                     transaction.commit().await?;
                 }

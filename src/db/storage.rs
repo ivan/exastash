@@ -7,7 +7,6 @@ pub mod internetarchive;
 
 use crate::db;
 use anyhow::Result;
-use sqlx::{Postgres, Transaction};
 use serde::Serialize;
 use futures::try_join;
 
@@ -96,15 +95,6 @@ pub async fn get_storage_views(file_ids: &[i64]) -> Result<Vec<StorageView>> {
         &gdrive[..],
         &internetarchive[..],
     ].concat())
-}
-
-/// Remove all storages for the given file ids
-pub async fn remove_storages(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
-    fofs::Storage::remove_by_file_ids(transaction, file_ids).await?;
-    gdrive::Storage::remove_by_file_ids(transaction, file_ids).await?;
-    inline::Storage::remove_by_file_ids(transaction, file_ids).await?;
-    internetarchive::Storage::remove_by_file_ids(transaction, file_ids).await?;
-    Ok(())
 }
 
 #[cfg(test)]
