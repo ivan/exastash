@@ -630,6 +630,8 @@ pub async fn create_stash_file_from_local_file(path: String, metadata: &Relevant
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage_write;
+    use literally::hset;
 
     #[expect(clippy::needless_collect)]
     #[test]
@@ -652,5 +654,21 @@ mod tests {
 
         let out: Vec<Bytes> = RandomPadding::new(65536 * 2).collect();
         assert_eq!(out.len(), 2);
+    }
+
+    fn ensure_send<T: Send>(_: T) {}
+
+    /// Ensure the future returned by `create_stash_file_from_local_file` is Send,
+    /// to avoid breaking callers that require Send.
+    #[tokio::test]
+    async fn test_create_stash_file_from_local_file_is_send() -> Result<()> {
+        let desired = storage_write::DesiredStorages { inline: true, fofs: hset![], gdrive: hset![] };
+        let path = String::from("/etc/resolv.conf");
+        let attr = fs::metadata(path.clone()).await?;
+        let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
+        let fut = storage_write::create_stash_file_from_local_file(path, &metadata, &desired);
+        ensure_send(fut);
+
+        Ok(())
     }
 }
