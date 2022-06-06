@@ -75,7 +75,7 @@ enum ExastashCommand {
     #[clap(subcommand, name = "fuse")]
     Fuse(FuseCommand),
 
-    /// (nonfunctional) FUSE server
+    /// web server
     #[clap(name = "web")]
     Web {
         #[clap(long)]
