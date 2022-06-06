@@ -6,7 +6,7 @@ use tokio_util::io::ReaderStream;
 use axum::{
     middleware,
     body::StreamBody,
-    routing::{get, post},
+    routing::get,
     extract::Path,
     http::{StatusCode, Uri, HeaderValue},
     response::{Response, IntoResponse},
