@@ -5,9 +5,8 @@ use rand::Rng;
 use std::{collections::HashMap, path::{PathBuf, Path}, sync::Arc};
 use std::pin::Pin;
 use std::cmp::min;
-use std::fs::Metadata;
 use std::sync::atomic::Ordering;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use anyhow::{anyhow, bail};
 use futures::{ready, stream::{self, Stream, StreamExt, TryStreamExt}, task::{Context, Poll}};
 use tracing::{info, warn};
@@ -22,7 +21,7 @@ use crate::db;
 use crate::db::inode;
 use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}, fofs, StorageView, get_storage_views};
 use crate::blake3::{Blake3HashingReader, b3sum_bytes};
-use crate::storage::StoragesDescriptor;
+use crate::storage::{StoragesDescriptor, RelevantFileMetadata};
 use crate::storage::read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::{create_gdrive_file, GdriveUploadError};
 use crate::util;
@@ -319,42 +318,6 @@ pub async fn paranoid_zstd_encode_all(bytes: Vec<u8>, level: i32) -> Result<Vec<
 
 
 
-/// Local file metadata that can be stored in exastash
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct RelevantFileMetadata {
-    /// Size of the local file in bytes
-    pub size: i64,
-    /// The mtime of the local file, precision only up to microseconds
-    pub mtime: DateTime<Utc>,
-    /// Whether the local file is executable
-    pub executable: bool,
-}
-
-impl TryFrom<&Metadata> for RelevantFileMetadata {
-    type Error = anyhow::Error;
-
-    fn try_from(attr: &Metadata) -> Result<RelevantFileMetadata> {
-        use std::os::unix::fs::PermissionsExt;
-
-        // Zero out the nanoseconds so that a RelevantFileMetadata's mtime
-        // can be compared directly with a timestamptz from PostgreSQL.
-        let mtime = util::without_nanos(attr.modified()?.into());
-        let size = attr.len() as i64;
-        let permissions = attr.permissions();
-        let executable = permissions.mode() & 0o100 != 0;
-        Ok(RelevantFileMetadata { size, mtime, executable })
-    }
-}
-
-impl TryFrom<Metadata> for RelevantFileMetadata {
-    type Error = anyhow::Error;
-
-    fn try_from(attr: Metadata) -> Result<RelevantFileMetadata> {
-        (&attr).try_into()
-    }
-}
-
-
 async fn make_readonly(path: impl AsRef<Path>) -> Result<()> {
     let mut permissions = tokio::fs::metadata(&path).await?.permissions();
     permissions.set_readonly(true);
@@ -634,7 +597,7 @@ mod tests {
         let desired = storage::StoragesDescriptor { inline: true, fofs: hset![], gdrive: hset![] };
         let path = String::from("/etc/resolv.conf");
         let attr = fs::metadata(path.clone()).await?;
-        let metadata: storage::write::RelevantFileMetadata = attr.try_into()?;
+        let metadata: storage::RelevantFileMetadata = attr.try_into()?;
         let fut = storage::write::create_stash_file_from_local_file(path, &metadata, &desired);
         ensure_send(fut);
 

@@ -9,7 +9,7 @@ use directories::ProjectDirs;
 use custom_debug_derive::Debug as CustomDebug;
 use crate::util::elide;
 use crate::storage::StoragesDescriptor;
-use crate::storage::write::RelevantFileMetadata;
+use crate::storage::RelevantFileMetadata;
 
 impl TryFrom<JsValue> for StoragesDescriptor {
     type Error = anyhow::Error;
