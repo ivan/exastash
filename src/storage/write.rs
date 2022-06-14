@@ -367,7 +367,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     let mut last_hash = None;
     let pool = db::pgpool().await;
 
-    if !desired.fofs.is_empty() {     
+    if !desired.fofs.is_empty() {
         let pile_ids: Vec<i32> = desired.fofs.iter().cloned().collect();
         let mut transaction = pool.begin().await?;
         let piles: HashMap<i32, fofs::Pile> = fofs::Pile::find_by_ids(&mut transaction, &pile_ids).await?

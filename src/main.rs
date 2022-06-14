@@ -139,12 +139,12 @@ enum FileCommand {
         store_gdrive: Vec<i16>,
     },
 
-    /// Add storages for stash files. Skips adding storages that already exists for a file.
+    /// Add the given storages for stash files. Skips adding storages that already exists for a file.
     #[clap(name = "add-storages")]
     AddStorages {
         /// file id
-        #[clap(name = "ID")]
-        ids: Vec<i64>,
+        #[clap(name = "FILE_ID")]
+        file_ids: Vec<i64>,
 
         /// Store the file data in the database itself. Can be specified with other --store-* options.
         #[clap(long)]
@@ -152,21 +152,22 @@ enum FileCommand {
 
         /// Store the file data in some fofs pile (specified by id).
         /// Can be specified multiple times and with other --store-* options.
-        #[clap(long)]
+        #[clap(long, name = "FOFS_PILE_ID")]
         store_fofs: Vec<i32>,
 
         /// Store the file data in some google domain (specified by id).
         /// Can be specified multiple times and with other --store-* options.
-        #[clap(long)]
+        #[clap(long, name = "GOOGLE_DOMAIN_ID")]
         store_gdrive: Vec<i16>,
     },
 
-    /// Delete storages for stash files. Skips deleting storages that are not present.
+    /// Delete the given storages for stash files. Skips deleting storages that are not present.
+    /// DANGER: does not check if there any storages left before deleting the last one.
     #[clap(name = "delete-storages")]
     DeleteStorages {
         /// file id
-        #[clap(name = "ID")]
-        ids: Vec<i64>,
+        #[clap(name = "FILE_ID")]
+        file_ids: Vec<i64>,
 
         /// Delete the inline storage from the database. Can be specified with other --delete-* options.
         #[clap(long)]
@@ -174,12 +175,12 @@ enum FileCommand {
 
         /// Delete the fofs storage from some pile (specified by id), both on disk and the database reference to it.
         /// Can be specified multiple times and with other --delete-* options.
-        #[clap(long)]
+        #[clap(long, name = "FOFS_PILE_ID")]
         delete_fofs: Vec<i32>,
 
         /// Delete the gdrive storage from some google domain (specified by id), both from Google and the database reference to it.
         /// Can be specified multiple times and with other --delete-* options.
-        #[clap(long)]
+        #[clap(long, name = "GOOGLE_DOMAIN_ID")]
         delete_gdrive: Vec<i16>,
     },
 
@@ -730,31 +731,31 @@ async fn main() -> Result<()> {
                     let file_id = storage::write::create_stash_file_from_local_file(path, &metadata, &desired).await?;
                     println!("{}", file_id);
                 }
-                FileCommand::AddStorages { ids, store_inline, store_fofs, store_gdrive } => {
+                FileCommand::AddStorages { file_ids, store_inline, store_fofs, store_gdrive } => {
                     let store_fofs = store_fofs.into_iter().collect();
                     let store_gdrive = store_gdrive.into_iter().collect();
                     let desired = storage::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
 
-                    let files = File::find_by_ids(&mut transaction, &ids).await?;
+                    let files = File::find_by_ids(&mut transaction, &file_ids).await?;
                     transaction.commit().await?; // close read-only transaction
                     let mut map = HashMap::with_capacity(files.len());
                     for file in files {
                         map.insert(file.id, file);
                     }
 
-                    for id in ids {
-                        let file = map.get(&id).ok_or_else(|| anyhow!("no file with id={}", id))?;
+                    for file_id in file_ids {
+                        let file = map.get(&file_id).ok_or_else(|| anyhow!("no file with id={}", file_id))?;
 
-                        let desired_new = storage::write::desired_storages_without_those_that_already_exist(id, &desired).await?;
+                        let desired_new = storage::write::desired_storages_without_those_that_already_exist(file_id, &desired).await?;
                         if desired_new.is_empty() {
-                            info!(file_id = id, "file is already present in all desired storages");
+                            info!(file_id, "file is already present in all desired storages");
                             continue;
                         }
 
                         // Read to temporary file because we need an AsyncRead we can Send,
                         // and because when adding more than one storage, we want to avoid
                         // reading a file more than once from existing storage.
-                        let (stream, _) = storage::read::read(id).await?;
+                        let (stream, _) = storage::read::read(file_id).await?;
                         let temp_path = tempfile::NamedTempFile::new()?.into_temp_path();
                         let path: PathBuf = (*temp_path).into();
                         let mut local_file = tokio::fs::File::create(path.clone()).await?;
@@ -767,12 +768,13 @@ async fn main() -> Result<()> {
                         storage::write::add_storages(producer, file, &desired_new).await?;
                     }
                 }
-                FileCommand::DeleteStorages { ids, delete_inline, delete_fofs, delete_gdrive } => {
+                FileCommand::DeleteStorages { file_ids, delete_inline, delete_fofs, delete_gdrive } => {
                     let delete_fofs = delete_fofs.into_iter().collect();
                     let delete_gdrive = delete_gdrive.into_iter().collect();
                     let undesired = storage::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
-
-                    unimplemented!();
+                    for file_id in file_ids {
+                        storage::delete::delete_storages(file_id, &undesired).await?;
+                    }
                 }
                 FileCommand::Delete { file_id } => {
                     // TODO call something in storage::delete so we can delete the file if it has any storages

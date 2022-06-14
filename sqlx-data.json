@@ -1,5 +1,18 @@
 {
   "db": "PostgreSQL",
+  "0085146db910e04c7f3627c41ef3c7e6b9fdc4663f258ff666a25fe5aed275c1": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int4"
+        ]
+      }
+    },
+    "query": "DELETE FROM stash.storage_fofs WHERE file_id = $1 and cell_id = $2"
+  },
   "01721400e2edab7c43e7e845ae2401e196de5289032d11fd977d7871a434da0e": {
     "describe": {
       "columns": [
@@ -425,18 +438,6 @@
       }
     },
     "query": "\n            INSERT INTO stash.storage_inline (file_id, content_zstd)\n            VALUES ($1, $2)\n            ON CONFLICT DO NOTHING"
-  },
-  "5497edbeaaf8bd63a29dbdb33ada290eada9a08a5fff480000a5076ff0c7ed49": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8Array"
-        ]
-      }
-    },
-    "query": "DELETE FROM stash.storage_fofs WHERE file_id = ANY($1)"
   },
   "55a9b4ddd340f7fd71bd93b2d2dbb399da58862c5d05709d1fe3c71510a32ba7": {
     "describe": {

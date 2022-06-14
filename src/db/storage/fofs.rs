@@ -185,13 +185,10 @@ impl Storage {
         Ok(())
     }
 
-    /// Delete the database references to fofs storages with given `file_ids`.
+    /// Delete the database references to the fofs storage with given `file_id` and `cell_id`.
     /// Does not commit the transaction, you must do so yourself.
-    pub async fn delete_by_file_ids(transaction: &mut Transaction<'_, Postgres>, file_ids: &[i64]) -> Result<()> {
-        if file_ids.is_empty() {
-            return Ok(());
-        }
-        sqlx::query!("DELETE FROM stash.storage_fofs WHERE file_id = ANY($1)", file_ids)
+    pub async fn delete_by_file_id_and_cell_id(transaction: &mut Transaction<'_, Postgres>, file_id: i64, cell_id: i32) -> Result<()> {
+        sqlx::query!("DELETE FROM stash.storage_fofs WHERE file_id = $1 and cell_id = $2", file_id, cell_id)
             .execute(transaction).await?;
         Ok(())
     }
