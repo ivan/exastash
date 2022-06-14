@@ -11,7 +11,7 @@ function new_file_storages({ stash_path, size, mtime, executable }) {
 
     const last_segment = stash_path[stash_path.length - 1];
     if (size > remote_storage_threshold || last_segment.endsWith(".jpg")) {
-        // 1 is the google_domain
+        // 1 is the google domain id
         // 5 is the fofs pile id
         return {gdrive: [1], fofs: [5]};
     } else {
