@@ -318,9 +318,9 @@ pub async fn paranoid_zstd_encode_all(bytes: Vec<u8>, level: i32) -> Result<Vec<
 
 
 
-/// Descriptor indicating which storages should be used for a new file
+/// Descriptor indicating which storages should be created or deleted
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct DesiredStorages {
+pub struct StoragesDescriptor {
     /// A set of fofs pile ids in which to store the file
     pub fofs: HashSet<i32>,
     /// Whether to store inline in the database
@@ -329,7 +329,7 @@ pub struct DesiredStorages {
     pub gdrive: HashSet<i16>,
 }
 
-impl DesiredStorages {
+impl StoragesDescriptor {
     /// How many storages we want to store to
     pub fn len(&self) -> usize {
         let mut total = 0;
@@ -393,10 +393,10 @@ async fn make_readonly(path: impl AsRef<Path>) -> Result<()> {
     Ok(())
 }
 
-/// Return a DesiredStorages containing only those that don't already store the file
-pub async fn desired_storages_without_those_that_already_exist(file_id: i64, desired: &DesiredStorages) -> Result<DesiredStorages> {
+/// Return a `StoragesDescriptor` containing only those that don't already store the file
+pub async fn desired_storages_without_those_that_already_exist(file_id: i64, desired: &StoragesDescriptor) -> Result<StoragesDescriptor> {
     let storages = get_storage_views(&[file_id]).await?;
-    let mut desired: DesiredStorages = desired.clone();
+    let mut desired: StoragesDescriptor = desired.clone();
 
     for storage in &storages {
         match storage {
@@ -410,7 +410,7 @@ pub async fn desired_storages_without_those_that_already_exist(file_id: i64, des
                 desired.fofs.remove(pile_id);
             }
             StorageView::InternetArchive { .. } => {
-                // DesiredStorages doesn't have internetarchive
+                // StoragesDescriptor doesn't have internetarchive
             }
         }
     }
@@ -426,7 +426,7 @@ pub async fn desired_storages_without_those_that_already_exist(file_id: i64, des
 pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     mut producer: impl FnMut() -> Result<A>,
     file: &inode::File,
-    desired: &DesiredStorages,
+    desired: &StoragesDescriptor,
 ) -> Result<()> {
     if desired.is_empty() {
         return Ok(());
@@ -601,7 +601,7 @@ pub async fn readers_for_file(path: PathBuf, count: usize) -> Result<Vec<tokio::
 }
 
 /// Create a new stash file based on a local file, write storage, return the new file id
-pub async fn create_stash_file_from_local_file(path: String, metadata: &RelevantFileMetadata, desired: &DesiredStorages) -> Result<i64> {
+pub async fn create_stash_file_from_local_file(path: String, metadata: &RelevantFileMetadata, desired: &StoragesDescriptor) -> Result<i64> {
     if metadata.size > 0 && desired.len() == 0 {
         bail!("a file with size > 0 needs storage, but no storage was specified");
     }
@@ -662,7 +662,7 @@ mod tests {
     /// to avoid breaking callers that require Send.
     #[tokio::test]
     async fn test_create_stash_file_from_local_file_is_send() -> Result<()> {
-        let desired = storage_write::DesiredStorages { inline: true, fofs: hset![], gdrive: hset![] };
+        let desired = storage_write::StoragesDescriptor { inline: true, fofs: hset![], gdrive: hset![] };
         let path = String::from("/etc/resolv.conf");
         let attr = fs::metadata(path.clone()).await?;
         let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;

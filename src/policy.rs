@@ -8,14 +8,14 @@ use quick_js::{Context, JsValue};
 use directories::ProjectDirs;
 use custom_debug_derive::Debug as CustomDebug;
 use crate::util::elide;
-use crate::storage_write::{DesiredStorages, RelevantFileMetadata};
+use crate::storage_write::{StoragesDescriptor, RelevantFileMetadata};
 
-impl TryFrom<JsValue> for DesiredStorages {
+impl TryFrom<JsValue> for StoragesDescriptor {
     type Error = anyhow::Error;
 
-    /// Convert JS object e.g. {inline: true, gdrive: [1]} to a DesiredStorages
-    fn try_from(js_obj: JsValue) -> Result<DesiredStorages> {
-        let mut desired_storage = DesiredStorages { inline: false, fofs: HashSet::new(), gdrive: HashSet::new() };
+    /// Convert JS object e.g. {inline: true, gdrive: [1]} to a StoragesDescriptor
+    fn try_from(js_obj: JsValue) -> Result<StoragesDescriptor> {
+        let mut desired_storage = StoragesDescriptor { inline: false, fofs: HashSet::new(), gdrive: HashSet::new() };
 
         if let JsValue::Object(map) = js_obj {
             if let Some(val) = map.get("inline") {
@@ -73,9 +73,9 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// Call policy.js's `new_file_storages` and convert the result to a `DesiredStorages`.
+    /// Call policy.js's `new_file_storages` and convert the result to a `StoragesDescriptor`.
     /// These are the storages into which the new file should be stored.
-    pub fn new_file_storages(&self, stash_path: &[&str], metadata: &RelevantFileMetadata) -> Result<DesiredStorages> {
+    pub fn new_file_storages(&self, stash_path: &[&str], metadata: &RelevantFileMetadata) -> Result<StoragesDescriptor> {
         let mut properties: HashMap<String, JsValue> = HashMap::new();
         let stash_path_js = stash_path
             .iter()
@@ -153,29 +153,29 @@ mod tests {
 
         assert_eq!(
             policy.new_file_storages(&["parent", "something.json"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-            DesiredStorages { inline: true, fofs: hset![2], gdrive: hset![1_i16] }
+            StoragesDescriptor { inline: true, fofs: hset![2], gdrive: hset![1_i16] }
         );
 
         assert_eq!(
             policy.new_file_storages(&["something.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-            DesiredStorages { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
+            StoragesDescriptor { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
         );
         assert_eq!(
             policy.new_file_storages(&["something"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
-            DesiredStorages { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
+            StoragesDescriptor { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
         );
         assert_eq!(
             policy.new_file_storages(&["第四十七集 动漫 怪物弹珠二０十六 (中文简体字幕)-qD8VHZ3lxBw.webm"], &RelevantFileMetadata { size: 101, mtime: Utc::now(), executable: false })?,
-            DesiredStorages { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
+            StoragesDescriptor { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
         );
         assert_eq!(
             policy.new_file_storages(&["Sam Needham 'Life is a Journey' - Crankworx Whistler Deep Summer Photo Challenge 2015-WVA3QDiy7Bc.jpg"], &RelevantFileMetadata { size: 0, mtime: Utc::now(), executable: false })?,
-            DesiredStorages { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
+            StoragesDescriptor { inline: false, fofs: hset![], gdrive: hset![1_i16, 2_i16] }
         );
 
         assert_eq!(
             policy.new_file_storages(&["small"], &RelevantFileMetadata { size: 50, mtime: Utc::now(), executable: false })?,
-            DesiredStorages { inline: true, fofs: hset![], gdrive: hset![] }
+            StoragesDescriptor { inline: true, fofs: hset![], gdrive: hset![] }
         );
 
         Ok(())
