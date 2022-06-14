@@ -8,6 +8,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct Storage {
     /// The id of the exastash file for which this storage exists
+    #[serde(skip_serializing)]
     pub file_id: i64,
     /// The zstd-compressed content for this file
     #[serde(skip_serializing)]

@@ -216,12 +216,14 @@ impl Storage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct StorageView {
     /// The id of the exastash file for which this storage exists
+    #[serde(skip_serializing)]
     pub file_id: i64,
     /// The fofs cell that contains a copy of this file
     pub cell_id: i32,
     /// The fofs pile that the cell is parented in
     pub pile_id: i32,
     /// The number of files to place in each cell before marking it full and making a new cell
+    #[serde(skip_serializing)]
     pub files_per_cell: i32,
     /// The machine on which the pile is stored
     pub pile_hostname: String,
