@@ -6,7 +6,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use serde_hex::{SerHexOpt, Strict};
 use crate::db::inode::{Inode, Dir, Symlink, Birth};
-use crate::db::storage::{Storage, get_storages};
+use crate::db::storage::{StorageView, get_storage_views};
 
 #[derive(Serialize)]
 struct FileWithStorages<'a> {
@@ -15,7 +15,7 @@ struct FileWithStorages<'a> {
     birth: &'a Birth,
     size: i64,
     executable: bool,
-    storages: Vec<Storage>,
+    storage_views: Vec<StorageView>,
     #[serde(with = "SerHexOpt::<Strict>")]
     b3sum: Option<[u8; 32]>,
 }
@@ -36,14 +36,14 @@ pub async fn json_info(inode: &Inode) -> Result<String> {
     let fws;
     let inode = match inode {
         Inode::File(file) => {
-            let storages = get_storages(&[file.id]).await?;
+            let storage_views = get_storage_views(&[file.id]).await?;
             fws = FileWithStorages {
                 id: file.id,
                 mtime: file.mtime,
                 birth: &file.birth,
                 size: file.size,
                 executable: file.executable,
-                storages,
+                storage_views,
                 b3sum: file.b3sum,
             };
             InodeWithStorages::File(&fws)
