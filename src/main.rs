@@ -721,7 +721,7 @@ async fn main() -> Result<()> {
                 FileCommand::Create { path, store_inline, store_fofs, store_gdrive } => {
                     let store_fofs = store_fofs.into_iter().collect();
                     let store_gdrive = store_gdrive.into_iter().collect();
-                    let desired = storage::write::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
+                    let desired = storage::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
 
                     transaction.commit().await?; // close unused transaction
 
@@ -733,7 +733,7 @@ async fn main() -> Result<()> {
                 FileCommand::AddStorages { ids, store_inline, store_fofs, store_gdrive } => {
                     let store_fofs = store_fofs.into_iter().collect();
                     let store_gdrive = store_gdrive.into_iter().collect();
-                    let desired = storage::write::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
+                    let desired = storage::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
 
                     let files = File::find_by_ids(&mut transaction, &ids).await?;
                     transaction.commit().await?; // close read-only transaction
@@ -770,7 +770,7 @@ async fn main() -> Result<()> {
                 FileCommand::DeleteStorages { ids, delete_inline, delete_fofs, delete_gdrive } => {
                     let delete_fofs = delete_fofs.into_iter().collect();
                     let delete_gdrive = delete_gdrive.into_iter().collect();
-                    let undesired = storage::write::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
+                    let undesired = storage::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
 
                     unimplemented!();
                 }

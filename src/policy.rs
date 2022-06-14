@@ -8,7 +8,8 @@ use quick_js::{Context, JsValue};
 use directories::ProjectDirs;
 use custom_debug_derive::Debug as CustomDebug;
 use crate::util::elide;
-use crate::storage::write::{StoragesDescriptor, RelevantFileMetadata};
+use crate::storage::StoragesDescriptor;
+use crate::storage::write::RelevantFileMetadata;
 
 impl TryFrom<JsValue> for StoragesDescriptor {
     type Error = anyhow::Error;

@@ -2,7 +2,7 @@
 
 use num::ToPrimitive;
 use rand::Rng;
-use std::{collections::{HashMap, HashSet}, path::{PathBuf, Path}, sync::Arc};
+use std::{collections::HashMap, path::{PathBuf, Path}, sync::Arc};
 use std::pin::Pin;
 use std::cmp::min;
 use std::fs::Metadata;
@@ -22,6 +22,7 @@ use crate::db;
 use crate::db::inode;
 use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}, fofs, StorageView, get_storage_views};
 use crate::blake3::{Blake3HashingReader, b3sum_bytes};
+use crate::storage::StoragesDescriptor;
 use crate::storage::read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::{create_gdrive_file, GdriveUploadError};
 use crate::util;
@@ -317,38 +318,6 @@ pub async fn paranoid_zstd_encode_all(bytes: Vec<u8>, level: i32) -> Result<Vec<
 }
 
 
-
-/// Descriptor indicating which storages should be created or deleted
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct StoragesDescriptor {
-    /// A set of fofs pile ids in which to store the file
-    pub fofs: HashSet<i32>,
-    /// Whether to store inline in the database
-    pub inline: bool,
-    /// A set of google_domain ids in which to store the file
-    pub gdrive: HashSet<i16>,
-}
-
-impl StoragesDescriptor {
-    /// How many storages we want to store to
-    pub fn len(&self) -> usize {
-        let mut total = 0;
-        if self.inline {
-            total += 1;
-        }
-        total += self.fofs.len();
-        total += self.gdrive.len();
-        total
-    }
-
-    /// Whether we lack any storages to store to
-    pub fn is_empty(&self) -> bool {
-        if self.inline || !self.fofs.is_empty() || !self.gdrive.is_empty() {
-            return false;
-        }
-        true
-    }
-}
 
 /// Local file metadata that can be stored in exastash
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -662,7 +631,7 @@ mod tests {
     /// to avoid breaking callers that require Send.
     #[tokio::test]
     async fn test_create_stash_file_from_local_file_is_send() -> Result<()> {
-        let desired = storage::write::StoragesDescriptor { inline: true, fofs: hset![], gdrive: hset![] };
+        let desired = storage::StoragesDescriptor { inline: true, fofs: hset![], gdrive: hset![] };
         let path = String::from("/etc/resolv.conf");
         let attr = fs::metadata(path.clone()).await?;
         let metadata: storage::write::RelevantFileMetadata = attr.try_into()?;
