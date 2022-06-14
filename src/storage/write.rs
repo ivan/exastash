@@ -22,7 +22,7 @@ use crate::db;
 use crate::db::inode;
 use crate::db::storage::{inline, gdrive::{self, file::GdriveFile}, fofs, StorageView, get_storage_views};
 use crate::blake3::{Blake3HashingReader, b3sum_bytes};
-use crate::storage_read::{get_access_tokens, get_aes_gcm_length};
+use crate::storage::read::{get_access_tokens, get_aes_gcm_length};
 use crate::gdrive::{create_gdrive_file, GdriveUploadError};
 use crate::util;
 use pin_project::pin_project;
@@ -421,7 +421,7 @@ pub async fn desired_storages_without_those_that_already_exist(file_id: i64, des
 /// 
 /// If a b3sum is calculated and the file does not already have one in the database, fix it.
 /// 
-/// We need to set b3sum on files here, not just storage_read, because add_storages is also
+/// We need to set b3sum on files here, not just storage::read, because add_storages is also
 /// used for initial file creation.
 pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
     mut producer: impl FnMut() -> Result<A>,
@@ -630,7 +630,7 @@ pub async fn create_stash_file_from_local_file(path: String, metadata: &Relevant
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage_write;
+    use crate::storage;
     use literally::hset;
 
     #[expect(clippy::needless_collect)]
@@ -662,11 +662,11 @@ mod tests {
     /// to avoid breaking callers that require Send.
     #[tokio::test]
     async fn test_create_stash_file_from_local_file_is_send() -> Result<()> {
-        let desired = storage_write::StoragesDescriptor { inline: true, fofs: hset![], gdrive: hset![] };
+        let desired = storage::write::StoragesDescriptor { inline: true, fofs: hset![], gdrive: hset![] };
         let path = String::from("/etc/resolv.conf");
         let attr = fs::metadata(path.clone()).await?;
-        let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
-        let fut = storage_write::create_stash_file_from_local_file(path, &metadata, &desired);
+        let metadata: storage::write::RelevantFileMetadata = attr.try_into()?;
+        let fut = storage::write::create_stash_file_from_local_file(path, &metadata, &desired);
         ensure_send(fut);
 
         Ok(())

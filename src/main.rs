@@ -28,9 +28,7 @@ use exastash::policy;
 use exastash::info::json_info;
 use exastash::oauth;
 use exastash::retry::Decayer;
-use exastash::storage_read;
-use exastash::storage_write;
-use exastash::storage_delete;
+use exastash::storage;
 use yup_oauth2::ServiceAccountKey;
 use mimalloc::MiMalloc;
 
@@ -723,19 +721,19 @@ async fn main() -> Result<()> {
                 FileCommand::Create { path, store_inline, store_fofs, store_gdrive } => {
                     let store_fofs = store_fofs.into_iter().collect();
                     let store_gdrive = store_gdrive.into_iter().collect();
-                    let desired = storage_write::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
+                    let desired = storage::write::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
 
                     transaction.commit().await?; // close unused transaction
 
                     let attr = fs::metadata(path.clone()).await?;
-                    let metadata: storage_write::RelevantFileMetadata = attr.try_into()?;
-                    let file_id = storage_write::create_stash_file_from_local_file(path, &metadata, &desired).await?;
+                    let metadata: storage::write::RelevantFileMetadata = attr.try_into()?;
+                    let file_id = storage::write::create_stash_file_from_local_file(path, &metadata, &desired).await?;
                     println!("{}", file_id);
                 }
                 FileCommand::AddStorages { ids, store_inline, store_fofs, store_gdrive } => {
                     let store_fofs = store_fofs.into_iter().collect();
                     let store_gdrive = store_gdrive.into_iter().collect();
-                    let desired = storage_write::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
+                    let desired = storage::write::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
 
                     let files = File::find_by_ids(&mut transaction, &ids).await?;
                     transaction.commit().await?; // close read-only transaction
@@ -747,7 +745,7 @@ async fn main() -> Result<()> {
                     for id in ids {
                         let file = map.get(&id).ok_or_else(|| anyhow!("no file with id={}", id))?;
 
-                        let desired_new = storage_write::desired_storages_without_those_that_already_exist(id, &desired).await?;
+                        let desired_new = storage::write::desired_storages_without_those_that_already_exist(id, &desired).await?;
                         if desired_new.is_empty() {
                             info!(file_id = id, "file is already present in all desired storages");
                             continue;
@@ -756,28 +754,28 @@ async fn main() -> Result<()> {
                         // Read to temporary file because we need an AsyncRead we can Send,
                         // and because when adding more than one storage, we want to avoid
                         // reading a file more than once from existing storage.
-                        let (stream, _) = storage_read::read(id).await?;
+                        let (stream, _) = storage::read::read(id).await?;
                         let temp_path = tempfile::NamedTempFile::new()?.into_temp_path();
                         let path: PathBuf = (*temp_path).into();
                         let mut local_file = tokio::fs::File::create(path.clone()).await?;
-                        storage_read::write_stream_to_sink(stream, &mut local_file).await?;
+                        storage::read::write_stream_to_sink(stream, &mut local_file).await?;
 
-                        let mut readers = storage_write::readers_for_file(path, desired_new.len()).await?;
+                        let mut readers = storage::write::readers_for_file(path, desired_new.len()).await?;
                         let producer = move || {
                             readers.pop().ok_or_else(|| anyhow!("no readers left"))
                         };
-                        storage_write::add_storages(producer, file, &desired_new).await?;
+                        storage::write::add_storages(producer, file, &desired_new).await?;
                     }
                 }
                 FileCommand::DeleteStorages { ids, delete_inline, delete_fofs, delete_gdrive } => {
                     let delete_fofs = delete_fofs.into_iter().collect();
                     let delete_gdrive = delete_gdrive.into_iter().collect();
-                    let undesired = storage_write::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
+                    let undesired = storage::write::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
 
                     unimplemented!();
                 }
                 FileCommand::Delete { file_id } => {
-                    // TODO call something in storage_delete so we can delete the file if it has any storages
+                    // TODO call something in storage::delete so we can delete the file if it has any storages
                     File::delete(&mut transaction, &[file_id]).await?;
                     transaction.commit().await?;
                 }
@@ -793,9 +791,9 @@ async fn main() -> Result<()> {
                 FileCommand::Content(content) => {
                     match content {
                         ContentCommand::Read { id } => {
-                            let (stream, _) = storage_read::read(id).await?;
+                            let (stream, _) = storage::read::read(id).await?;
                             let mut stdout = tokio::io::stdout();
-                            storage_read::write_stream_to_sink(stream, &mut stdout).await?;
+                            storage::read::write_stream_to_sink(stream, &mut stdout).await?;
                         }
                     }
                 }
@@ -951,7 +949,7 @@ async fn main() -> Result<()> {
                                     let decoder = FixedReadSizeDecoder::new(65536);
                                     let file_stream = FramedRead::new(reader, decoder);
 
-                                    let gdrive_file = storage_write::create_gdrive_file_on_domain(
+                                    let gdrive_file = storage::write::create_gdrive_file_on_domain(
                                         file_stream, size, domain_id, owner_id, &parent, &filename
                                     ).await?;
                                     gdrive_file.create(&mut transaction).await?;
@@ -963,9 +961,9 @@ async fn main() -> Result<()> {
                                     let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
                                     let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
                                     for gdrive_file in &gdrive_files {
-                                        let stream = Box::pin(storage_read::stream_gdrive_file(gdrive_file, domain_id).await?);
+                                        let stream = Box::pin(storage::read::stream_gdrive_file(gdrive_file, domain_id).await?);
                                         let mut stdout = tokio::io::stdout();
-                                        storage_read::write_stream_to_sink(stream, &mut stdout).await?;
+                                        storage::read::write_stream_to_sink(stream, &mut stdout).await?;
                                     }
                                     transaction.commit().await?; // close read-only transaction
                                 }
@@ -1002,9 +1000,9 @@ async fn main() -> Result<()> {
                     }
                     transaction.commit().await?; // close read-only transaction
                     for file_id in file_ids {
-                        let (stream, _) = storage_read::read(file_id).await?;
+                        let (stream, _) = storage::read::read(file_id).await?;
                         let mut stdout = tokio::io::stdout();
-                        storage_read::write_stream_to_sink(stream, &mut stdout).await?;
+                        storage::read::write_stream_to_sink(stream, &mut stdout).await?;
                     }
                 }
                 PathCommand::Get { paths: path_args, skip_if_exists } => {
@@ -1032,7 +1030,7 @@ async fn main() -> Result<()> {
                                             }
                                         }
                                         Ok(attr) => {
-                                            let metadata: storage_write::RelevantFileMetadata = (&attr).try_into()?;
+                                            let metadata: storage::write::RelevantFileMetadata = (&attr).try_into()?;
                                             let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
                                             let file = files.get(0).ok_or_else(|| {
                                                 anyhow!("database unexpectedly missing file id={}", file_id)
@@ -1064,8 +1062,8 @@ async fn main() -> Result<()> {
                                 tokio::fs::create_dir_all(&dir_path).await?;
 
                                 let mut local_file = tokio::fs::File::create(&path_arg).await?;
-                                let (stream, file) = storage_read::read(file_id).await?;
-                                storage_read::write_stream_to_sink(stream, &mut local_file).await?;
+                                let (stream, file) = storage::read::read(file_id).await?;
+                                storage::read::write_stream_to_sink(stream, &mut local_file).await?;
 
                                 if file.executable {
                                     let permissions = std::fs::Permissions::from_mode(0o770);
@@ -1099,7 +1097,7 @@ async fn main() -> Result<()> {
                         let stash_path = [&components_to_base_dir, remaining_components].concat();
 
                         let attr = fs::metadata(path_arg).await?;
-                        let metadata: storage_write::RelevantFileMetadata = (&attr).try_into()?;
+                        let metadata: storage::write::RelevantFileMetadata = (&attr).try_into()?;
                         if attr.is_file() {
                             let stash_path: Vec<&str> = stash_path.iter().map(String::as_str).collect();
 
@@ -1131,7 +1129,7 @@ async fn main() -> Result<()> {
                             let mut decayer = Decayer::new(initial_delay, Ratio::new(3, 2), maximum_delay);
                             let mut tries = 30;
                             let file_id = loop {
-                                match storage_write::create_stash_file_from_local_file(path_arg.clone(), &metadata, &desired).await {
+                                match storage::write::create_stash_file_from_local_file(path_arg.clone(), &metadata, &desired).await {
                                     Ok(id) => break id,
                                     Err(err) => {
                                         tries -= 1;
@@ -1139,7 +1137,7 @@ async fn main() -> Result<()> {
                                             bail!(err);
                                         }
                                         let delay = decayer.decay();
-                                        eprintln!("storage_write::create_stash_file_from_local_file({:?}, ...) failed, {} tries left \
+                                        eprintln!("storage::write::create_stash_file_from_local_file({:?}, ...) failed, {} tries left \
                                                    (next in {} sec): {:?}", path_arg, tries, delay.as_secs(), err);
                                         tokio::time::sleep(delay).await;
                                     }
