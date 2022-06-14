@@ -129,6 +129,16 @@ impl GdriveFile {
         Ok(())
     }
 
+    /// Set `last_probed` to the current time for the given ids.
+    /// Silently skips ids that do not exist.
+    /// Does not commit the transaction, you must do so yourself.
+    pub async fn touch_last_probed(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<()> {
+        let ids: Vec<String> = ids.iter().map(|s| s.to_string()).collect();
+        sqlx::query!("UPDATE stash.gdrive_files SET last_probed = NOW() WHERE id = ANY($1)", &ids)
+            .execute(transaction).await?;
+        Ok(())
+    }
+
     /// Delete references to gdrive files from the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn delete_by_ids(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<()> {

@@ -1661,6 +1661,18 @@
     },
     "query": "\n            SELECT file_id, ia_item, pathname, darked, last_probed\n            FROM stash.storage_internetarchive\n            WHERE file_id = ANY($1)"
   },
+  "f8f29bb7e3659d153a094f05ea7cd6f9d0ee092310faede446bdb7f16f2c8c75": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "TextArray"
+        ]
+      }
+    },
+    "query": "UPDATE stash.gdrive_files SET last_probed = NOW() WHERE id = ANY($1)"
+  },
   "f92ceef8f624a3da9897fc25dd086578353fce3feb6ac6f7c8c716ab8a220a0f": {
     "describe": {
       "columns": [],
