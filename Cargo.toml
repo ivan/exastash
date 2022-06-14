@@ -20,7 +20,8 @@ async-recursion = "1.0"
 byteorder = "1"
 bytes = "1"
 chrono = "0.4"
-clap = { version = "3", features = ["derive"] }
+# https://github.com/clap-rs/clap/issues/3822
+clap = { version = "~3.1", features = ["derive"] }
 crc32c = "0.6"
 custom_debug_derive = "0.5"
 data-encoding = "2"
