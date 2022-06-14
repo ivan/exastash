@@ -83,7 +83,7 @@ pub async fn refresh_access_tokens(client: &mut PgPool) -> Result<()> {
     let expires_at = Utc::now() + Duration::minutes(expiry_within_minutes);
     let tokens = GoogleAccessToken::find_by_expires_at(&mut transaction, expires_at).await?;
     for token in &tokens {
-        debug!("refreshing {:?}", token);
+        debug!(?token, "refreshing token");
         let owner = owners_map.get(&token.owner_id).ok_or_else(|| anyhow!("cannot find owner in owners map: {}", token.owner_id))?;
         let secret = secrets_map.get(&owner.domain).ok_or_else(|| anyhow!("cannot find domain in secrets map: {}", owner.domain))?;
 

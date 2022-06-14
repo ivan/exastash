@@ -89,7 +89,7 @@ impl Policy {
 
         let args = vec![JsValue::Object(properties)];
         let desired_storages = self.js_context.call_function("new_file_storages", args)?.try_into()?;
-        info!("policy.js:new_file_storages returned {:?} for stash_path={:?}", desired_storages, stash_path);
+        info!(?desired_storages, ?stash_path, "policy.js:new_file_storages returned");
         Ok(desired_storages)
     }
 

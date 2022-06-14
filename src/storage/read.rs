@@ -122,10 +122,10 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
 
     let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
     for access_token in access_tokens_tries {
-        debug!("trying access token {}", access_token);
+        debug!(?access_token, "trying access token");
         let response = request_gdrive_file(&gdrive_file.id, access_token).await?;
         let headers = response.headers();
-        debug!(file_id = gdrive_file.id.as_str(), "Google responded to request with headers {:#?}", headers);
+        debug!(file_id = ?gdrive_file.id, ?headers, "Google responded to request for file");
         match response.status() {
             StatusCode::OK => {
                 let content_length = response.content_length().ok_or_else(|| {
@@ -149,8 +149,8 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
             StatusCode::NOT_FOUND |
             StatusCode::INTERNAL_SERVER_ERROR |
             StatusCode::SERVICE_UNAVAILABLE => {
-                debug!("Google responded with HTTP status code {} for file_id={:?}, \
-                        trying another access token if available", response.status(), gdrive_file.id);
+                debug!(file_id = ?gdrive_file.id, code = %response.status(), "Google responded with unfavorable HTTP status code, \
+                        trying another access token if available");
                 continue;
             }
             _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
@@ -462,7 +462,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
 
                 let mut transaction = pool.begin().await?;
                 let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
-                info!("fixing unset b3sum on file id={} to {:?}", file_id, hex::encode(computed_hash.as_bytes()));
+                info!(file_id, new_b3sum = ?hex::encode(computed_hash.as_bytes()), "fixing unset b3sum on file");
                 db::disable_synchronous_commit(&mut transaction).await?;
                 inode::File::set_b3sum(&mut transaction, file_id, computed_hash.as_bytes()).await?;
                 transaction.commit().await?;

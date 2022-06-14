@@ -21,7 +21,7 @@ pub async fn delete_storages(file_id: i64, undesired: &StoragesDescriptor) -> Re
 
         let my_hostname = util::get_hostname();
         for view in storage_views {
-            info!(file_id = file_id, pile_id = view.pile_id, cell_id = view.cell_id, "deleting storage_fofs for file");
+            info!(file_id, pile_id = view.pile_id, cell_id = view.cell_id, "deleting storage_fofs for file");
             if view.pile_hostname != my_hostname {
                 unimplemented!("deleting from another machine");
             }
@@ -35,7 +35,7 @@ pub async fn delete_storages(file_id: i64, undesired: &StoragesDescriptor) -> Re
         }
     }
     if undesired.inline {
-        info!(file_id = file_id, "deleting storage_inline for file");
+        info!(file_id, "deleting storage_inline for file");
         let mut transaction = pool.begin().await?;
         db::storage::inline::Storage::delete_by_file_ids(&mut transaction, &[file_id]).await?;
         transaction.commit().await?;

@@ -1038,7 +1038,7 @@ async fn main() -> Result<()> {
                                                 anyhow!("database unexpectedly missing file id={}", file_id)
                                             })?;
                                             if file.mtime == metadata.mtime && file.size == metadata.size {
-                                                info!("{:?} already exists locally with matching size and mtime", path_arg);
+                                                info!(?path_arg, "file already exists locally with matching size and mtime");
 
                                                 let permissions = std::fs::Permissions::from_mode(
                                                     if file.executable { 0o770 } else { 0o660 }
@@ -1156,7 +1156,7 @@ async fn main() -> Result<()> {
                         transaction.commit().await?;
 
                         if remove_local_files {
-                            info!("removing local file {:?} after committing to database", path_arg);
+                            info!(?path_arg, "removing local file after committing to database");
                             fs::remove_file(path_arg).await?;
                         }
                     }

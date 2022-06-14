@@ -238,9 +238,8 @@ async fn replace_gdrive_file_placement(old_placement: &gdrive::GdriveFilePlaceme
     };
     new_placement.create(&mut transaction).await?;
 
-    info!("about to replace {:?} with {:?}", old_placement, new_placement);
+    info!(?old_placement, ?new_placement, "replacing gdrive_file_placement");
     transaction.commit().await?;
-    info!("successfully replaced gdrive_file_placement");
 
     Ok(())
 }
@@ -285,7 +284,7 @@ pub async fn write_to_gdrive<A: AsyncRead + Send + Sync + 'static>(
     if let Err(err) = &result {
         let err = err.downcast_ref::<GdriveUploadError>();
         if let Some(GdriveUploadError::ParentIsFull(_)) = err {
-            info!("Google Drive indicates that parent in placement {:?} is full", placement);
+            info!(?placement, "Google Drive indicated that parent is full");
             replace_gdrive_file_placement(&placement).await?;
         }
     }
