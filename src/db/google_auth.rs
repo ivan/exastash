@@ -2,10 +2,10 @@
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
+use futures::{StreamExt, TryStreamExt};
 use yup_oauth2::ServiceAccountKey;
 use sqlx::{Postgres, Transaction};
 use custom_debug_derive::Debug as CustomDebug;
-use futures_async_stream::for_await;
 use crate::util::elide;
 
 /// A google_application_secret entity
@@ -181,7 +181,7 @@ impl GoogleServiceAccount {
     /// Always returns rows in a random order.
     /// If limit is not `None`, returns max `N` rows.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32], limit: Option<i64>) -> Result<Vec<GoogleServiceAccount>> {
-        let cursor = sqlx::query_as!(GoogleServiceAccountRow, "
+        let accounts = sqlx::query_as!(GoogleServiceAccountRow, "
             SELECT owner_id, client_email, client_id, project_id, private_key_id, private_key,
                    auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url
             FROM stash.google_service_accounts
@@ -189,13 +189,9 @@ impl GoogleServiceAccount {
             ORDER BY random()
             LIMIT $2
         ", owner_ids, limit)
-            .fetch(transaction);
-        let mut accounts = Vec::with_capacity(cursor.size_hint().1.unwrap_or(100));
-        #[for_await]
-        for row in cursor {
-            let account: GoogleServiceAccount = row?.into();
-            accounts.push(account);
-        }
+            .fetch(transaction)
+            .map(|result| result.map(|row| row.into()))
+            .try_collect().await?;
         Ok(accounts)
     }
 }

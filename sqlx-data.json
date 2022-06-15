@@ -177,6 +177,56 @@
     },
     "query": "\n            DELETE FROM stash.dirents\n            WHERE child_dir = $1"
   },
+  "18380f235a50c33b5f38479a466e9486c16af6f5e828d3a34fe8730f4e99b923": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "owner",
+          "ordinal": 1,
+          "type_info": "Int4"
+        },
+        {
+          "name": "md5",
+          "ordinal": 2,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "crc32c",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "size",
+          "ordinal": 4,
+          "type_info": "Int8"
+        },
+        {
+          "name": "last_probed",
+          "ordinal": 5,
+          "type_info": "Timestamptz"
+        }
+      ],
+      "nullable": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "TextArray"
+        ]
+      }
+    },
+    "query": "SELECT id, owner, md5, crc32c, size, last_probed\n             FROM stash.gdrive_files WHERE id = ANY($1)"
+  },
   "1de8adffe88aaa9ea4d2bc2885e558cddd0d856c0325c8d64a7211939d1fe868": {
     "describe": {
       "columns": [
@@ -1105,56 +1155,6 @@
       }
     },
     "query": "\n            INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)\n            VALUES ($1, $2::text, $3::text, $4, $5)"
-  },
-  "ab41ed76e2d142bcb736b823e0359885459ba7489855d007f08784de123cf1f9": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Text"
-        },
-        {
-          "name": "owner",
-          "ordinal": 1,
-          "type_info": "Int4"
-        },
-        {
-          "name": "md5",
-          "ordinal": 2,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "crc32c",
-          "ordinal": 3,
-          "type_info": "Int4"
-        },
-        {
-          "name": "size",
-          "ordinal": 4,
-          "type_info": "Int8"
-        },
-        {
-          "name": "last_probed",
-          "ordinal": 5,
-          "type_info": "Timestamptz"
-        }
-      ],
-      "nullable": [
-        false,
-        true,
-        false,
-        false,
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "TextArray"
-        ]
-      }
-    },
-    "query": "SELECT id, owner, md5, crc32c, size, last_probed FROM stash.gdrive_files WHERE id = ANY($1)"
   },
   "aed1d80faf81ee69aa41a26c2218d1c405c4151689c1a8facdc9bddc9b288fb6": {
     "describe": {

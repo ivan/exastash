@@ -7,7 +7,8 @@ use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction};
 use serde::Serialize;
 use serde_hex::{SerHex, Strict};
-use futures_async_stream::for_await;
+use futures::StreamExt;
+use futures::TryStreamExt;
 use uuid::Uuid;
 
 /// An owner of Google Drive files
@@ -156,15 +157,13 @@ impl GdriveFile {
     pub async fn find_by_ids_in_order(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
         // sqlx::query_as! insists on String
         let ids: Vec<String> = ids.iter().map(|s| s.to_string()).collect();
-        let cursor = sqlx::query_as!(GdriveFileRow, "SELECT id, owner, md5, crc32c, size, last_probed FROM stash.gdrive_files WHERE id = ANY($1)", &ids)
-            .fetch(transaction);
-        let mut out = Vec::with_capacity(cursor.size_hint().1.unwrap_or(ids.len()));
-        let mut map: HashMap<String, GdriveFile> = HashMap::new();
-        #[for_await]
-        for file in cursor {
-            let file: GdriveFile = file?.into();
-            map.insert(file.id.to_string(), file);
-        }
+        let mut map: HashMap<String, GdriveFile> = sqlx::query_as!(GdriveFileRow,
+            "SELECT id, owner, md5, crc32c, size, last_probed
+             FROM stash.gdrive_files WHERE id = ANY($1)", &ids)
+            .fetch(transaction)
+            .map(|result| result.map(|row| (row.id.to_string(), row.into())))
+            .try_collect().await?;
+        let mut out = Vec::with_capacity(ids.len());
         for id in ids {
             let file = map.remove(&id.to_string()).ok_or_else(|| anyhow!("duplicate or nonexistent id given: {:?}", id))?;
             out.push(file);

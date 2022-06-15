@@ -2,8 +2,8 @@
 
 use crate::db::inode::InodeId;
 use anyhow::{bail, Error, Result};
+use futures::{StreamExt, TryStreamExt};
 use sqlx::{Postgres, Transaction};
-use futures_async_stream::for_await;
 
 /// A (dir, file, symlink) tuple that is useful when interacting with
 /// the dirents table.
@@ -113,18 +113,14 @@ impl Dirent {
     /// There is no error on missing parents.
     pub async fn find_by_parents(transaction: &mut Transaction<'_, Postgres>, parents: &[i64]) -> Result<Vec<Dirent>> {
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
-        let cursor =
+        let dirents =
             sqlx::query_as!(DirentRow, "
                 SELECT parent, basename, child_dir, child_file, child_symlink
                 FROM stash.dirents
                 WHERE parent = ANY($1) AND child_dir IS DISTINCT FROM 1", parents)
-            .fetch(transaction);
-        let mut dirents = Vec::with_capacity(cursor.size_hint().1.unwrap_or(4));
-        #[for_await]
-        for row in cursor {
-            let dirent: Dirent = row?.into();
-            dirents.push(dirent);
-        }
+            .fetch(transaction)
+            .map(|result| result.map(|row| row.into()))
+            .try_collect().await?;
         Ok(dirents)
     }
 
@@ -145,18 +141,14 @@ impl Dirent {
         // sqlx::query_as! insists on String
         let basenames: Vec<String> = basenames.iter().map(|s| s.to_string()).collect();
         // `child_dir IS DISTINCT FROM 1` filters out the root directory self-reference
-        let cursor =
+        let dirents =
             sqlx::query_as!(DirentRow, "
                 SELECT parent, basename, child_dir, child_file, child_symlink
                 FROM stash.dirents
                 WHERE parent = $1 AND basename = ANY($2) AND child_dir IS DISTINCT FROM 1", parent, &basenames)
-            .fetch(transaction);
-        let mut dirents = Vec::with_capacity(cursor.size_hint().1.unwrap_or(basenames.len()));
-        #[for_await]
-        for row in cursor {
-            let dirent: Dirent = row?.into();
-            dirents.push(dirent);
-        }
+            .fetch(transaction)
+            .map(|result| result.map(|row| row.into()))
+            .try_collect().await?;
         Ok(dirents)
     }
 

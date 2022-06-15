@@ -1,7 +1,7 @@
 //! CRUD operations for storage_gdrive entities in PostgreSQL
 
 use anyhow::Result;
-use futures_async_stream::for_await;
+use futures::{StreamExt, TryStreamExt};
 use sqlx::{Postgres, Transaction};
 use serde::Serialize;
 use serde_hex::{SerHex, Strict};
@@ -228,19 +228,15 @@ impl Storage {
             return Ok(vec![]);
         }
         // Note that we can get more than one row per unique file_id
-        let cursor = sqlx::query_as!(StorageRow,
+        let storages = sqlx::query_as!(StorageRow,
             r#"SELECT file_id, google_domain, cipher as "cipher: Cipher", cipher_key, gdrive_ids
              FROM stash.storage_gdrive
              WHERE file_id = ANY($1)"#,
              file_ids
         )
-            .fetch(transaction);
-        let mut storages = Vec::with_capacity(cursor.size_hint().1.unwrap_or(file_ids.len()));
-        #[for_await]
-        for row in cursor {
-            let storage: Storage = row?.into();
-            storages.push(storage);
-        }
+            .fetch(transaction)
+            .map(|result| result.map(|row| row.into()))
+            .try_collect().await?;
         Ok(storages)
     }
 }
