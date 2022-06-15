@@ -19,10 +19,9 @@ impl Storage {
     /// Create an inline storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query!("
+        sqlx::query!(r#"
             INSERT INTO stash.storage_inline (file_id, content_zstd)
-            VALUES ($1, $2)",
-            &self.file_id, &self.content_zstd
+            VALUES ($1, $2)"#, &self.file_id, &self.content_zstd
         ).execute(transaction).await?;
         Ok(())
     }
@@ -30,10 +29,10 @@ impl Storage {
     /// Create an inline storage entity in the database if an entity with `file_id` does not already exist.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn maybe_create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query!("
+        sqlx::query!(r#"
             INSERT INTO stash.storage_inline (file_id, content_zstd)
             VALUES ($1, $2)
-            ON CONFLICT DO NOTHING",
+            ON CONFLICT DO NOTHING"#,
             &self.file_id, &self.content_zstd
         ).execute(transaction).await?;
         Ok(())
@@ -45,9 +44,9 @@ impl Storage {
         if file_ids.is_empty() {
             return Ok(());
         }
-        sqlx::query!("
+        sqlx::query!(r#"
             DELETE FROM stash.storage_inline
-            WHERE file_id = ANY($1)", file_ids
+            WHERE file_id = ANY($1)"#, file_ids
         ).execute(transaction).await?;
         Ok(())
     }
@@ -58,12 +57,11 @@ impl Storage {
         if file_ids.is_empty() {
             return Ok(vec![]);
         }
-        let storages =
-            sqlx::query_as!(Storage, "
-                SELECT file_id, content_zstd
-                FROM stash.storage_inline
-                WHERE file_id = ANY($1)", file_ids
-            ).fetch_all(transaction).await?;
+        let storages = sqlx::query_as!(Storage, r#"
+            SELECT file_id, content_zstd
+            FROM stash.storage_inline
+            WHERE file_id = ANY($1)"#, file_ids
+        ).fetch_all(transaction).await?;
         Ok(storages)
     }
 }

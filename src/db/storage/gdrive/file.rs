@@ -26,22 +26,28 @@ pub struct GdriveOwner {
 impl GdriveOwner {
     /// Return a `Vec<GdriveOwner>` for all gdrive_owners.
     pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as!(GdriveOwner, "SELECT id, domain, owner FROM stash.gdrive_owners")
-            .fetch_all(transaction).await?)
+        let owners = sqlx::query_as!(GdriveOwner, r#"
+            SELECT id, domain, owner FROM stash.gdrive_owners"#
+        ).fetch_all(transaction).await?;
+        Ok(owners)
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as!(GdriveOwner, "SELECT id, domain, owner FROM stash.gdrive_owners WHERE id = ANY($1)", owner_ids)
-            .fetch_all(transaction).await?)
+        let owners = sqlx::query_as!(GdriveOwner, r#"
+            SELECT id, domain, owner FROM stash.gdrive_owners WHERE id = ANY($1)"#, owner_ids
+        ).fetch_all(transaction).await?;
+        Ok(owners)
     }
 
     /// Return a `Vec<GdriveOwner>` for the corresponding list of `domain_ids`.
     /// There is no error on missing domains.
     pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GdriveOwner>> {
-        Ok(sqlx::query_as!(GdriveOwner, "SELECT id, domain, owner FROM stash.gdrive_owners WHERE domain = ANY($1)", domain_ids)
-            .fetch_all(transaction).await?)
+        let owners = sqlx::query_as!(GdriveOwner, r#"
+            SELECT id, domain, owner FROM stash.gdrive_owners WHERE domain = ANY($1)"#, domain_ids
+        ).fetch_all(transaction).await?;
+        Ok(owners)
     }
 }
 
@@ -59,10 +65,10 @@ impl NewGdriveOwner {
     /// Create a gdrive_owner in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<GdriveOwner> {
-        let id = sqlx::query_scalar!("
+        let id = sqlx::query_scalar!(r#"
             INSERT INTO stash.gdrive_owners (domain, owner)
             VALUES ($1, $2)
-            RETURNING id",
+            RETURNING id"#,
             &self.domain, &self.owner
         ).fetch_one(transaction).await?;
         Ok(GdriveOwner {
@@ -117,15 +123,11 @@ impl GdriveFile {
     /// Create a gdrive_file in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query!("
+        sqlx::query!(r#"
             INSERT INTO stash.gdrive_files (id, owner, md5, crc32c, size, last_probed)
-            VALUES ($1, $2, $3, $4, $5, $6)",
-            self.id,
-            self.owner_id,
-            Uuid::from_bytes(self.md5),
-            self.crc32c as i32,
-            self.size,
-            self.last_probed
+            VALUES ($1, $2, $3, $4, $5, $6)"#,
+            self.id, self.owner_id, Uuid::from_bytes(self.md5),
+            self.crc32c as i32, self.size, self.last_probed
         ).execute(transaction).await?;
         Ok(())
     }
@@ -135,8 +137,11 @@ impl GdriveFile {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn touch_last_probed(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<()> {
         let ids: Vec<String> = ids.iter().map(|s| s.to_string()).collect();
-        sqlx::query!("UPDATE stash.gdrive_files SET last_probed = NOW() WHERE id = ANY($1)", &ids)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            UPDATE stash.gdrive_files
+            SET last_probed = NOW()
+            WHERE id = ANY($1)"#, &ids
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -148,8 +153,10 @@ impl GdriveFile {
         }
         // sqlx::query_as! insists on String
         let ids: Vec<String> = ids.iter().map(|s| s.to_string()).collect();
-        sqlx::query!("DELETE FROM stash.gdrive_files WHERE id = ANY($1)", &ids)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            DELETE FROM stash.gdrive_files
+            WHERE id = ANY($1)"#, &ids
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -157,9 +164,10 @@ impl GdriveFile {
     pub async fn find_by_ids_in_order(transaction: &mut Transaction<'_, Postgres>, ids: &[&str]) -> Result<Vec<GdriveFile>> {
         // sqlx::query_as! insists on String
         let ids: Vec<String> = ids.iter().map(|s| s.to_string()).collect();
-        let mut map: HashMap<String, GdriveFile> = sqlx::query_as!(GdriveFileRow,
-            "SELECT id, owner, md5, crc32c, size, last_probed
-             FROM stash.gdrive_files WHERE id = ANY($1)", &ids)
+        let mut map: HashMap<String, GdriveFile> = sqlx::query_as!(GdriveFileRow, r#"
+            SELECT id, owner, md5, crc32c, size, last_probed
+            FROM stash.gdrive_files WHERE id = ANY($1)"#, &ids
+        )
             .fetch(transaction)
             .map(|result| result.map(|row| (row.id.to_string(), row.into())))
             .try_collect().await?;

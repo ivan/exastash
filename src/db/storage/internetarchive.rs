@@ -24,14 +24,10 @@ impl Storage {
     /// Create an internetarchive storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query!("
+        sqlx::query!(r#"
             INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
-            VALUES ($1, $2::text, $3::text, $4, $5)",
-            self.file_id,
-            self.ia_item,
-            self.pathname,
-            self.darked,
-            self.last_probed
+            VALUES ($1, $2::text, $3::text, $4, $5)"#,
+            self.file_id, self.ia_item, self.pathname, self.darked, self.last_probed
         ).execute(transaction).await?;
         Ok(())
     }
@@ -42,8 +38,9 @@ impl Storage {
         if file_ids.is_empty() {
             return Ok(());
         }
-        sqlx::query!("DELETE FROM stash.storage_internetarchive WHERE file_id = ANY($1)", file_ids)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            DELETE FROM stash.storage_internetarchive WHERE file_id = ANY($1)"#, file_ids
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -54,11 +51,10 @@ impl Storage {
             return Ok(vec![]);
         }
         // Note that we can get more than one row per unique file_id
-        let storages = sqlx::query_as!(Storage, "
+        let storages = sqlx::query_as!(Storage, r#"
             SELECT file_id, ia_item, pathname, darked, last_probed
             FROM stash.storage_internetarchive
-            WHERE file_id = ANY($1)",
-            file_ids
+            WHERE file_id = ANY($1)"#, file_ids
         ).fetch_all(transaction).await?;
         Ok(storages)
     }

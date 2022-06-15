@@ -113,8 +113,10 @@ impl Dir {
         if ids.is_empty() {
             return Ok(vec![]);
         }
-        let dirs = sqlx::query_as!(DirRow, "
-            SELECT id, mtime, birth_time, birth_version, birth_hostname FROM stash.dirs WHERE id = ANY($1)", ids
+        let dirs = sqlx::query_as!(DirRow, r#"
+            SELECT id, mtime, birth_time, birth_version, birth_hostname
+            FROM stash.dirs
+            WHERE id = ANY($1)"#, ids
         )
             .fetch(transaction)
             .map(|result| result.map(|row| row.into()))
@@ -132,8 +134,9 @@ impl Dir {
         if ids.is_empty() {
             return Ok(());
         }
-        sqlx::query!("DELETE FROM stash.dirs WHERE id = ANY($1)", ids)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            DELETE FROM stash.dirs WHERE id = ANY($1)"#, ids
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -160,10 +163,10 @@ impl NewDir {
     /// Create an entry for a directory in the database and return a `Dir`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Dir> {
-        let id = sqlx::query_scalar!("
+        let id = sqlx::query_scalar!(r#"
             INSERT INTO stash.dirs (mtime, birth_time, birth_version, birth_hostname)
             VALUES ($1, $2, $3, $4::text)
-            RETURNING id",
+            RETURNING id"#,
             self.mtime, self.birth.time, self.birth.version, &self.birth.hostname
         ).fetch_one(transaction).await?;
         assert!(id >= 1);
@@ -232,10 +235,10 @@ impl File {
         if ids.is_empty() {
             return Ok(vec![]);
         }
-        let files = sqlx::query_as!(FileRow, "
+        let files = sqlx::query_as!(FileRow, r#"
             SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum
             FROM stash.files
-            WHERE id = ANY($1)", ids
+            WHERE id = ANY($1)"#, ids
         )
             .fetch(transaction)
             .map(|result| result.map(|row| row.into()))
@@ -250,8 +253,10 @@ impl File {
 
     /// Set the b3sum for a file that may not have one already
     pub async fn set_b3sum(transaction: &mut Transaction<'_, Postgres>, file_id: i64, b3sum: &[u8; 32]) -> Result<()> {
-        sqlx::query!("UPDATE stash.files SET b3sum = $1 WHERE id = $2", b3sum.as_ref(), file_id)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            UPDATE stash.files SET b3sum = $1 WHERE id = $2"#,
+            b3sum.as_ref(), file_id
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -260,11 +265,12 @@ impl File {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         assert!(self.size >= 0, "size must be >= 0");
-        sqlx::query!("
+        sqlx::query!(r#"
             INSERT INTO stash.files (id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
             OVERRIDING SYSTEM VALUE
-            VALUES ($1, $2, $3, $4, $5, $6, $7::text, $8)
-            ", self.id, self.mtime, self.size, self.executable, self.birth.time, self.birth.version, &self.birth.hostname, self.b3sum.map(Vec::from)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::text, $8)"#,
+            self.id, self.mtime, self.size, self.executable, self.birth.time,
+            self.birth.version, &self.birth.hostname, self.b3sum.map(Vec::from)
         ).execute(transaction).await?;
         Ok(())
     }
@@ -275,9 +281,9 @@ impl File {
         if ids.is_empty() {
             return Ok(());
         }
-        sqlx::query!("DELETE FROM stash.files WHERE id = ANY($1)", ids)
-            .bind(ids)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            DELETE FROM stash.files WHERE id = ANY($1)"#, ids
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -311,11 +317,12 @@ impl NewFile {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<File> {
         assert!(self.size >= 0, "size must be >= 0");
-        let id = sqlx::query_scalar!("
+        let id = sqlx::query_scalar!(r#"
             INSERT INTO stash.files (mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum)
             VALUES ($1, $2, $3, $4, $5, $6::text, $7)
-            RETURNING id",
-            self.mtime, self.size, self.executable, self.birth.time, self.birth.version, &self.birth.hostname, self.b3sum.map(Vec::from)
+            RETURNING id"#,
+            self.mtime, self.size, self.executable, self.birth.time,
+            self.birth.version, &self.birth.hostname, self.b3sum.map(Vec::from)
         ).fetch_one(transaction).await?;
         assert!(id >= 1);
         Ok(File {
@@ -376,10 +383,10 @@ impl Symlink {
         if ids.is_empty() {
             return Ok(vec![]);
         }
-        let symlinks = sqlx::query_as!(SymlinkRow, "
+        let symlinks = sqlx::query_as!(SymlinkRow, r#"
             SELECT id, mtime, target, birth_time, birth_version, birth_hostname
             FROM stash.symlinks
-            WHERE id = ANY($1)", ids
+            WHERE id = ANY($1)"#, ids
         )
             .fetch(transaction)
             .map(|result| result.map(|row| row.into()))
@@ -393,8 +400,9 @@ impl Symlink {
         if ids.is_empty() {
             return Ok(());
         }
-        sqlx::query!("DELETE FROM stash.symlinks WHERE id = ANY($1)", ids)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            DELETE FROM stash.symlinks WHERE id = ANY($1)"#, ids
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -423,10 +431,10 @@ impl NewSymlink {
     /// Create an entry for a symlink in the database and return a `Symlink`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(self, transaction: &mut Transaction<'_, Postgres>) -> Result<Symlink> {
-        let id = sqlx::query_scalar!("
+        let id = sqlx::query_scalar!(r#"
             INSERT INTO stash.symlinks (mtime, target, birth_time, birth_version, birth_hostname)
             VALUES ($1, $2::text, $3, $4, $5::text)
-            RETURNING id",
+            RETURNING id"#,
             self.mtime, self.target, self.birth.time, self.birth.version, self.birth.hostname
         ).fetch_one(transaction).await?;
         assert!(id >= 1);

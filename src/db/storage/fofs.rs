@@ -35,8 +35,9 @@ impl Pile {
         if ids.is_empty() {
             return Ok(vec![]);
         }
-        let piles = sqlx::query_as!(Pile, "
-            SELECT id, files_per_cell, hostname, path, fullness_check_ratio FROM stash.piles WHERE id = ANY($1)", ids
+        let piles = sqlx::query_as!(Pile, r#"
+            SELECT id, files_per_cell, hostname, path, fullness_check_ratio
+            FROM stash.piles WHERE id = ANY($1)"#, ids
         ).fetch_all(transaction).await?;
         Ok(piles)
     }
@@ -67,11 +68,10 @@ impl NewPile {
     /// Create an pile entity in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<Pile> {
-        let id = sqlx::query_scalar!(
-            "INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio)
+        let id = sqlx::query_scalar!(r#"
+            INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio)
             VALUES ($1, $2::text, $3, $4)
-            RETURNING id",
-            self.files_per_cell, self.hostname, self.path, self.fullness_check_ratio
+            RETURNING id"#, self.files_per_cell, self.hostname, self.path, self.fullness_check_ratio
         ).fetch_one(transaction).await?;
         assert!(id >= 1);
         Ok(Pile {
@@ -106,8 +106,7 @@ impl Cell {
         let cells = sqlx::query_as!(Cell, r#"
             SELECT id, pile_id, "full"
             FROM stash.cells
-            WHERE id = ANY($1)"#,
-            cell_ids
+            WHERE id = ANY($1)"#, cell_ids
         ).fetch_all(transaction).await?;
         Ok(cells)
     }
@@ -121,16 +120,18 @@ impl Cell {
         let cells = sqlx::query_as!(Cell, r#"
             SELECT id, pile_id, "full"
             FROM stash.cells
-            WHERE pile_id = ANY($1) AND "full" = $2"#,
-            pile_ids, full
+            WHERE pile_id = ANY($1) AND "full" = $2"#, pile_ids, full
         ).fetch_all(transaction).await?;
         Ok(cells)
     }
 
     /// Set whether a cell is full or not
     pub async fn set_full(transaction: &mut Transaction<'_, Postgres>, id: i32, full: bool) -> Result<()> {
-        sqlx::query!(r#"UPDATE stash.cells SET "full" = $1 WHERE id = $2"#, full, id)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            UPDATE stash.cells
+            SET "full" = $1
+            WHERE id = $2"#, full, id
+        ).execute(transaction).await?;
         Ok(())
     }
 }
@@ -146,11 +147,10 @@ impl NewCell {
     /// Create an cell entity in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<Cell> {
-        let id = sqlx::query_scalar!("
+        let id = sqlx::query_scalar!(r#"
             INSERT INTO stash.cells (pile_id)
             VALUES ($1)
-            RETURNING id",
-            self.pile_id
+            RETURNING id"#, self.pile_id
         ).fetch_one(transaction).await?;
         assert!(id >= 1);
         Ok(Cell {
@@ -176,11 +176,9 @@ impl Storage {
     /// Create an fofs storage entity in the database.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-        sqlx::query!("
+        sqlx::query!(r#"
             INSERT INTO stash.storage_fofs (file_id, cell_id)
-            VALUES ($1, $2)",
-            self.file_id,
-            self.cell_id,
+            VALUES ($1, $2)"#, self.file_id, self.cell_id,
         ).execute(transaction).await?;
         Ok(())
     }
@@ -188,8 +186,10 @@ impl Storage {
     /// Delete the database references to the fofs storage with given `file_id` and `cell_id`.
     /// Does not commit the transaction, you must do so yourself.
     pub async fn delete_by_file_id_and_cell_id(transaction: &mut Transaction<'_, Postgres>, file_id: i64, cell_id: i32) -> Result<()> {
-        sqlx::query!("DELETE FROM stash.storage_fofs WHERE file_id = $1 and cell_id = $2", file_id, cell_id)
-            .execute(transaction).await?;
+        sqlx::query!(r#"
+            DELETE FROM stash.storage_fofs
+            WHERE file_id = $1 AND cell_id = $2"#, file_id, cell_id
+        ).execute(transaction).await?;
         Ok(())
     }
 
@@ -200,11 +200,10 @@ impl Storage {
             return Ok(vec![]);
         }
         // Note that we can get more than one row per unique file_id
-        let storages = sqlx::query_as!(Storage, "
+        let storages = sqlx::query_as!(Storage, r#"
             SELECT file_id, cell_id
             FROM stash.storage_fofs
-            WHERE file_id = ANY($1)",
-            file_ids
+            WHERE file_id = ANY($1)"#, file_ids
         ).fetch_all(transaction).await?;
         Ok(storages)
     }
@@ -251,8 +250,7 @@ impl StorageView {
                 pile_hostname AS "pile_hostname!",
                 pile_path AS "pile_path!"
             FROM stash.storage_fofs_view
-            WHERE file_id = ANY($1)"#,
-            file_ids
+            WHERE file_id = ANY($1)"#, file_ids
         ).fetch_all(transaction).await?;
         Ok(storages)
     }
