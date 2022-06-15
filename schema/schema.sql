@@ -25,3 +25,4 @@ $$ LANGUAGE plpgsql;
 \ir storage_internetarchive.sql
 \ir google_auth.sql
 \ir dirents.sql
+\ir inodes_views.sql
