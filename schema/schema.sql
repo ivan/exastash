@@ -16,6 +16,9 @@ $$ LANGUAGE plpgsql;
 
 \ir exastash_versions.sql
 \ir inodes.sql
+-- If you add a new storage, remember to also add the table name to
+-- file_ids_with_storage_or_zero_size and
+-- file_ids_with_storage_or_zero_size_with_duplicates
 \ir storage_fofs.sql
 \ir storage_inline.sql
 \ir storage_gdrive.sql
