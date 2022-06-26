@@ -8,6 +8,7 @@
     lint_reasons,
     try_blocks,
 )]
+#![forbid(unsafe_code)]
 #![warn(
     nonstandard_style,
     rust_2018_compatibility,
