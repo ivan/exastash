@@ -9,7 +9,6 @@
     try_blocks,
 )]
 #![forbid(unsafe_code)]
-#![allow(clippy::needless_borrow)] // clippy's broken again
 #![warn(
     nonstandard_style,
     rust_2018_compatibility,

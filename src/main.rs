@@ -1,5 +1,4 @@
 #![feature(lint_reasons)]
-#![allow(clippy::needless_borrow)] // clippy's broken again
 
 use tracing::info;
 use yansi::Paint;
