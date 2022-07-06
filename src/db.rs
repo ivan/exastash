@@ -158,7 +158,7 @@ pub mod tests {
     /// Return a new `PgPool` connected to the `pg_tmp` for most tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_primary_pool() -> PgPool {
-        new_pgpool(&*PRIMARY_POOL_URI, 16, 30, "public").await.unwrap()
+        new_pgpool(&PRIMARY_POOL_URI, 16, 30, "public").await.unwrap()
     }
 
     /// PgPool Future initialized once by the first caller
@@ -171,6 +171,6 @@ pub mod tests {
     /// Return a new `PgPool` connected to the pg_tmp for `TRUNCATE` tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_secondary_pool() -> PgPool {
-        new_pgpool(&*SECONDARY_POOL_URI, 16, 30, "public").await.unwrap()
+        new_pgpool(&SECONDARY_POOL_URI, 16, 30, "public").await.unwrap()
     }
 }

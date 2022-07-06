@@ -1032,7 +1032,7 @@ async fn main() -> Result<()> {
                                             }
                                         }
                                         Ok(attr) => {
-                                            let metadata: storage::RelevantFileMetadata = (&attr).try_into()?;
+                                            let metadata: storage::RelevantFileMetadata = attr.try_into()?;
                                             let files = File::find_by_ids(&mut transaction, &[file_id]).await?;
                                             let file = files.get(0).ok_or_else(|| {
                                                 anyhow!("database unexpectedly missing file id={}", file_id)
