@@ -31,7 +31,7 @@ pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u6
     // By default, sqlx logs statements that take > 1 sec as a warning
     options.log_slow_statements(LevelFilter::Info, Duration::from_secs(5));
     let pool = PgPoolOptions::new()
-        .after_connect(move |conn| {
+        .after_connect(move |conn, _metadata| {
             let search_path = search_path.clone();
             Box::pin(async move {
                 let stmt = format!("SET search_path TO {search_path}");
@@ -44,7 +44,7 @@ pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u6
                 Ok(())
             })
         })
-        .connect_timeout(Duration::from_secs(connect_timeout_sec))
+        .acquire_timeout(Duration::from_secs(connect_timeout_sec))
         .max_connections(max_connections)
         .connect_with(options).await?;
     Ok(pool)
