@@ -70,10 +70,6 @@ enum ExastashCommand {
     #[clap(subcommand, name = "x")]
     Path(PathCommand),
 
-    /// (nonfunctional) FUSE server
-    #[clap(subcommand, name = "fuse")]
-    Fuse(FuseCommand),
-
     /// web server
     #[clap(name = "web")]
     Web {
@@ -448,17 +444,6 @@ enum PlacementCommand {
         #[clap(name = "DOMAIN_ID")]
         domain_id: i16,
     },
-}
-
-#[derive(Subcommand, Debug)]
-enum FuseCommand {
-    /// Run a FUSE server
-    #[clap(name = "run")]
-    Run {
-        /// Where to mount the exastash root
-        #[clap(name = "MOUNTPOINT")]
-        mountpoint: String,
-    }
 }
 
 #[derive(ArgEnum, Copy, Clone, Debug, PartialEq, Eq)]
@@ -1285,15 +1270,6 @@ async fn main() -> Result<()> {
 
                         transaction.commit().await?;
                     }
-                }
-            }
-        }
-        ExastashCommand::Fuse(command) => {
-            match command {
-                FuseCommand::Run { mountpoint } => {
-                    dbg!(mountpoint);
-                    panic!("FUSE server was not built");
-                    //fuse::run(mountpoint.into()).await?;
                 }
             }
         }

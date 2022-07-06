@@ -32,7 +32,6 @@ pub(crate) mod ranges;
 pub mod retry;
 pub mod util;
 pub mod db;
-// pub mod fuse;
 pub mod web;
 
 pub mod path;

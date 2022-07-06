@@ -69,10 +69,6 @@ yansi = "0.5"
 yup-oauth2 = { git = "https://github.com/ludios/yup-oauth2", branch = "prime" }
 zstd = "0.11"
 
-# Disabled for now to improve build time while we're not working on the FUSE server
-#polyfuse = { git = "https://github.com/ubnt-intrepid/polyfuse" }
-#polyfuse-tokio = { git = "https://github.com/ubnt-intrepid/polyfuse" }
-
 [patch.crates-io]
 # Need a matching version for the ring in
 # reqwest -> hyper-rustls -> rustls -> ring
