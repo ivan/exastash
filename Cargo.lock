@@ -876,9 +876,9 @@ checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 
 [[package]]
 name = "hyper"
-version = "0.14.19"
+version = "0.14.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42dc3c131584288d375f2d07f822b0cb012d8c6fb899a5b9fdb3cb7eb9b6004f"
+checksum = "02c929dc5c39e335a03c405292728118860721b10190d98c2a0f0efd5baafbac"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1951,7 +1951,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.6.0"
-source = "git+https://github.com/launchbadge/sqlx#79ebd3005a404d2a4452ee2a0284b039e96d84a2"
+source = "git+https://github.com/launchbadge/sqlx#b3bbdab7055e6e8ea75586f8c3c6b81d7fcadff4"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -1960,7 +1960,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.6.0"
-source = "git+https://github.com/launchbadge/sqlx#79ebd3005a404d2a4452ee2a0284b039e96d84a2"
+source = "git+https://github.com/launchbadge/sqlx#b3bbdab7055e6e8ea75586f8c3c6b81d7fcadff4"
 dependencies = [
  "ahash",
  "atoi",
@@ -2014,7 +2014,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.6.0"
-source = "git+https://github.com/launchbadge/sqlx#79ebd3005a404d2a4452ee2a0284b039e96d84a2"
+source = "git+https://github.com/launchbadge/sqlx#b3bbdab7055e6e8ea75586f8c3c6b81d7fcadff4"
 dependencies = [
  "dotenv",
  "either",
@@ -2035,7 +2035,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.6.0"
-source = "git+https://github.com/launchbadge/sqlx#79ebd3005a404d2a4452ee2a0284b039e96d84a2"
+source = "git+https://github.com/launchbadge/sqlx#b3bbdab7055e6e8ea75586f8c3c6b81d7fcadff4"
 dependencies = [
  "once_cell",
  "tokio",
