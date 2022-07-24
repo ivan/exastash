@@ -11,8 +11,7 @@ path = "src/main.rs"
 [dependencies]
 aes = "0.8"
 ctr = "0.9"
-axum = "0.5"
-axum-macros = "0.2"
+axum = { version = "0.5", features = ["macros"] }
 atomic-counter = "1.0"
 cipher = "0.4"
 anyhow = "1.0"

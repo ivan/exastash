@@ -137,6 +137,7 @@ checksum = "6b9496f0c1d1afb7a2af4338bbe1d969cddfead41d87a9fb3aaa6d0bbc7af648"
 dependencies = [
  "async-trait",
  "axum-core",
+ "axum-macros",
  "bitflags",
  "bytes",
  "futures-util",
@@ -510,7 +511,6 @@ dependencies = [
  "async-recursion",
  "atomic-counter",
  "axum",
- "axum-macros",
  "blake3",
  "byteorder",
  "bytes",

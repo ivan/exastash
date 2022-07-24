@@ -5,6 +5,7 @@ use hyper::Request;
 use tokio_util::io::ReaderStream;
 use axum::{
     middleware,
+    debug_handler,
     body::StreamBody,
     routing::get,
     extract::Path,
@@ -21,7 +22,6 @@ use std::{
 };
 use once_cell::sync::Lazy;
 use futures::lock::Mutex;
-use axum_macros::debug_handler;
 use smol_str::SmolStr;
 use crate::util::{self, NatNum};
 use crate::db;
