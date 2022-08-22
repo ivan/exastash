@@ -1345,6 +1345,16 @@
     },
     "query": "\n            SELECT owner_id, access_token, refresh_token, expires_at\n            FROM stash.google_access_tokens\n            WHERE owner_id = ANY($1)"
   },
+  "bcd2639091d097d5a154e2fb2084b848c78c86b652b6ab9f9f7fa5c2c1685137": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SET TRANSACTION ISOLATION LEVEL READ COMMITTED"
+  },
   "bd6d5f3a9b5a5fda11b7c546a2807e1f3f665c686bc9964f0b872fb7609b61b0": {
     "describe": {
       "columns": [

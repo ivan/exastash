@@ -95,6 +95,19 @@ pub async fn disable_synchronous_commit(transaction: &mut Transaction<'_, Postgr
     Ok(())
 }
 
+
+/// Set the isolation level to READ COMMITTED.
+//
+/// Callers may need to reduce the transaction isolation level to READ COMMITTED
+/// so that they don't get `error returned from database: could not obtain lock on
+/// materialized view "..." during incremental maintenance` from pg_ivm:
+/// https://github.com/sraoss/pg_ivm#concurrent-transactions
+pub async fn set_isolation_level_read_committed(transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
+    sqlx::query_unchecked!("SET TRANSACTION ISOLATION LEVEL READ COMMITTED").execute(&mut *transaction).await?;
+    Ok(())
+}
+
+
 // Test helper functions below are also used outside exastash
 
 /// Return a PostgreSQL connection string to an ephemeralpg instance
