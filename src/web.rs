@@ -11,7 +11,6 @@ use axum::{
     extract::Path,
     http::{StatusCode, Uri, HeaderValue},
     response::{Response, IntoResponse},
-    handler::Handler,
     Router, Extension, middleware::Next,
 };
 use tower::ServiceBuilder;
@@ -103,10 +102,6 @@ impl IntoResponse for Error {
     }
 }
 
-async fn not_found() -> Response {
-    (StatusCode::NOT_FOUND, "not found").into_response()
-}
-
 async fn fallback(_: Uri) -> impl IntoResponse {
     Error::NoSuchRoute
 }
@@ -195,10 +190,7 @@ pub async fn run(port: u16) -> Result<(), hyper::Error> {
     let app = Router::new()
         .route("/", get(root))
         .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get))
-        // Don't let axum serve with trailing slash. Thanks axum.
-        // https://github.com/tokio-rs/axum/pull/410/files
-        .route("/fofs/:pile_id/:cell_id/:file_id/", get(not_found))
-        .fallback(fallback.into_service())
+        .fallback(fallback)
         .layer(
             ServiceBuilder::new()
                 .layer(Extension(SharedState::default()))
