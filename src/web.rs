@@ -4,14 +4,14 @@ use std::net::SocketAddr;
 use hyper::Request;
 use tokio_util::io::ReaderStream;
 use axum::{
-    middleware,
+    middleware::{self, Next},
     debug_handler,
     body::StreamBody,
     routing::get,
-    extract::Path,
+    extract::{Path, State},
     http::{StatusCode, Uri, HeaderValue},
     response::{Response, IntoResponse},
-    Router, Extension, middleware::Next,
+    Router,
 };
 use tower::ServiceBuilder;
 use tracing::info;
@@ -109,11 +109,11 @@ async fn fallback(_: Uri) -> impl IntoResponse {
 type FofsPilePaths = HashMap<i32, SmolStr>;
 
 #[derive(Default)]
-struct State {
+struct FofsState {
     fofs_pile_paths: FofsPilePaths,
 }
 
-type SharedState = Arc<Mutex<State>>;
+type SharedFofsState = Arc<Mutex<FofsState>>;
 
 async fn get_fofs_pile_path(pile_id: i32) -> Result<SmolStr, Error> {
     let pool = db::pgpool().await;
@@ -135,7 +135,7 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<SmolStr, Error> {
 #[debug_handler]
 async fn fofs_get(
     Path((NatNum(pile_id), NatNum(cell_id), NatNum(file_id))): Path<(NatNum<i32>, NatNum<i32>, NatNum<i64>)>,
-    Extension(state): Extension<SharedState>,
+    State(state): State<SharedFofsState>,
 ) -> Result<Response, Error> {
     let cached_pile_path = {
         let mut lock = state.lock().await;
@@ -186,14 +186,13 @@ async fn root() -> String {
 
 /// Start a web server with fofs serving capabilities
 pub async fn run(port: u16) -> Result<(), hyper::Error> {
-    // build our application with a route
-    let app = Router::new()
+    let state = SharedFofsState::default();
+    let app = Router::with_state(state)
         .route("/", get(root))
         .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get))
         .fallback(fallback)
         .layer(
             ServiceBuilder::new()
-                .layer(Extension(SharedState::default()))
                 .layer(middleware::from_fn(add_common_headers))
                 .into_inner(),
         );
