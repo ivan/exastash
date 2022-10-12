@@ -119,15 +119,14 @@ pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 }
 
 
-// https://github.com/Totobird-Creations/Lrinser-Laser-Etcher-Edition-2/blob/81efa5a7355ba3df38e756f62c177d391d8e9060/src/helper.rs
+// Based on https://github.com/Totobird-Creations/Lrinser-Laser-Etcher-Edition-2/blob/81efa5a7355ba3df38e756f62c177d391d8e9060/src/helper.rs
 //
 /// Commaify a number by the British English rules (not the American English
 /// rules because we don't want the '1' in 1000 to align with a comma in 10,000).
 pub fn commaify_i64(number: i64) -> String {
     let string = number.abs().to_string();
     let mut result = String::new();
-    let mut chars = string.chars().collect::<Vec<char>>();
-    chars.reverse();
+    let chars = string.chars().rev().collect::<Vec<char>>();
     for (i, char) in chars.into_iter().enumerate() {
         if i != 0 && i % 3 == 0 {
             result.push(',');
