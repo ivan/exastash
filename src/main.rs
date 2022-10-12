@@ -1,9 +1,11 @@
 #![feature(lint_reasons)]
+// pattern binding `s` is named the same as one of the variants of the type `FindKind`
+#![allow(bindings_with_variant_name)]
 
 use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
-use clap::{ArgEnum, Subcommand, Parser};
+use clap::{ValueEnum, Subcommand, Parser};
 use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use tokio::fs;
@@ -242,7 +244,7 @@ enum SymlinkCommand {
     Count,
 }
 
-#[derive(ArgEnum, Clone, Debug)]
+#[derive(ValueEnum, Clone, Debug)]
 #[expect(non_camel_case_types)]
 enum ResolveKind {
     dir,
@@ -301,7 +303,7 @@ enum DirentCommand {
     #[clap(name = "resolve")]
     Resolve {
         /// Kind of entity to resolve. If a path resolves to another kind, it will be skipped.
-        #[clap(arg_enum, name = "KIND")]
+        #[clap(value_enum, name = "KIND")]
         kind: ResolveKind,
 
         /// Dir id of root dir from which to resolve paths
@@ -445,7 +447,7 @@ enum PlacementCommand {
     },
 }
 
-#[derive(ArgEnum, Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 #[expect(non_camel_case_types)]
 enum FindKind {
     d, // dir
@@ -453,7 +455,7 @@ enum FindKind {
     s, // symlink
 }
 
-#[derive(ArgEnum, Clone, Debug, PartialEq, Eq)]
+#[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
 #[expect(non_camel_case_types)]
 enum ExistingFileBehavior {
     stop,
@@ -501,7 +503,7 @@ enum PathCommand {
         paths: Vec<String>,
 
         /// What to do if a directory entry already exists at the corresponding stash path
-        #[clap(arg_enum, long, short = 'e', default_value = "stop")]
+        #[clap(value_enum, long, short = 'e', default_value = "stop")]
         existing_file_behavior: ExistingFileBehavior,
 
         /// Remove each local file after successfully storing it and creating a dirent
@@ -521,7 +523,7 @@ enum PathCommand {
         just_names: bool,
 
         /// By which field to sort the output
-        #[clap(arg_enum, long, default_value = "name")]
+        #[clap(value_enum, long, default_value = "name")]
         sort: SortOrder,
 
         /// Whether to sort in reverse
@@ -537,7 +539,7 @@ enum PathCommand {
         paths: Vec<String>,
 
         /// Limit output to paths pointing to inodes of this type (d = dir, f = file, s = symlink)
-        #[clap(arg_enum, long, short = 't')]
+        #[clap(value_enum, long, short = 't')]
         r#type: Option<FindKind>,
 
         /// Print filenames separated by NULL instead of LF
@@ -566,7 +568,7 @@ enum PathCommand {
     },
 }
 
-#[derive(ArgEnum, Clone, Debug, PartialEq, Eq)]
+#[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
 #[expect(non_camel_case_types)]
 enum SortOrder {
     name,
