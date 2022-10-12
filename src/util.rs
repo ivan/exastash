@@ -124,8 +124,12 @@ pub(crate) fn elide<T>(_: &T, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 /// Commaify a number by the British English rules (not the American English
 /// rules because we don't want the '1' in 1000 to align with a comma in 10,000).
 pub fn commaify_i64(number: i64) -> String {
+    // Fast path
+    if number > -1000 && number < 1000 {
+        return number.to_string();
+    }
     let string = number.abs().to_string();
-    let mut result = String::new();
+    let mut result = String::with_capacity(5);
     let chars = string.chars().rev().collect::<Vec<char>>();
     for (i, char) in chars.into_iter().enumerate() {
         if i != 0 && i % 3 == 0 {
