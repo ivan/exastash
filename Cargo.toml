@@ -38,7 +38,6 @@ md-5 = { version = "0.10", features = ["asm"] }
 blake3 = "1"
 mimalloc = { version = "0.1", default-features = false } # Turn off the default secure mode
 num = "0.4"
-num-format = { git = "https://github.com/ludios/num-format" } # Waiting for https://github.com/bcmyers/num-format/pull/20
 once_cell = "1"
 parking_lot = "0.12"
 pin-project = "1.0"

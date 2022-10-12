@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use num::rational::Ratio;
 use sqlx::{Postgres, Transaction};
 use tracing_subscriber::EnvFilter;
-use exastash::util::FixedReadSizeDecoder;
+use exastash::util::{FixedReadSizeDecoder, commaify_i64};
 use serde_json::json;
 use exastash::db;
 use exastash::db::storage::gdrive::{file::GdriveFile, GdriveFilePlacement};
@@ -1184,10 +1184,8 @@ async fn main() -> Result<()> {
                                 println!("{:>18} {} {}/", size, mtime, Paint::blue(dirent.basename));
                             }
                             inode @ InodeId::File(_) => {
-                                use num_format::{Locale, ToFormattedString};
-
                                 let file = inodes.get(&inode).unwrap().file().unwrap();
-                                let size = file.size.to_formatted_string(&Locale::en);
+                                let size = commaify_i64(file.size);
                                 let mtime = file.mtime.format("%Y-%m-%d %H:%M");
                                 if file.executable {
                                     println!("{:>18} {} {}*", size, mtime, Paint::green(dirent.basename).bold());

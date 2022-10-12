@@ -65,12 +65,6 @@ checksum = "a4c527152e37cf757a3f78aae5a06fbeefdb07ccc535c980a3208ee3060dd544"
 
 [[package]]
 name = "arrayvec"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
-
-[[package]]
-name = "arrayvec"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
@@ -143,7 +137,7 @@ dependencies = [
  "http",
  "http-body",
  "hyper",
- "itoa 1.0.4",
+ "itoa",
  "matchit",
  "memchr",
  "mime",
@@ -206,7 +200,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a08e53fc5a564bb15bfe6fae56bd71522205f1f91893f9c0116edad6496c183f"
 dependencies = [
  "arrayref",
- "arrayvec 0.7.2",
+ "arrayvec",
  "cc",
  "cfg-if",
  "constant_time_eq",
@@ -604,7 +598,6 @@ dependencies = [
  "md-5",
  "mimalloc",
  "num",
- "num-format",
  "once_cell",
  "parking_lot 0.12.1",
  "pin-project",
@@ -910,7 +903,7 @@ checksum = "75f43d41e26995c17e71ee126451dd3941010b0514a81a9d11f3b341debc2399"
 dependencies = [
  "bytes",
  "fnv",
- "itoa 1.0.4",
+ "itoa",
 ]
 
 [[package]]
@@ -957,7 +950,7 @@ dependencies = [
  "http-body",
  "httparse",
  "httpdate",
- "itoa 1.0.4",
+ "itoa",
  "pin-project-lite",
  "socket2",
  "tokio",
@@ -1075,12 +1068,6 @@ checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
 dependencies = [
  "either",
 ]
-
-[[package]]
-name = "itoa"
-version = "0.4.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b71991ff56294aa922b450139ee08b3bfc70982c6b2c7562771375cf73542dd4"
 
 [[package]]
 name = "itoa"
@@ -1329,15 +1316,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ae39348c8bc5fbd7f40c727a9925f03517afd2ab27d46702108b6a7e5414c19"
 dependencies = [
  "num-traits",
-]
-
-[[package]]
-name = "num-format"
-version = "0.4.1"
-source = "git+https://github.com/ludios/num-format#444ad545d7ca936fb0c5c0e6a84e8a5802af6fb2"
-dependencies = [
- "arrayvec 0.5.2",
- "itoa 0.4.8",
 ]
 
 [[package]]
@@ -1729,7 +1707,7 @@ version = "1.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee9164faf726e4f3ece4978b25ca877ddc6802fa77f38cdccb32c7f805ecd70c"
 dependencies = [
- "arrayvec 0.7.2",
+ "arrayvec",
  "num-traits",
  "serde",
 ]
@@ -1921,7 +1899,7 @@ version = "1.0.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41feea4228a6f1cd09ec7a3593a682276702cd67b5273544757dae23c096f074"
 dependencies = [
- "itoa 1.0.4",
+ "itoa",
  "ryu",
  "serde",
 ]
@@ -1942,7 +1920,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd"
 dependencies = [
  "form_urlencoded",
- "itoa 1.0.4",
+ "itoa",
  "ryu",
  "serde",
 ]
@@ -2105,7 +2083,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "indexmap",
- "itoa 1.0.4",
+ "itoa",
  "libc",
  "log",
  "md-5",
