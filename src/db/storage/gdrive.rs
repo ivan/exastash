@@ -426,7 +426,7 @@ pub(crate) mod tests {
             for (column, value) in &pairs {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.storage_gdrive SET {column} = {value} WHERE file_id = $1");
-                let result = sqlx::query(&query).bind(&dummy.id).execute(&mut transaction).await;
+                let result = sqlx::query(&query).bind(dummy.id).execute(&mut transaction).await;
                 assert_eq!(
                     result.expect_err("expected an error").to_string(),
                     "error returned from database: cannot change file_id, google_domain, cipher, cipher_key, or gdrive_ids"

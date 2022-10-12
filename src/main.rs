@@ -1060,7 +1060,7 @@ async fn main() -> Result<()> {
                                 }
 
                                 let mtime = filetime::FileTime::from_system_time(file.mtime.into());
-                                filetime::set_file_mtime(&path_arg, mtime)?;
+                                filetime::set_file_mtime(path_arg, mtime)?;
                             }
                             InodeId::Symlink(_) => {
                                 unimplemented!();

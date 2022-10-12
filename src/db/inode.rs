@@ -734,7 +734,7 @@ pub(crate) mod tests {
             for (column, value) in [("id", "100"), ("birth_time", "now()"), ("birth_version", "1"), ("birth_hostname", "'dummy'")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.dirs SET {column} = {value} WHERE id = $1");
-                let result = sqlx::query(&query).bind(&1i64).execute(&mut transaction).await;
+                let result = sqlx::query(&query).bind(1i64).execute(&mut transaction).await;
                 let msg = result.expect_err("expected an error").to_string();
                 if column == "id" {
                     assert_eq!(msg, "error returned from database: column \"id\" can only be updated to DEFAULT");
