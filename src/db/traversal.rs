@@ -159,7 +159,7 @@ mod tests {
                 let result = resolve_inode(&mut transaction, root_dir.id, &segments).await;
                 assert_eq!(
                     result.expect_err("expected an error").to_string(),
-                    format!("no such dirent {:?} under dir {:?}", segments.last().unwrap(), parent)
+                    format!("no such dirent {:?} under dir {parent:?}", segments.last().unwrap())
                 );
             }
 
@@ -171,7 +171,7 @@ mod tests {
                 let result = resolve_inode(&mut transaction, parent, &segments).await;
                 assert_eq!(
                     result.expect_err("expected an error").to_string(),
-                    format!("{:?} is not a dir", not_a_dir)
+                    format!("{not_a_dir:?} is not a dir")
                 );
             }
 
@@ -214,7 +214,7 @@ mod tests {
                 let result = resolve_dirent(&mut transaction, root_dir.id, &segments).await;
                 assert_eq!(
                     result.expect_err("expected an error").to_string(),
-                    format!("no such dirent {:?} under dir {:?}", segments.last().unwrap(), parent)
+                    format!("no such dirent {:?} under dir {parent:?}", segments.last().unwrap())
                 );
             }
 
@@ -226,7 +226,7 @@ mod tests {
                 let result = resolve_dirent(&mut transaction, parent, &segments).await;
                 assert_eq!(
                     result.expect_err("expected an error").to_string(),
-                    format!("{:?} is not a dir", not_a_dir)
+                    format!("{not_a_dir:?} is not a dir")
                 );
             }
 

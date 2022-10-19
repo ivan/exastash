@@ -595,7 +595,7 @@ async fn walk_dir(transaction: &mut Transaction<'_, Postgres>, root: i64, segmen
     for dirent in dirents {
         let j = json!({
             "root":       root,
-            "path":       format!("{}{}", path_string, dirent.basename),
+            "path":       format!("{path_string}{}", dirent.basename),
             "dir_id":     if let InodeId::Dir(id)     = dirent.child { Some(id) } else { None },
             "file_id":    if let InodeId::File(id)    = dirent.child { Some(id) } else { None },
             "symlink_id": if let InodeId::Symlink(id) = dirent.child { Some(id) } else { None },
@@ -637,7 +637,7 @@ async fn x_find(
         }
 
         if do_output {
-            print!("{}{}{}", path_string, dirent.basename, terminator);
+            print!("{path_string}{}{terminator}", dirent.basename);
         }
 
         if let InodeId::Dir(dir_id) = dirent.child {
@@ -700,7 +700,7 @@ async fn main() -> Result<()> {
                 DirCommand::Count => {
                     let count = Dir::count(&mut transaction).await?;
                     transaction.commit().await?; // close read-only transaction
-                    println!("{}", count);
+                    println!("{count}");
                 }
             }
         }
@@ -716,7 +716,7 @@ async fn main() -> Result<()> {
                     let attr = fs::metadata(path.clone()).await?;
                     let metadata: storage::RelevantFileMetadata = attr.try_into()?;
                     let file_id = storage::write::create_stash_file_from_local_file(path, &metadata, &desired).await?;
-                    println!("{}", file_id);
+                    println!("{file_id}");
                 }
                 FileCommand::AddStorages { file_ids, store_inline, store_fofs, store_gdrive } => {
                     let store_fofs = store_fofs.into_iter().collect();
@@ -789,7 +789,7 @@ async fn main() -> Result<()> {
                 FileCommand::Count => {
                     let count = File::count(&mut transaction).await?;
                     transaction.commit().await?; // close read-only transaction
-                    println!("{}", count);
+                    println!("{count}");
                 }
             }
         }
@@ -818,7 +818,7 @@ async fn main() -> Result<()> {
                 SymlinkCommand::Count => {
                     let count = Symlink::count(&mut transaction).await?;
                     transaction.commit().await?; // close read-only transaction
-                    println!("{}", count);
+                    println!("{count}");
                 }
             }
         }
@@ -855,9 +855,9 @@ async fn main() -> Result<()> {
                     for path in paths {
                         let inode = resolve_path(&mut transaction, root, &path).await?;
                         match kind {
-                            ResolveKind::dir     => if let InodeId::Dir(id)     = inode { println!("{}", id) },
-                            ResolveKind::file    => if let InodeId::File(id)    = inode { println!("{}", id) },
-                            ResolveKind::symlink => if let InodeId::Symlink(id) = inode { println!("{}", id) },
+                            ResolveKind::dir     => if let InodeId::Dir(id)     = inode { println!("{id}") },
+                            ResolveKind::file    => if let InodeId::File(id)    = inode { println!("{id}") },
+                            ResolveKind::symlink => if let InodeId::Symlink(id) = inode { println!("{id}") },
                         }
                     }
                     transaction.commit().await?; // close read-only transaction
@@ -865,7 +865,7 @@ async fn main() -> Result<()> {
                 DirentCommand::Count => {
                     let count = Dirent::count(&mut transaction).await?;
                     transaction.commit().await?; // close read-only transaction
-                    println!("{}", count);
+                    println!("{count}");
                 }
             }
         }
@@ -1100,11 +1100,11 @@ async fn main() -> Result<()> {
                                         bail!("{:?} already exists as {:?}", stash_path, existing);
                                     }
                                     ExistingFileBehavior::skip => {
-                                        eprintln!("{:?} already exists as {:?}", stash_path, existing);
+                                        eprintln!("{stash_path:?} already exists as {existing:?}");
                                         continue;
                                     }
                                     ExistingFileBehavior::replace => {
-                                        eprintln!("{:?} already exists as {:?} but replacing as requested", stash_path, existing);
+                                        eprintln!("{stash_path:?} already exists as {existing:?} but replacing as requested");
                                         existing.remove(&mut transaction).await?;
                                     }
                                 }
@@ -1126,8 +1126,8 @@ async fn main() -> Result<()> {
                                             bail!(err);
                                         }
                                         let delay = decayer.decay();
-                                        eprintln!("storage::write::create_stash_file_from_local_file({:?}, ...) failed, {} tries left \
-                                                   (next in {} sec): {:?}", path_arg, tries, delay.as_secs(), err);
+                                        eprintln!("storage::write::create_stash_file_from_local_file({path_arg:?}, ...) failed, {tries} tries left \
+                                                   (next in {} sec): {err:?}", delay.as_secs());
                                         tokio::time::sleep(delay).await;
                                     }
                                 }
@@ -1181,23 +1181,23 @@ async fn main() -> Result<()> {
                                 // returned all the inodes we asked for, therefore .unwrap()
                                 let dir = inodes.get(&inode).unwrap().dir().unwrap();
                                 let mtime = dir.mtime.format("%Y-%m-%d %H:%M");
-                                println!("{:>18} {} {}/", size, mtime, Paint::blue(dirent.basename));
+                                println!("{size:>18} {mtime} {}/", Paint::blue(dirent.basename));
                             }
                             inode @ InodeId::File(_) => {
                                 let file = inodes.get(&inode).unwrap().file().unwrap();
                                 let size = commaify_i64(file.size);
                                 let mtime = file.mtime.format("%Y-%m-%d %H:%M");
                                 if file.executable {
-                                    println!("{:>18} {} {}*", size, mtime, Paint::green(dirent.basename).bold());
+                                    println!("{size:>18} {mtime} {}*", Paint::green(dirent.basename).bold());
                                 } else {
-                                    println!("{:>18} {} {}", size, mtime, dirent.basename);
+                                    println!("{size:>18} {mtime} {}", dirent.basename);
                                 };
                             }
                             inode @ InodeId::Symlink(_) => {
                                 let size = 0;
                                 let symlink = inodes.get(&inode).unwrap().symlink().unwrap();
                                 let mtime = symlink.mtime.format("%Y-%m-%d %H:%M");
-                                println!("{:>18} {} {} -> {}", size, mtime, dirent.basename, symlink.target);
+                                println!("{size:>18} {mtime} {} -> {}", dirent.basename, symlink.target);
                             }
                         }
                     }
@@ -1222,7 +1222,7 @@ async fn main() -> Result<()> {
                     for (dir_id, path_arg) in roots {
                         if r#type.is_none() || r#type == Some(FindKind::d) {
                             // Print the top-level dir like findutils find
-                            print!("{}{}", path_arg, terminator);
+                            print!("{path_arg}{terminator}");
                         }
                         x_find(&mut transaction, &[&path_arg], dir_id, r#type, terminator).await?;
                     }

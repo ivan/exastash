@@ -289,7 +289,7 @@ pub(crate) async fn request_remote_fofs_file(file: &inode::File, storage: &fofs:
         let policy = policy::get_policy()?;
         policy.fofs_base_url(&storage.pile_hostname)?
     };
-    let url = format!("{}/fofs/{}/{}/{}", base_url, storage.pile_id, storage.cell_id, file.id);
+    let url = format!("{base_url}/fofs/{}/{}/{}", storage.pile_id, storage.cell_id, file.id);
     let client = reqwest::Client::new();
     let response = client
         .get(&url)

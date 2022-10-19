@@ -154,7 +154,7 @@ async fn fofs_get(
         }
     };
 
-    let fname = format!("{}/{}/{}/{}", pile_path, pile_id, cell_id, file_id);
+    let fname = format!("{pile_path}/{pile_id}/{cell_id}/{file_id}");
     let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
     let file = tokio::fs::File::open(fname).await?;
     let stream = ReaderStream::new(file);

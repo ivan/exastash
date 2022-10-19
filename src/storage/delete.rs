@@ -30,7 +30,7 @@ pub async fn delete_storages(file_id: i64, undesired: &StoragesDescriptor) -> Re
             transaction.commit().await?;
             // Above, we remove the database reference first to avoid the possibility
             // of the database pointing to nonexistent storages.
-            let fname = format!("{}/{}/{}/{}", view.pile_path, view.pile_id, view.cell_id, file_id);
+            let fname = format!("{}/{}/{}/{file_id}", view.pile_path, view.pile_id, view.cell_id);
             tokio::fs::remove_file(fname).await?;
         }
     }

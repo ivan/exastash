@@ -116,7 +116,7 @@ mod tests {
             invalid_chars.push(c);
         }
         for invalid in invalid_chars.iter() {
-            assert_eq!(check_segment(&format!("{}", invalid)), Err(PathError::ContainsInvalidWindowsCharacter(*invalid)));
+            assert_eq!(check_segment(&format!("{invalid}")), Err(PathError::ContainsInvalidWindowsCharacter(*invalid)));
         }
 
         let devices = [
@@ -126,11 +126,11 @@ mod tests {
         ];
         for device in devices.iter() {
             assert_eq!(check_segment(device),                       Err(PathError::ReservedWindowsDeviceName(device)));
-            assert_eq!(check_segment(&format!("{}.c", device)),     Err(PathError::ReservedWindowsDeviceName(device)));
-            assert_eq!(check_segment(&format!("{}.c.old", device)), Err(PathError::ReservedWindowsDeviceName(device)));
+            assert_eq!(check_segment(&format!("{device}.c")),     Err(PathError::ReservedWindowsDeviceName(device)));
+            assert_eq!(check_segment(&format!("{device}.c.old")), Err(PathError::ReservedWindowsDeviceName(device)));
 
-            assert_eq!(check_segment(&format!("{}{}", device, device)), Ok(()));
-            assert_eq!(check_segment(&format!("c.{}", device)), Ok(()));
+            assert_eq!(check_segment(&format!("{device}{device}")), Ok(()));
+            assert_eq!(check_segment(&format!("c.{device}")), Ok(()));
         }
     }
 }

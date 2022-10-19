@@ -212,7 +212,7 @@ mod tests {
         #[test]
         fn test_debug_elision() {
             let secret = GoogleApplicationSecret { domain_id: 1, secret: serde_json::Value::String("".into()) };
-            assert_eq!(format!("{:?}", secret), "GoogleApplicationSecret { domain_id: 1, secret: ... }");
+            assert_eq!(format!("{secret:?}"), "GoogleApplicationSecret { domain_id: 1, secret: ... }");
         }
 
         /// If there is no google_application_secret for a domain, find_by_domain_ids returns an empty Vec
@@ -255,8 +255,8 @@ mod tests {
         #[test]
         fn test_debug_elision() {
             let token = GoogleAccessToken { owner_id: 1, access_token: "".into(), refresh_token: "".into(), expires_at: Utc::now() };
-            assert!(format!("{:?}", token).contains("access_token: ..."));
-            assert!(format!("{:?}", token).contains("refresh_token: ..."));
+            assert!(format!("{token:?}").contains("access_token: ..."));
+            assert!(format!("{token:?}").contains("refresh_token: ..."));
         }
 
         /// If there is no google_access_token for an owner, `find_by_owner_ids` and `find_by_expires_at` return an empty Vec
@@ -367,7 +367,7 @@ mod tests {
         #[test]
         fn test_debug_elision() {
             let account = GoogleServiceAccount { owner_id: 1, key: dummy_service_account_key() };
-            assert_eq!(format!("{:?}", account), "GoogleServiceAccount { owner_id: 1, key: ... }");
+            assert_eq!(format!("{account:?}"), "GoogleServiceAccount { owner_id: 1, key: ... }");
         }
     }
 }

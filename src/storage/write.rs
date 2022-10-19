@@ -191,7 +191,7 @@ async fn encrypt_reader<A: AsyncRead + Send + Sync + 'static>(
     };
 
     let stream = rechunked.map_ok(move |bytes| -> Bytes {
-        assert!(bytes.len() <= block_size, "single read from file must be shorter or same length as block size {}, was {}", block_size, bytes.len());
+        assert!(bytes.len() <= block_size, "single read from file must be shorter or same length as block size {block_size}, was {}", bytes.len());
         let mut out = BytesMut::new();
         encoder.encode(bytes, &mut out).unwrap();
         out.into()
@@ -397,7 +397,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 let cell_dir = format!("{}/{}/{}", pile.path, pile.id, cell.id);
                 std::fs::create_dir_all(&cell_dir)?;
 
-                let fname = format!("{}/{}", cell_dir, file.id);
+                let fname = format!("{cell_dir}/{}", file.id);
 
                 // Rarely, we might have a fofs file that was never recorded in the database.
                 // Remove it before overwriting, because it might be read-only.

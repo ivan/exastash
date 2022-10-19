@@ -11,7 +11,7 @@ pub(crate) struct Range {
 
 impl Range {
     pub(crate) fn new(start: u64, end: u64) -> Range {
-        assert!(start < end, "start must be < end; got start={}, end={}", start, end);
+        assert!(start < end, "start must be < end; got start={start}, end={end}");
         Range { start, end }
     }
 }
