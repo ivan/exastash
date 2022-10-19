@@ -1277,7 +1277,7 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Don't `pool.close().await;` here because it will just hang forever if some transaction was not finished.
+    pool.close().await;
 
     Ok(())
 }
