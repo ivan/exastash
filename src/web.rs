@@ -187,10 +187,11 @@ async fn root() -> String {
 /// Start a web server with fofs serving capabilities
 pub async fn run(port: u16) -> Result<(), hyper::Error> {
     let state = SharedFofsState::default();
-    let app = Router::with_state(state)
+    let app = Router::new()
         .route("/", get(root))
         .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get))
         .fallback(fallback)
+        .with_state(state)
         .layer(
             ServiceBuilder::new()
                 .layer(middleware::from_fn(add_common_headers))
