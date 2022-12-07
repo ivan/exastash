@@ -115,7 +115,8 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 [[package]]
 name = "axum"
 version = "0.6.1"
-source = "git+https://github.com/tokio-rs/axum#7e13d696395a4cf61bd1bb4fcf453630a564656b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08b108ad2665fa3f6e6a517c3d80ec3e77d224c47d605167aefaa5d7ef97fa48"
 dependencies = [
  "async-trait",
  "axum-core",
@@ -148,7 +149,8 @@ dependencies = [
 [[package]]
 name = "axum-core"
 version = "0.3.0"
-source = "git+https://github.com/tokio-rs/axum#7e13d696395a4cf61bd1bb4fcf453630a564656b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79b8558f5a0581152dc94dcd289132a1d377494bdeafcd41869b3258e3e2ad92"
 dependencies = [
  "async-trait",
  "bytes",
@@ -164,7 +166,8 @@ dependencies = [
 [[package]]
 name = "axum-macros"
 version = "0.3.0"
-source = "git+https://github.com/tokio-rs/axum#7e13d696395a4cf61bd1bb4fcf453630a564656b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4df0fc33ada14a338b799002f7e8657711422b25d4e16afb032708d6b185621"
 dependencies = [
  "heck",
  "proc-macro2",
