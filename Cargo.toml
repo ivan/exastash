@@ -59,7 +59,7 @@ tower = { version = "0.4", features = ["util"] }
 thiserror = "1"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "fs", "io-util"] }
 tokio-util = { version = "0.7", features = ["io", "codec", "compat"] }
-toml = "0.5"
+toml = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = "1"
