@@ -89,6 +89,12 @@ pub enum GdriveUploadError {
     #[error("expected status 200 in response to upload request, got {0} with body {}", .1.to_string())]
     UploadRequestNotOk(StatusCode, Value),
 
+    #[error("expected JSON in response for initial upload request, got {}", .0)]
+    InitialUploadRequestUnparseable(String),
+
+    #[error("expected JSON in response for upload request, got {}", .0)]
+    UploadRequestUnparseable(String),
+
     #[error("expected Google to create object with kind=drive#file, got {0:?}")]
     CreatedFileHasWrongKind(String),
 
@@ -173,7 +179,9 @@ where
     let status = initial_response.status();
     if status != 200 {
         let body = initial_response.text().await?;
-        let json = serde_json::from_str(&body)?;
+        let Ok(json) = serde_json::from_str(&body) else {
+            bail!(GdriveUploadError::InitialUploadRequestUnparseable(body));
+        };
         bail!(GdriveUploadError::InitialUploadRequestNotOk(status, json));
     }
     let headers = initial_response.headers();
@@ -190,7 +198,9 @@ where
     let status = upload_response.status();
     if status != 200 {
         let body = upload_response.text().await?;
-        let json = serde_json::from_str(&body)?;
+        let Ok(json) = serde_json::from_str(&body) else {
+            bail!(GdriveUploadError::UploadRequestUnparseable(body));
+        };
         if is_shared_drive_full_response(&json) {
             let message = json["error"]["message"].to_string();
             bail!(GdriveUploadError::ParentIsFull(message));
