@@ -14,6 +14,7 @@ use anyhow::Result;
 use bytes::{Bytes, BytesMut};
 use tokio::{fs, io::{AsyncRead, AsyncReadExt}};
 use tokio_util::codec::{Encoder, FramedRead};
+use blake3::Hash;
 use crate::util::FixedReadSizeDecoder;
 use crate::crypto::{GcmEncoder, gcm_create_key};
 use crate::conceal_size::conceal_size;
@@ -413,6 +414,8 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 tokio::io::copy(&mut hashing_reader, &mut local_file).await?;
                 let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
                 if let Some(file_hash) = file.b3sum {
+                    // For bail! to print file_hash as Hash("[hex digest]"), not an array with 32 numbers
+                    let file_hash: Hash = file_hash.into();
                     if hash_this_upload != file_hash {
                         bail!("while adding fofs storage, content had b3sum={:?} but file has b3sum={:?}", hash_this_upload, file_hash);
                     }
