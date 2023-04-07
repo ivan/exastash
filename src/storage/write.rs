@@ -415,7 +415,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 if bytes_copied as i64 != file.size {
                     bail!("while adding fofs storage, wrote {} bytes to {fname} but file has size={}", bytes_copied, file.size);
                 }
-                let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
+                let hash_this_upload = b3sum.lock().finalize();
                 if let Some(file_hash) = file.b3sum {
                     // For bail! to print file_hash as Hash("[hex digest]"), not an array with 32 numbers
                     let file_hash: Hash = file_hash.into();
@@ -492,7 +492,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             if read_length != file.size as u64 {
                 bail!("while adding gdrive storage, read {} bytes from file but file has size={}", read_length, file.size);
             }
-            let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
+            let hash_this_upload = b3sum.lock().finalize();
             if let Some(file_hash) = file.b3sum {
                 if hash_this_upload != file_hash {
                     bail!("while adding gdrive storage, content had b3sum={:?} but file has b3sum={:?}", hash_this_upload, file_hash);
