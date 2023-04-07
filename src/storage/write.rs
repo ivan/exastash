@@ -413,7 +413,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 let b3sum = hashing_reader.b3sum();
                 let bytes_copied = tokio::io::copy(&mut hashing_reader, &mut local_file).await?;
                 if bytes_copied as i64 != file.size {
-                    bail!("while adding fofs storage, wrote {} bytes to {fname} but file has size={}", bytes_copied, file.size);
+                    bail!("while adding fofs storage, wrote {} bytes to {fname:?} but file has size={}", bytes_copied, file.size);
                 }
                 let hash_this_upload = b3sum.lock().finalize();
                 if let Some(file_hash) = file.b3sum {
