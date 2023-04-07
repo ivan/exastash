@@ -411,7 +411,10 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
                 let reader = producer()?;
                 let mut hashing_reader = Blake3HashingReader::new(reader);
                 let b3sum = hashing_reader.b3sum();
-                tokio::io::copy(&mut hashing_reader, &mut local_file).await?;
+                let bytes_copied = tokio::io::copy(&mut hashing_reader, &mut local_file).await?;
+                if bytes_copied as i64 != file.size {
+                    bail!("while adding fofs storage, wrote {} bytes to {fname} but file has size={}", bytes_copied, file.size);
+                }
                 let hash_this_upload = blake3::Hasher::finalize(&b3sum.lock().clone());
                 if let Some(file_hash) = file.b3sum {
                     // For bail! to print file_hash as Hash("[hex digest]"), not an array with 32 numbers
