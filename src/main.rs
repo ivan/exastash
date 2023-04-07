@@ -667,7 +667,6 @@ async fn main() -> Result<()> {
     }
 
     let mut pool = db::pgpool().await;
-    let mut transaction = pool.begin().await?;
     match command {
         ExastashCommand::License => {
             // Handled above
@@ -676,6 +675,7 @@ async fn main() -> Result<()> {
         ExastashCommand::Dir(command) => {
             match command {
                 DirCommand::Create { parent_dir_id, basename } => {
+                    let mut transaction = pool.begin().await?;
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
                     let dir = NewDir { mtime, birth }.create(&mut transaction).await?;
@@ -684,11 +684,13 @@ async fn main() -> Result<()> {
                     println!("{}", dir.id);
                 }
                 DirCommand::Delete { dir_id } => {
+                    let mut transaction = pool.begin().await?;
                     Dirent::remove_by_child_dir(&mut transaction, dir_id).await?;
                     Dir::delete(&mut transaction, &[dir_id]).await?;
                     transaction.commit().await?;
                 }
                 DirCommand::Info { ids } => {
+                    let mut transaction = pool.begin().await?;
                     let inode_ids: Vec<InodeId> = ids.into_iter().map(InodeId::Dir).collect();
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
                     for inode_id in inode_ids {
@@ -698,6 +700,7 @@ async fn main() -> Result<()> {
                     transaction.commit().await?; // close read-only transaction
                 }
                 DirCommand::Count => {
+                    let mut transaction = pool.begin().await?;
                     let count = Dir::count(&mut transaction).await?;
                     transaction.commit().await?; // close read-only transaction
                     println!("{count}");
@@ -711,8 +714,6 @@ async fn main() -> Result<()> {
                     let store_gdrive = store_gdrive.into_iter().collect();
                     let desired = storage::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
 
-                    transaction.commit().await?; // close unused transaction
-
                     let attr = fs::metadata(path.clone()).await?;
                     let metadata: storage::RelevantFileMetadata = attr.try_into()?;
                     let file_id = storage::write::create_stash_file_from_local_file(path, &metadata, &desired).await?;
@@ -723,6 +724,7 @@ async fn main() -> Result<()> {
                     let store_gdrive = store_gdrive.into_iter().collect();
                     let desired = storage::StoragesDescriptor { inline: store_inline, fofs: store_fofs, gdrive: store_gdrive };
 
+                    let mut transaction = pool.begin().await?;
                     let files = File::find_by_ids(&mut transaction, &file_ids).await?;
                     transaction.commit().await?; // close read-only transaction
                     let mut map = HashMap::with_capacity(files.len());
@@ -764,11 +766,13 @@ async fn main() -> Result<()> {
                     }
                 }
                 FileCommand::Delete { file_id } => {
+                    let mut transaction = pool.begin().await?;
                     // TODO call something in storage::delete so we can delete the file if it has any storages
                     File::delete(&mut transaction, &[file_id]).await?;
                     transaction.commit().await?;
                 }
                 FileCommand::Info { ids } => {
+                    let mut transaction = pool.begin().await?;
                     let inode_ids: Vec<InodeId> = ids.into_iter().map(InodeId::File).collect();
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
                     for inode_id in inode_ids {
@@ -787,6 +791,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 FileCommand::Count => {
+                    let mut transaction = pool.begin().await?;
                     let count = File::count(&mut transaction).await?;
                     transaction.commit().await?; // close read-only transaction
                     println!("{count}");
@@ -796,6 +801,7 @@ async fn main() -> Result<()> {
         ExastashCommand::Symlink(command) => {
             match command {
                 SymlinkCommand::Create { target } => {
+                    let mut transaction = pool.begin().await?;
                     let mtime = Utc::now();
                     let birth = db::inode::Birth::here_and_now();
                     let symlink = NewSymlink { mtime, birth, target }.create(&mut transaction).await?;
@@ -803,10 +809,12 @@ async fn main() -> Result<()> {
                     println!("{}", symlink.id);
                 }
                 SymlinkCommand::Delete { symlink_id } => {
+                    let mut transaction = pool.begin().await?;
                     Symlink::delete(&mut transaction, &[symlink_id]).await?;
                     transaction.commit().await?;
                 }
                 SymlinkCommand::Info { ids } => {
+                    let mut transaction = pool.begin().await?;
                     let inode_ids: Vec<InodeId> = ids.into_iter().map(InodeId::Symlink).collect();
                     let inodes = Inode::find_by_inode_ids(&mut transaction, &inode_ids).await?;
                     for inode_id in inode_ids {
@@ -816,6 +824,7 @@ async fn main() -> Result<()> {
                     transaction.commit().await?; // close read-only transaction
                 }
                 SymlinkCommand::Count => {
+                    let mut transaction = pool.begin().await?;
                     let count = Symlink::count(&mut transaction).await?;
                     transaction.commit().await?; // close read-only transaction
                     println!("{count}");
@@ -825,15 +834,18 @@ async fn main() -> Result<()> {
         ExastashCommand::Dirent(command) => {
             match command {
                 DirentCommand::Create { parent_dir_id, basename, child_dir, child_file, child_symlink } => {
+                    let mut transaction = pool.begin().await?;
                     let child = InodeTuple(child_dir, child_file, child_symlink).try_into()?;
                     Dirent::new(parent_dir_id, basename, child).create(&mut transaction).await?;
                     transaction.commit().await?;
                 }
                 DirentCommand::Remove { parent_dir_id, basename } => {
+                    let mut transaction = pool.begin().await?;
                     Dirent::remove_by_parent_basename(&mut transaction, parent_dir_id, &basename).await?;
                     transaction.commit().await?;
                 }
                 DirentCommand::List { ids } => {
+                    let mut transaction = pool.begin().await?;
                     let dirents = Dirent::find_by_parents(&mut transaction, &ids).await?;
                     transaction.commit().await?; // close read-only transaction
                     for dirent in dirents {
@@ -848,10 +860,12 @@ async fn main() -> Result<()> {
                     }
                 }
                 DirentCommand::Walk { id } => {
+                    let mut transaction = pool.begin().await?;
                     walk_dir(&mut transaction, id, &[], id).await?;
                     transaction.commit().await?; // close read-only transaction
                 }
                 DirentCommand::Resolve { kind, root, paths } => {
+                    let mut transaction = pool.begin().await?;
                     for path in paths {
                         let inode = resolve_path(&mut transaction, root, &path).await?;
                         match kind {
@@ -863,6 +877,7 @@ async fn main() -> Result<()> {
                     transaction.commit().await?; // close read-only transaction
                 }
                 DirentCommand::Count => {
+                    let mut transaction = pool.begin().await?;
                     let count = Dirent::count(&mut transaction).await?;
                     transaction.commit().await?; // close read-only transaction
                     println!("{count}");
@@ -874,6 +889,7 @@ async fn main() -> Result<()> {
                 GoogleCommand::ApplicationSecret(command) => {
                     match command {
                         ApplicationSecretCommand::Import { domain_id, json_file } => {
+                            let mut transaction = pool.begin().await?;
                             let content = fs::read(json_file).await?;
                             let json = serde_json::from_slice(&content)?;
                             GoogleApplicationSecret { domain_id, secret: json }.create(&mut transaction).await?;
@@ -884,6 +900,7 @@ async fn main() -> Result<()> {
                 GoogleCommand::AccessToken(command) => {
                     match command {
                         AccessTokenCommand::Create { owner_id } => {
+                            let mut transaction = pool.begin().await?;
                             oauth::create_access_token(&mut transaction, owner_id).await?;
                             transaction.commit().await?;
                         }
@@ -895,13 +912,13 @@ async fn main() -> Result<()> {
                             let content = fs::read(json_file).await?;
                             let key: ServiceAccountKey = serde_json::from_slice(&content)?;
                             assert_eq!(key.key_type, Some("service_account".into()));
+                            let mut transaction = pool.begin().await?;
                             GoogleServiceAccount { owner_id, key }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }
                 }
                 GoogleCommand::TokenService => {
-                    transaction.commit().await?; // close unused transaction
                     let interval_sec = 305;
                     info!("will check access tokens every {} seconds", interval_sec);
                     loop {
@@ -918,6 +935,7 @@ async fn main() -> Result<()> {
                         GdriveStorageCommand::Placement(command) => {
                             match command {
                                 PlacementCommand::List { domain_id } => {
+                                    let mut transaction = pool.begin().await?;
                                     let placements = GdriveFilePlacement::find_by_domain(&mut transaction, domain_id, None).await?;
                                     for placement in placements {
                                         let j = serde_json::to_string(&placement)?;
@@ -941,12 +959,14 @@ async fn main() -> Result<()> {
                                     let gdrive_file = storage::write::create_gdrive_file_on_domain(
                                         file_stream, size, domain_id, owner_id, &parent, &filename
                                     ).await?;
+                                    let mut transaction = pool.begin().await?;
                                     gdrive_file.create(&mut transaction).await?;
                                     transaction.commit().await?;
                                     let j = serde_json::to_string_pretty(&gdrive_file)?;
                                     println!("{j}");
                                 }
                                 InternalCommand::ReadFiles { domain_id, file_ids } => {
+                                    let mut transaction = pool.begin().await?;
                                     let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
                                     let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
                                     for gdrive_file in &gdrive_files {
@@ -967,6 +987,7 @@ async fn main() -> Result<()> {
                 PathCommand::Info { paths: path_args } => {
                     let config = config::get_config()?;
                     let mut inode_ids = vec![];
+                    let mut transaction = pool.begin().await?;
                     for path_arg in path_args {
                         let inode_id = path::resolve_local_path_arg(&config, &mut transaction, Some(&path_arg)).await?;
                         inode_ids.push(inode_id);
@@ -981,6 +1002,7 @@ async fn main() -> Result<()> {
                 PathCommand::Cat { paths: path_args } => {
                     let config = config::get_config()?;
                     let mut file_ids = vec![];
+                    let mut transaction = pool.begin().await?;
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
                     // during which files could be renamed.
                     for path_arg in path_args {
@@ -999,6 +1021,7 @@ async fn main() -> Result<()> {
 
                     let config = config::get_config()?;
                     let mut retrievals = vec![];
+                    let mut transaction = pool.begin().await?;
                     // Resolve all paths to inodes before doing the unpredictably-long read operations,
                     // during which files could be renamed.
                     for path_arg in &path_args {
@@ -1070,8 +1093,7 @@ async fn main() -> Result<()> {
                     transaction.commit().await?; // close read-only transaction
                 }
                 PathCommand::Add { paths: path_args, existing_file_behavior: already_exists_behavior, remove_local_files } => {
-                    // We need one transaction per new directory below.
-                    transaction.commit().await?; // close unused transaction
+                    // We need one transaction per new directory below, due to `dirents_check_insert_or_delete`.
 
                     let config = config::get_config()?;
                     let policy = policy::get_policy()?;
@@ -1150,6 +1172,7 @@ async fn main() -> Result<()> {
                 }
                 PathCommand::Ls { path: path_arg, just_names, sort, reverse } => {
                     let config = config::get_config()?;
+                    let mut transaction = pool.begin().await?;
                     let inode_id = path::resolve_local_path_arg(&config, &mut transaction, path_arg.as_deref()).await?;
                     let dir_id = inode_id.dir_id()?;
                     let mut dirents = Dirent::find_by_parents(&mut transaction, &[dir_id]).await?;
@@ -1211,6 +1234,7 @@ async fn main() -> Result<()> {
 
                     let config = config::get_config()?;
                     let mut roots = vec![];
+                    let mut transaction = pool.begin().await?;
                     // Resolve all root paths to inodes before doing the walk operations,
                     // during which files could be renamed.
                     for path_arg in path_args {
@@ -1229,8 +1253,7 @@ async fn main() -> Result<()> {
                     transaction.commit().await?; // close read-only transaction
                 }
                 PathCommand::Mkdir { paths: path_args } => {
-                    // We need one transaction per new directory below.
-                    transaction.commit().await?; // close unused transaction
+                    // We need one transaction per new directory below, due to `dirents_check_insert_or_delete`.
 
                     let config = config::get_config()?;
 
@@ -1250,7 +1273,6 @@ async fn main() -> Result<()> {
                 }
                 PathCommand::Rm { paths: path_args } => {
                     // We need one transaction per dirent removal below (at least for dirents with a child_dir).
-                    transaction.commit().await?; // close unused transaction
 
                     let config = config::get_config()?;
 
