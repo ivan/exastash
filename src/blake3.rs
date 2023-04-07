@@ -37,9 +37,10 @@ where
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
         let b3sum = self.b3sum();
+        let already_filled = buf.filled().len();
         let inner_poll = self.project().inner.poll_read(cx, buf);
         if let Poll::Ready(Ok(_)) = inner_poll {
-            b3sum.lock().update(buf.filled());
+            b3sum.lock().update(&buf.filled()[already_filled..]);
         }
         inner_poll
     }

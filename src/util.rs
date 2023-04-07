@@ -248,9 +248,11 @@ where
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
         let length = self.length();
+        let already_filled = buf.filled().len() as u64;
         let inner_poll = self.project().inner.poll_read(cx, buf);
         if let Poll::Ready(Ok(_)) = inner_poll {
-            length.fetch_add(buf.filled().len() as u64, Ordering::SeqCst);
+            let bytes_read = buf.filled().len() as u64 - already_filled;
+            length.fetch_add(bytes_read, Ordering::SeqCst);
         }
         inner_poll
     }
