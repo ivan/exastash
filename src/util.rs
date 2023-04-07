@@ -249,7 +249,9 @@ where
     ) -> Poll<std::io::Result<()>> {
         let length = self.length();
         let inner_poll = self.project().inner.poll_read(cx, buf);
-        length.fetch_add(buf.filled().len() as u64, Ordering::SeqCst);
+        if let Poll::Ready(Ok(_)) = inner_poll {
+            length.fetch_add(buf.filled().len() as u64, Ordering::SeqCst);
+        }
         inner_poll
     }
 }
