@@ -38,7 +38,10 @@ where
     ) -> Poll<std::io::Result<()>> {
         let b3sum = self.b3sum();
         let inner_poll = self.project().inner.poll_read(cx, buf);
-        b3sum.lock().update(buf.filled());
+        let filled = buf.filled();
+        if !filled.is_empty() {
+            b3sum.lock().update(filled);
+        }
         inner_poll
     }
 }
