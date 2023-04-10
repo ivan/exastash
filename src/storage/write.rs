@@ -102,14 +102,6 @@ pub async fn create_gdrive_file_on_domain<S: Stream<Item = std::io::Result<Bytes
     parent: &str,
     filename: &str,
 ) -> Result<GdriveFile> {
-    // Hack: replace owner_id with a random 1-5 to avoid 6 (ludios.org-shared-drives)
-    // and its associated access tokens that Google might like less because they're
-    // service accounts.
-    let owner_id = {
-        let mut rng = rand::thread_rng();
-        rng.gen_range(1..=5)
-    };
-
     let access_token_fn = async || -> Result<String> {
         let mut access_tokens = get_access_tokens(Some(owner_id), domain_id).await?;
         if access_tokens.is_empty() {
