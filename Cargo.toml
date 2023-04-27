@@ -43,7 +43,7 @@ parking_lot = "0.12"
 pin-project = "1"
 quick-js = { version = "0.4", features = ["bigint", "chrono", "log"] }
 rand = "0.8"
-regex = "1"
+regex = { version = "1", default-features = false, features = ["std"] }
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "stream", "json"] }
 ring = { git = "https://github.com/briansmith/ring" } # Until 2896a014de94d670a6913156c9f31d8de8a2323b is in a release
 serde = "1"
