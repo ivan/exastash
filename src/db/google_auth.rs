@@ -138,6 +138,7 @@ impl From<GoogleServiceAccountRow> for GoogleServiceAccount {
     }
 }
 
+#[derive(Debug)]
 struct GoogleServiceAccountRow {
     /// The gdrive_owner this service account is for
     owner_id: i32,

@@ -53,6 +53,7 @@ impl From<DirentRow> for Dirent {
     }
 }
 
+#[derive(Debug)]
 struct DirentRow {
     parent: i64,
     basename: String,

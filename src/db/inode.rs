@@ -82,6 +82,7 @@ pub struct Dir {
     pub birth: Birth,
 }
 
+#[derive(Debug)]
 struct DirRow {
     id: i64,
     mtime: DateTime<Utc>,
@@ -196,6 +197,7 @@ pub struct File {
     pub b3sum: Option<[u8; 32]>,
 }
 
+#[derive(Debug)]
 struct FileRow {
     id: i64,
     mtime: DateTime<Utc>,
@@ -350,6 +352,7 @@ pub struct Symlink {
     pub target: String,
 }
 
+#[derive(Debug)]
 struct SymlinkRow {
     id: i64,
     mtime: DateTime<Utc>,

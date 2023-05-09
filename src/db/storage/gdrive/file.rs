@@ -110,6 +110,7 @@ impl From<GdriveFileRow> for GdriveFile {
     }
 }
 
+#[derive(Debug)]
 struct GdriveFileRow {
     id: String,
     owner: Option<i32>,

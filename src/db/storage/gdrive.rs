@@ -203,6 +203,7 @@ impl From<StorageRow> for Storage {
     }
 }
 
+#[derive(Debug)]
 struct StorageRow {
     file_id: i64,
     google_domain: i16,
