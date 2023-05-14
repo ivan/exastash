@@ -14,8 +14,6 @@ use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
 use futures::stream::Stream;
 use bytes::Bytes;
-use tokio::process;
-use std::str;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
@@ -56,8 +54,7 @@ pub(crate) async fn request_gdrive_file(file_id: &str, access_token: &str) -> Re
         bail!("invalid gdrive file_id: {:?}", file_id);
     }
     let url = format!("https://www.googleapis.com/drive/v3/files/{file_id}?alt=media");
-    let proxy = reqwest::Proxy::http(get_random_proxy_uri().await?)?;
-    let client = reqwest::Client::builder().proxy(proxy).build()?;
+    let client = reqwest::Client::new();
     let response = client
         .get(&url)
         .header("Authorization", format!("Bearer {access_token}"))
@@ -150,15 +147,6 @@ fn is_shared_drive_full_response(json: &Value) -> bool {
     false
 }
 
-async fn get_random_proxy_uri() -> Result<String> {
-    let output = process::Command::new("get-random-proxy-uri").output().await?;
-    if output.status.code() != Some(0) {
-        bail!("non-0 return code from get-random-proxy-uri");
-    }
-    let stdout_utf8 = str::from_utf8(&output.stdout)?;
-    Ok(stdout_utf8.trim().to_string())
-}
-
 pub(crate) async fn create_gdrive_file<S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static, A>(
     stream: S,
     access_token_fn: impl Fn() -> A,
@@ -169,8 +157,7 @@ pub(crate) async fn create_gdrive_file<S: Stream<Item = std::io::Result<Bytes>> 
 where
     A: Future<Output=Result<String>>
 {
-    let proxy = reqwest::Proxy::http(get_random_proxy_uri().await?)?;
-    let client = reqwest::Client::builder().proxy(proxy).build()?;
+    let client = reqwest::Client::new();
 
     // https://developers.google.com/drive/api/v3/reference/files/create
     let metadata = json!({
