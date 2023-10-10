@@ -20,7 +20,7 @@ use exastash::util::{FixedReadSizeDecoder, commaify_i64};
 use serde_json::json;
 use exastash::db;
 use exastash::db::storage::gdrive::{file::GdriveFile, GdriveFilePlacement};
-use exastash::gdrive::{delete_shared_drive, list_shared_drives, get_shared_drive};
+use exastash::gdrive::{delete_shared_drive, list_shared_drives, get_shared_drive, list_permissions};
 use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GoogleApplicationSecret, GoogleServiceAccount};
@@ -466,6 +466,18 @@ enum InternalCommand {
         /// ID of the shared drive
         #[clap(name = "DRIVE_ID")]
         drive_id: String,
+    },
+
+    /// Get permissions for a file or shared drive (team drive)
+    #[clap(name = "list-permissions")]
+    ListPermissions {
+        /// Owner which has the appropriate access token
+        #[clap(long)]
+        owner_id: i16,
+
+        /// ID of a file or shared drive
+        #[clap(name = "ID")]
+        file_or_drive_id: String,
     },
 }
 
@@ -1029,6 +1041,13 @@ async fn main() -> Result<()> {
                                         bail!("no access token for owner_id={owner_id}");
                                     };
                                     let value = get_shared_drive(&drive_id, &access_token).await?;
+                                    println!("{}", serde_json::to_string_pretty(&value)?);
+                                }
+                                InternalCommand::ListPermissions { owner_id, file_or_drive_id } => {
+                                    let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
+                                        bail!("no access token for owner_id={owner_id}");
+                                    };
+                                    let value = list_permissions(&file_or_drive_id, &access_token).await?;
                                     println!("{}", serde_json::to_string_pretty(&value)?);
                                 }
                             }

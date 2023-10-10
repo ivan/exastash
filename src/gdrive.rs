@@ -107,7 +107,22 @@ pub async fn get_shared_drive(drive_id: &str, access_token: &str) -> Result<Valu
         .send().await?;
     let status = response.status();
     if status != 200 {
-        bail!("expected status 200 in response to drive list request, got {status}");
+        bail!("expected status 200 in response to get drive request, got {status}");
+    }
+    Ok(response.json().await?)
+}
+
+/// List permissions on a file or shared drive (team drive)
+pub async fn list_permissions(file_or_drive_id: &str, access_token: &str) -> Result<Value> {
+    let url = format!("https://www.googleapis.com/drive/v3/files/{file_or_drive_id}/permissions?supportsTeamDrives=true");
+    let client = reqwest::Client::new();
+    let response = client
+        .get(url)
+        .header("Authorization", format!("Bearer {access_token}"))
+        .send().await?;
+    let status = response.status();
+    if status != 200 {
+        bail!("expected status 200 in response to permissions list request, got {status}");
     }
     Ok(response.json().await?)
 }
