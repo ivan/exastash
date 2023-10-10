@@ -113,18 +113,36 @@ pub async fn get_shared_drive(drive_id: &str, access_token: &str) -> Result<Valu
 }
 
 /// List permissions on a file or shared drive (team drive)
-pub async fn list_permissions(file_or_drive_id: &str, access_token: &str) -> Result<Value> {
-    let url = format!("https://www.googleapis.com/drive/v3/files/{file_or_drive_id}/permissions?supportsTeamDrives=true");
-    let client = reqwest::Client::new();
-    let response = client
-        .get(url)
-        .header("Authorization", format!("Bearer {access_token}"))
-        .send().await?;
-    let status = response.status();
-    if status != 200 {
-        bail!("expected status 200 in response to permissions list request, got {status}");
+pub async fn list_permissions(file_or_drive_id: &str, access_token: &str) -> Result<Vec<Value>> {
+    let mut values = Vec::with_capacity(2);
+    let mut next_page_token: Option<String> = None;
+    loop {
+        let base_url = format!("https://www.googleapis.com/drive/v3/files/{file_or_drive_id}/permissions?supportsTeamDrives=true");
+        let url = match next_page_token {
+            Some(ref token) => format!("{base_url}&pageToken={token}"),
+            None => base_url,
+        };
+        let client = reqwest::Client::new();
+        let response = client
+            .get(url)
+            .header("Authorization", format!("Bearer {access_token}"))
+            .send().await?;
+        let status = response.status();
+        if status != 200 {
+            bail!("expected status 200 in response to permissions list request, got {status}");
+        }
+        let value: Value = response.json().await?;
+        if let Some(token) = value.get("nextPageToken") {
+            next_page_token = token.as_str().map(String::from);
+        } else {
+            next_page_token = None;
+        }
+        values.push(value);
+        if next_page_token.is_none() {
+            break;
+        }
     }
-    Ok(response.json().await?)
+    Ok(values)
 }
 
 #[derive(Debug, Deserialize)]

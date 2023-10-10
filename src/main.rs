@@ -1047,8 +1047,10 @@ async fn main() -> Result<()> {
                                     let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
                                         bail!("no access token for owner_id={owner_id}");
                                     };
-                                    let value = list_permissions(&file_or_drive_id, &access_token).await?;
-                                    println!("{}", serde_json::to_string_pretty(&value)?);
+                                    let values = list_permissions(&file_or_drive_id, &access_token).await?;
+                                    for value in values {
+                                        println!("{}", serde_json::to_string_pretty(&value)?);
+                                    }
                                 }
                             }
                         }
