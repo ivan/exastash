@@ -448,7 +448,7 @@ enum InternalCommand {
         drive_ids: Vec<String>,
     },
 
-    /// Get a list of all of our shared drives (team drives)
+    /// Get a list of all of our shared drives (team drives). Prints one JSON object.
     #[clap(name = "list-shared-drives")]
     ListSharedDrives {
         /// Owner which has the appropriate access token
@@ -456,7 +456,7 @@ enum InternalCommand {
         owner_id: i16,
     },
 
-    /// Get metadata for a shared drive (team drive)
+    /// Get metadata for a shared drive (team drive). Prints one JSON object.
     #[clap(name = "get-shared-drive")]
     GetSharedDrive {
         /// Owner which has the appropriate access token
@@ -468,7 +468,7 @@ enum InternalCommand {
         drive_id: String,
     },
 
-    /// Get permissions for a file or shared drive (team drive)
+    /// Get permissions for a file or shared drive (team drive). Prints one JSON object per page of API results.
     #[clap(name = "list-permissions")]
     ListPermissions {
         /// Owner which has the appropriate access token
