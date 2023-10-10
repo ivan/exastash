@@ -75,8 +75,8 @@ pub async fn delete_shared_drive(drive_id: &str, access_token: &str) -> Result<(
         .header("Authorization", format!("Bearer {access_token}"))
         .send().await?;
     let status = response.status();
-    if status != 200 {
-        bail!("expected status 200 in response to drive delete request, got {status}");
+    if !(status == 200 || status == 204) {
+        bail!("expected status 200 or 204 in response to drive delete request, got {status}");
     }
     Ok(())
 }
