@@ -20,6 +20,7 @@ use exastash::util::{FixedReadSizeDecoder, commaify_i64};
 use serde_json::json;
 use exastash::db;
 use exastash::db::storage::gdrive::{file::GdriveFile, GdriveFilePlacement};
+use exastash::gdrive::delete_shared_drive;
 use exastash::db::inode::{InodeId, Inode, File, Dir, NewDir, Symlink, NewSymlink};
 use exastash::db::dirent::{Dirent, InodeTuple};
 use exastash::db::google_auth::{GoogleApplicationSecret, GoogleServiceAccount};
@@ -433,6 +434,18 @@ enum InternalCommand {
         /// ID of the Google Drive file to read
         #[clap(name = "FILE_ID")]
         file_ids: Vec<String>,
+    },
+
+    /// Tell Google to delete shared drives (team drives)
+    #[clap(name = "delete-shared-drive")]
+    DeleteSharedDrives {
+        /// Owner which has the appropriate access token
+        #[clap(long)]
+        owner_id: i16,
+
+        /// ID of the shared drive
+        #[clap(name = "DRIVE_ID")]
+        drive_ids: Vec<String>,
     },
 }
 
@@ -975,6 +988,14 @@ async fn main() -> Result<()> {
                                         storage::read::write_stream_to_sink(stream, &mut stdout).await?;
                                     }
                                     transaction.commit().await?; // close read-only transaction
+                                }
+                                InternalCommand::DeleteSharedDrives { owner_id, drive_ids } => {
+                                    let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
+                                        bail!("no access token for owner_id={owner_id}");
+                                    };
+                                    for drive_id in &drive_ids {
+                                        delete_shared_drive(drive_id, &access_token).await?;
+                                    }
                                 }
                             }
                         }

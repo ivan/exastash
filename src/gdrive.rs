@@ -62,6 +62,25 @@ pub(crate) async fn request_gdrive_file(file_id: &str, access_token: &str) -> Re
     Ok(response)
 }
 
+/// Delete a shared drive (team drive)
+pub async fn delete_shared_drive(drive_id: &str, access_token: &str) -> Result<()> {
+    static DRIVE_ID_RE: &Lazy<Regex> = lazy_regex!(r#"\A[-_0-9A-Za-z]{19}\z"#);
+    if DRIVE_ID_RE.captures(drive_id).is_none() {
+        bail!("invalid gdrive drive_id: {:?}", drive_id);
+    }
+    let url = format!("https://www.googleapis.com/drive/v3/drives/{drive_id}");
+    let client = reqwest::Client::new();
+    let response = client
+        .delete(&url)
+        .header("Authorization", format!("Bearer {access_token}"))
+        .send().await?;
+    let status = response.status();
+    if status != 200 {
+        bail!("expected status 200 in response to drive delete request, got {status}");
+    }
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct GdriveUploadResponse {
     pub(crate) kind: String,

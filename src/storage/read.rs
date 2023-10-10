@@ -32,7 +32,7 @@ type Aes128Ctr = ctr::Ctr64BE<aes::Aes128>;
 ///
 /// If `owner_id` is `None`, this can return more than one token, and all tokens may
 /// need to be tried.
-pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<Vec<String>> {
+pub async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<Vec<String>> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
 
@@ -66,6 +66,17 @@ pub(crate) async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> 
     transaction.commit().await?; // close read-only transaction
 
     Ok(tokens)
+}
+
+/// Get the access token for one particular owner
+pub async fn get_one_access_token(owner_id: i32) -> Result<Option<String>> {
+    let pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
+    let token = GoogleAccessToken::find_by_owner_ids(&mut transaction, &[owner_id]).await?
+        .pop()
+        .map(|token| token.access_token);
+    transaction.commit().await?; // close read-only transaction
+    Ok(token)
 }
 
 /// Pinned boxed dyn Stream of bytes::Bytes
