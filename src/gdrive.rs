@@ -17,7 +17,7 @@ use bytes::Bytes;
 pub use yup_oauth2::AccessToken;
 use crate::lazy_regex;
 
-pub fn get_header_value<'a>(response: &'a reqwest::Response, header: &str) -> Result<&'a str> {
+pub(crate) fn get_header_value<'a>(response: &'a reqwest::Response, header: &str) -> Result<&'a str> {
     let headers = response.headers();
     let value = headers
         .get(header)
@@ -94,6 +94,7 @@ pub(crate) struct GdriveUploadResponse {
 }
 
 /// Reasons why the upload to Google Drive failed.
+#[allow(missing_docs)]
 #[derive(Debug, Eq, thiserror::Error, PartialEq)]
 pub enum GdriveUploadError {
     #[error("expected status 200 in response to initial upload request, got {0} with body {}", .1.to_string())]
