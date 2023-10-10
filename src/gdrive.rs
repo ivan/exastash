@@ -82,8 +82,24 @@ pub async fn delete_shared_drive(drive_id: &str, access_token: &str) -> Result<(
 }
 
 /// List shared drives (team drives)
+/// Note that Google's backend is broken and may not return all of your shared drives.
 pub async fn list_shared_drives(access_token: &str) -> Result<Value> {
     let url = "https://www.googleapis.com/drive/v3/drives?pageSize=100";
+    let client = reqwest::Client::new();
+    let response = client
+        .get(url)
+        .header("Authorization", format!("Bearer {access_token}"))
+        .send().await?;
+    let status = response.status();
+    if status != 200 {
+        bail!("expected status 200 in response to drive list request, got {status}");
+    }
+    Ok(response.json().await?)
+}
+
+/// Get info about a shared drive (team drive)
+pub async fn get_shared_drive(drive_id: &str, access_token: &str) -> Result<Value> {
+    let url = format!("https://www.googleapis.com/drive/v3/drives/{drive_id}");
     let client = reqwest::Client::new();
     let response = client
         .get(url)
