@@ -70,6 +70,17 @@ enum DirCommand {
 }
 
 #[derive(Subcommand, Debug)]
+enum ContentCommand {
+    /// Output a file's content to stdout
+    #[clap(name = "read")]
+    Read {
+        /// file id
+        #[clap(name = "ID")]
+        id: i64,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 enum FileCommand {
     /// Create an unparented file, based on a local file, and print its id to stdout
     #[clap(name = "create")]
@@ -159,17 +170,6 @@ enum FileCommand {
 
     /// Print a count of the number of files
     Count,
-}
-
-#[derive(Subcommand, Debug)]
-enum ContentCommand {
-    /// Output a file's content to stdout
-    #[clap(name = "read")]
-    Read {
-        /// file id
-        #[clap(name = "ID")]
-        id: i64,
-    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -477,6 +477,14 @@ enum ExistingFileBehavior {
     replace,
 }
 
+#[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
+#[expect(non_camel_case_types)]
+enum SortOrder {
+    name,
+    mtime,
+    size,
+}
+
 #[derive(Subcommand, Debug)]
 enum PathCommand {
     /// Print info in JSON format for a path's inode
@@ -625,14 +633,6 @@ enum ExastashCommand {
 
     /// Print license information
     License,
-}
-
-#[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
-#[expect(non_camel_case_types)]
-enum SortOrder {
-    name,
-    mtime,
-    size,
 }
 
 async fn resolve_path(transaction: &mut Transaction<'_, Postgres>, root: i64, path: &str) -> Result<InodeId> {
