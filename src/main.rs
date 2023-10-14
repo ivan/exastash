@@ -38,51 +38,6 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-#[derive(Parser, Debug)]
-#[clap(name = "es", version)]
-/// exastash
-enum ExastashCommand {
-    /// Commands to work with directories
-    #[clap(subcommand, name = "dir")]
-    Dir(DirCommand),
-
-    /// Commands to work with files
-    #[clap(subcommand, name = "file")]
-    File(FileCommand),
-
-    /// Commands to work with symbolic links
-    #[clap(subcommand, name = "symlink")]
-    Symlink(SymlinkCommand),
-
-    /// Commands to work with directory entries
-    #[clap(subcommand, name = "dirent")]
-    Dirent(DirentCommand),
-
-    /// Commands to work with Google tokens and secrets
-    #[clap(subcommand, name = "google")]
-    Google(GoogleCommand),
-
-    /// Commands to work with storage methods
-    #[clap(subcommand, name = "storage")]
-    Storage(StorageCommand),
-
-    /// Commands that operate based on paths relative to cwd. To resolve paths,
-    /// exastash walks up to find a root directory that points to some stash
-    /// dir inode. Root directories can be configured in ~/.config/exastash/config.toml
-    #[clap(subcommand, name = "x")]
-    Path(PathCommand),
-
-    /// web server
-    #[clap(name = "web")]
-    Web {
-        #[clap(long)]
-        port: u16,
-    },
-
-    /// Print license information
-    License,
-}
-
 #[derive(Subcommand, Debug)]
 enum DirCommand {
     /// Create a new directory as a child of some directory and print its id to stdout
@@ -397,12 +352,12 @@ enum GdriveStorageCommand {
 }
 
 #[derive(Subcommand, Debug)]
-enum InternalCommand {
+enum InternalFileCommand {
     /// Create an unencrypted/unaltered Google Drive file based on some local
     /// file and record it in the database. Output the info of the new gdrive
     /// file to stdout as JSON.
-    #[clap(name = "create-file")]
-    CreateFile {
+    #[clap(name = "create")]
+    Create {
         /// Path to the local file to upload
         #[clap(name = "PATH")]
         path: PathBuf,
@@ -425,8 +380,8 @@ enum InternalCommand {
     },
 
     /// Read the contents of a sequence of Google Drive files to stdout.
-    #[clap(name = "read-files")]
-    ReadFiles {
+    #[clap(name = "read")]
+    Read {
         /// google_domain to read from
         #[clap(name = "DOMAIN_ID")]
         domain_id: i16,
@@ -435,10 +390,13 @@ enum InternalCommand {
         #[clap(name = "FILE_ID")]
         file_ids: Vec<String>,
     },
+}
 
-    /// Tell Google to delete shared drives (team drives)
-    #[clap(name = "delete-shared-drive")]
-    DeleteSharedDrives {
+#[derive(Subcommand, Debug)]
+enum InternalSharedDriveCommand {
+    /// Delete shared drives (must be empty) at Google Drive
+    #[clap(name = "delete")]
+    Delete {
         /// Owner which has the appropriate access token
         #[clap(long)]
         owner_id: i16,
@@ -448,17 +406,17 @@ enum InternalCommand {
         drive_ids: Vec<String>,
     },
 
-    /// Get a list of all of our shared drives (team drives). Prints one JSON object.
-    #[clap(name = "list-shared-drives")]
-    ListSharedDrives {
+    /// Get a list of all of our shared drives. Prints one JSON object.
+    #[clap(name = "list")]
+    List {
         /// Owner which has the appropriate access token
         #[clap(long)]
         owner_id: i16,
     },
 
-    /// Get metadata for a shared drive (team drive). Prints one JSON object.
-    #[clap(name = "get-shared-drive")]
-    GetSharedDrive {
+    /// Get metadata for a shared drive. Prints one JSON object.
+    #[clap(name = "get")]
+    Get {
         /// Owner which has the appropriate access token
         #[clap(long)]
         owner_id: i16,
@@ -468,17 +426,28 @@ enum InternalCommand {
         drive_id: String,
     },
 
-    /// Get permissions for a file or shared drive (team drive). Prints one JSON object per page of API results.
-    #[clap(name = "list-permissions")]
-    ListPermissions {
+    /// Get permissions for a shared drive. Prints one JSON object per page of API results.
+    #[clap(name = "get-permissions")]
+    GetPermissions {
         /// Owner which has the appropriate access token
         #[clap(long)]
         owner_id: i16,
 
         /// ID of a file or shared drive
         #[clap(name = "ID")]
-        file_or_drive_id: String,
+        drive_id: String,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum InternalCommand {
+    /// Commands to work with raw Google Drive files
+    #[clap(subcommand, name = "file")]
+    File(InternalFileCommand),
+
+    /// Commands to work with Google Drive shared drives
+    #[clap(subcommand, name = "shared-drive")]
+    SharedDrive(InternalSharedDriveCommand),
 }
 
 #[derive(Subcommand, Debug)]
@@ -611,6 +580,51 @@ enum PathCommand {
         #[clap(name = "PATH")]
         paths: Vec<String>,
     },
+}
+
+#[derive(Parser, Debug)]
+#[clap(name = "es", version)]
+/// exastash
+enum ExastashCommand {
+    /// Commands to work with directories
+    #[clap(subcommand, name = "dir")]
+    Dir(DirCommand),
+
+    /// Commands to work with files
+    #[clap(subcommand, name = "file")]
+    File(FileCommand),
+
+    /// Commands to work with symbolic links
+    #[clap(subcommand, name = "symlink")]
+    Symlink(SymlinkCommand),
+
+    /// Commands to work with directory entries
+    #[clap(subcommand, name = "dirent")]
+    Dirent(DirentCommand),
+
+    /// Commands to work with Google tokens and secrets
+    #[clap(subcommand, name = "google")]
+    Google(GoogleCommand),
+
+    /// Commands to work with storage methods
+    #[clap(subcommand, name = "storage")]
+    Storage(StorageCommand),
+
+    /// Commands that operate based on paths relative to cwd. To resolve paths,
+    /// exastash walks up to find a root directory that points to some stash
+    /// dir inode. Root directories can be configured in ~/.config/exastash/config.toml
+    #[clap(subcommand, name = "x")]
+    Path(PathCommand),
+
+    /// web server
+    #[clap(name = "web")]
+    Web {
+        #[clap(long)]
+        port: u16,
+    },
+
+    /// Print license information
+    License,
 }
 
 #[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
@@ -992,64 +1006,72 @@ async fn main() -> Result<()> {
                         }
                         GdriveStorageCommand::Internal(command) => {
                             match command {
-                                InternalCommand::CreateFile { path, domain_id, owner_id, parent, filename } => {
-                                    let attr = fs::metadata(&path).await?;
-                                    let size = attr.len();
-
-                                    let reader = fs::File::open(path.clone()).await?;
-                                    // n.b. 'internal' bypasses encryption - so read size is unrelated to AES-GCM block size
-                                    let decoder = FixedReadSizeDecoder::new(65536);
-                                    let file_stream = FramedRead::new(reader, decoder);
-
-                                    let gdrive_file = storage::write::create_gdrive_file_on_domain(
-                                        file_stream, size, domain_id, owner_id, &parent, &filename
-                                    ).await?;
-                                    let mut transaction = pool.begin().await?;
-                                    gdrive_file.create(&mut transaction).await?;
-                                    transaction.commit().await?;
-                                    let j = serde_json::to_string_pretty(&gdrive_file)?;
-                                    println!("{j}");
-                                }
-                                InternalCommand::ReadFiles { domain_id, file_ids } => {
-                                    let mut transaction = pool.begin().await?;
-                                    let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
-                                    let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
-                                    for gdrive_file in &gdrive_files {
-                                        let stream = Box::pin(storage::read::stream_gdrive_file(gdrive_file, domain_id).await?);
-                                        let mut stdout = tokio::io::stdout();
-                                        storage::read::write_stream_to_sink(stream, &mut stdout).await?;
-                                    }
-                                    transaction.commit().await?; // close read-only transaction
-                                }
-                                InternalCommand::DeleteSharedDrives { owner_id, drive_ids } => {
-                                    let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
-                                        bail!("no access token for owner_id={owner_id}");
-                                    };
-                                    for drive_id in &drive_ids {
-                                        delete_shared_drive(drive_id, &access_token).await?;
+                                InternalCommand::File(command) => {
+                                    match command {
+                                        InternalFileCommand::Create { path, domain_id, owner_id, parent, filename } => {
+                                            let attr = fs::metadata(&path).await?;
+                                            let size = attr.len();
+        
+                                            let reader = fs::File::open(path.clone()).await?;
+                                            // n.b. 'internal' bypasses encryption - so read size is unrelated to AES-GCM block size
+                                            let decoder = FixedReadSizeDecoder::new(65536);
+                                            let file_stream = FramedRead::new(reader, decoder);
+        
+                                            let gdrive_file = storage::write::create_gdrive_file_on_domain(
+                                                file_stream, size, domain_id, owner_id, &parent, &filename
+                                            ).await?;
+                                            let mut transaction = pool.begin().await?;
+                                            gdrive_file.create(&mut transaction).await?;
+                                            transaction.commit().await?;
+                                            let j = serde_json::to_string_pretty(&gdrive_file)?;
+                                            println!("{j}");
+                                        }
+                                        InternalFileCommand::Read { domain_id, file_ids } => {
+                                            let mut transaction = pool.begin().await?;
+                                            let gdrive_ids: Vec<&str> = file_ids.iter().map(String::as_str).collect();
+                                            let gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &gdrive_ids).await?;
+                                            for gdrive_file in &gdrive_files {
+                                                let stream = Box::pin(storage::read::stream_gdrive_file(gdrive_file, domain_id).await?);
+                                                let mut stdout = tokio::io::stdout();
+                                                storage::read::write_stream_to_sink(stream, &mut stdout).await?;
+                                            }
+                                            transaction.commit().await?; // close read-only transaction
+                                        }
                                     }
                                 }
-                                InternalCommand::ListSharedDrives { owner_id } => {
-                                    let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
-                                        bail!("no access token for owner_id={owner_id}");
-                                    };
-                                    let value = list_shared_drives(&access_token).await?;
-                                    println!("{}", serde_json::to_string_pretty(&value)?);
-                                }
-                                InternalCommand::GetSharedDrive { owner_id, drive_id } => {
-                                    let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
-                                        bail!("no access token for owner_id={owner_id}");
-                                    };
-                                    let value = get_shared_drive(&drive_id, &access_token).await?;
-                                    println!("{}", serde_json::to_string_pretty(&value)?);
-                                }
-                                InternalCommand::ListPermissions { owner_id, file_or_drive_id } => {
-                                    let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
-                                        bail!("no access token for owner_id={owner_id}");
-                                    };
-                                    let values = list_permissions(&file_or_drive_id, &access_token).await?;
-                                    for value in values {
-                                        println!("{}", serde_json::to_string_pretty(&value)?);
+                                InternalCommand::SharedDrive(command) => {
+                                    match command {
+                                        InternalSharedDriveCommand::Delete { owner_id, drive_ids } => {
+                                            let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
+                                                bail!("no access token for owner_id={owner_id}");
+                                            };
+                                            for drive_id in &drive_ids {
+                                                delete_shared_drive(drive_id, &access_token).await?;
+                                            }
+                                        }
+                                        InternalSharedDriveCommand::List { owner_id } => {
+                                            let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
+                                                bail!("no access token for owner_id={owner_id}");
+                                            };
+                                            let value = list_shared_drives(&access_token).await?;
+                                            println!("{}", serde_json::to_string_pretty(&value)?);
+                                        }
+                                        InternalSharedDriveCommand::Get { owner_id, drive_id } => {
+                                            let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
+                                                bail!("no access token for owner_id={owner_id}");
+                                            };
+                                            let value = get_shared_drive(&drive_id, &access_token).await?;
+                                            println!("{}", serde_json::to_string_pretty(&value)?);
+                                        }
+                                        InternalSharedDriveCommand::GetPermissions { owner_id, drive_id } => {
+                                            let Some(access_token) = storage::read::get_one_access_token(owner_id.into()).await? else {
+                                                bail!("no access token for owner_id={owner_id}");
+                                            };
+                                            let values = list_permissions(&drive_id, &access_token).await?;
+                                            for value in values {
+                                                println!("{}", serde_json::to_string_pretty(&value)?);
+                                            }
+                                        }
                                     }
                                 }
                             }
