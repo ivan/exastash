@@ -62,7 +62,7 @@ pub(crate) async fn request_gdrive_file(file_id: &str, access_token: &str) -> Re
     Ok(response)
 }
 
-/// Delete a shared drive (team drive)
+/// Delete a shared drive
 pub async fn delete_shared_drive(drive_id: &str, access_token: &str) -> Result<()> {
     static DRIVE_ID_RE: &Lazy<Regex> = lazy_regex!(r#"\A[-_0-9A-Za-z]{19}\z"#);
     if DRIVE_ID_RE.captures(drive_id).is_none() {
@@ -81,7 +81,7 @@ pub async fn delete_shared_drive(drive_id: &str, access_token: &str) -> Result<(
     Ok(())
 }
 
-/// List shared drives (team drives)
+/// List shared drives
 /// Note that Google's backend is broken and may not return all of your shared drives.
 pub async fn list_shared_drives(access_token: &str) -> Result<Value> {
     let url = "https://www.googleapis.com/drive/v3/drives?pageSize=100";
@@ -97,7 +97,7 @@ pub async fn list_shared_drives(access_token: &str) -> Result<Value> {
     Ok(response.json().await?)
 }
 
-/// Get info about a shared drive (team drive)
+/// Get info about a shared drive
 pub async fn get_shared_drive(drive_id: &str, access_token: &str) -> Result<Value> {
     let url = format!("https://www.googleapis.com/drive/v3/drives/{drive_id}");
     let client = reqwest::Client::new();
@@ -112,7 +112,7 @@ pub async fn get_shared_drive(drive_id: &str, access_token: &str) -> Result<Valu
     Ok(response.json().await?)
 }
 
-/// List permissions on a file or shared drive (team drive)
+/// List permissions on a file or shared drive
 pub async fn list_permissions(file_or_drive_id: &str, access_token: &str) -> Result<Vec<Value>> {
     let mut values = Vec::with_capacity(2);
     let mut next_page_token: Option<String> = None;
