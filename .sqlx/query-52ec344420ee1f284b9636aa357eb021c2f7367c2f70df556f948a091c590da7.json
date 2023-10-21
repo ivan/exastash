@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.storage_inline (file_id, content_zstd)\n            VALUES ($1, $2)\n            ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "52ec344420ee1f284b9636aa357eb021c2f7367c2f70df556f948a091c590da7"
+}

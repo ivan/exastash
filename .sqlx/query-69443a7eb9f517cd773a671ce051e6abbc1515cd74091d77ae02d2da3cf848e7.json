@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.google_access_tokens (owner_id, access_token, refresh_token, expires_at)\n            VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "69443a7eb9f517cd773a671ce051e6abbc1515cd74091d77ae02d2da3cf848e7"
+}

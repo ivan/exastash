@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                file_id AS \"file_id!\",\n                cell_id AS \"cell_id!\",\n                pile_id AS \"pile_id!\",\n                files_per_cell AS \"files_per_cell!\",\n                pile_hostname AS \"pile_hostname!\",\n                pile_path AS \"pile_path!\"\n            FROM stash.storage_fofs_view\n            WHERE file_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "file_id!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "cell_id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "pile_id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "files_per_cell!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "pile_hostname!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "pile_path!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "80a1c9b1d71be7673b817e590d225d856013e17fbbef9edc857b44366a04f464"
+}

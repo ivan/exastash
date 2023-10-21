@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.dirs (mtime, birth_time, birth_version, birth_hostname)\n            VALUES ($1, $2, $3, $4::text)\n            RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Int2",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8fad19b229b58b4b34e66504e5583ab020b76eadbc121b3e529ca5636a0c2fe9"
+}

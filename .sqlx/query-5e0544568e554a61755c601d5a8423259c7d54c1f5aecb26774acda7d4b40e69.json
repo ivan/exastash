@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT parent, basename, child_dir, child_file, child_symlink\n            FROM stash.dirents\n            WHERE child_dir = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "parent",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "basename",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "child_dir",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "child_file",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "child_symlink",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "5e0544568e554a61755c601d5a8423259c7d54c1f5aecb26774acda7d4b40e69"
+}

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)\n            VALUES ($1, $2::text, $3::text, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Bool",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a50877aef5d363e2f04c0d5e1ee6ef9714145135899100d420840651f98cf2a2"
+}

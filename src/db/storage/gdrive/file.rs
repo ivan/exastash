@@ -28,7 +28,7 @@ impl GdriveOwner {
     pub async fn find_all(transaction: &mut Transaction<'_, Postgres>) -> Result<Vec<GdriveOwner>> {
         let owners = sqlx::query_as!(GdriveOwner, r#"
             SELECT id, domain, owner FROM stash.gdrive_owners"#
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(owners)
     }
 
@@ -37,7 +37,7 @@ impl GdriveOwner {
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GdriveOwner>> {
         let owners = sqlx::query_as!(GdriveOwner, r#"
             SELECT id, domain, owner FROM stash.gdrive_owners WHERE id = ANY($1)"#, owner_ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(owners)
     }
 
@@ -46,7 +46,7 @@ impl GdriveOwner {
     pub async fn find_by_domain_ids(transaction: &mut Transaction<'_, Postgres>, domain_ids: &[i16]) -> Result<Vec<GdriveOwner>> {
         let owners = sqlx::query_as!(GdriveOwner, r#"
             SELECT id, domain, owner FROM stash.gdrive_owners WHERE domain = ANY($1)"#, domain_ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(owners)
     }
 }
@@ -70,7 +70,7 @@ impl NewGdriveOwner {
             VALUES ($1, $2)
             RETURNING id"#,
             &self.domain, &self.owner
-        ).fetch_one(transaction).await?;
+        ).fetch_one(&mut **transaction).await?;
         Ok(GdriveOwner {
             id,
             domain: self.domain,
@@ -129,7 +129,7 @@ impl GdriveFile {
             VALUES ($1, $2, $3, $4, $5, $6)"#,
             self.id, self.owner_id, Uuid::from_bytes(self.md5),
             self.crc32c as i32, self.size, self.last_probed
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -142,7 +142,7 @@ impl GdriveFile {
             UPDATE stash.gdrive_files
             SET last_probed = NOW()
             WHERE id = ANY($1)"#, &ids
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -157,7 +157,7 @@ impl GdriveFile {
         sqlx::query!(r#"
             DELETE FROM stash.gdrive_files
             WHERE id = ANY($1)"#, &ids
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -169,7 +169,7 @@ impl GdriveFile {
             SELECT id, owner, md5, crc32c, size, last_probed
             FROM stash.gdrive_files WHERE id = ANY($1)"#, &ids
         )
-            .fetch(transaction)
+            .fetch(&mut **transaction)
             .map(|result| result.map(|row| (row.id.to_string(), row.into())))
             .try_collect().await?;
         let mut out = Vec::with_capacity(ids.len());
@@ -313,7 +313,7 @@ pub(crate) mod tests {
             ] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.gdrive_files SET {column} = {value} WHERE id = $1");
-                let result = sqlx::query(&query).bind(&file.id).execute(&mut transaction).await;
+                let result = sqlx::query(&query).bind(&file.id).execute(&mut *transaction).await;
                 assert_eq!(result.expect_err("expected an error").to_string(), "error returned from database: cannot change id, md5, crc32c, or size");
             }
 

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.gdrive_parents (name, parent, \"full\")\n            VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "01b695fc846b3afd59a4db38864285b265fdac2e4aab782c4aef8a75cbd1ad71"
+}

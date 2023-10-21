@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.symlinks (mtime, target, birth_time, birth_version, birth_hostname)\n            VALUES ($1, $2::text, $3, $4, $5::text)\n            RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text",
+        "Timestamptz",
+        "Int2",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "831d5727c5f31102e869e1bd3214a5ec9df9d43b1406c907d81cc5c3a739c5ae"
+}

@@ -76,7 +76,7 @@ impl Dirent {
             INSERT INTO stash.dirents (parent, basename, child_dir, child_file, child_symlink)
             VALUES ($1, $2::text, $3, $4, $5)"#,
             self.parent, &self.basename, child_dir, child_file, child_symlink
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -86,7 +86,7 @@ impl Dirent {
         sqlx::query!(r#"
             DELETE FROM stash.dirents
             WHERE parent = $1 AND basename = $2"#, self.parent, &self.basename
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -96,7 +96,7 @@ impl Dirent {
         sqlx::query!(r#"
             DELETE FROM stash.dirents
             WHERE parent = $1 AND basename = $2"#, parent, basename
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -106,7 +106,7 @@ impl Dirent {
         sqlx::query!(r#"
             DELETE FROM stash.dirents
             WHERE child_dir = $1"#, child_dir
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -122,7 +122,7 @@ impl Dirent {
                 child_dir IS DISTINCT FROM 1"#,
             parents
         )
-            .fetch(transaction)
+            .fetch(&mut **transaction)
             .map(|result| result.map(|row| row.into()))
             .try_collect().await?;
         Ok(dirents)
@@ -136,7 +136,7 @@ impl Dirent {
              FROM stash.dirents
              WHERE parent = $1 AND basename = $2 AND child_dir IS DISTINCT FROM 1", parent, basename
         )
-            .fetch_optional(transaction).await?;
+            .fetch_optional(&mut **transaction).await?;
         Ok(row.map(Into::into))
     }
 
@@ -154,7 +154,7 @@ impl Dirent {
                 child_dir IS DISTINCT FROM 1"#,
             parent, &basenames
         )
-            .fetch(transaction)
+            .fetch(&mut **transaction)
             .map(|result| result.map(|row| row.into()))
             .try_collect().await?;
         Ok(dirents)
@@ -167,7 +167,7 @@ impl Dirent {
             FROM stash.dirents
             WHERE child_dir = $1"#, child_dir
         )
-            .fetch_optional(transaction).await?
+            .fetch_optional(&mut **transaction).await?
             .map(Into::into);
         Ok(maybe_dirent)
     }
@@ -175,7 +175,7 @@ impl Dirent {
     /// Return a count of the number of dirents in the database.
     pub async fn count(transaction: &mut Transaction<'_, Postgres>) -> Result<i64> {
         let count: i64 = sqlx::query_scalar!("SELECT COUNT(parent) FROM stash.dirents")
-            .fetch_one(transaction).await?
+            .fetch_one(&mut **transaction).await?
             .unwrap();
         Ok(count)
     }
@@ -327,7 +327,7 @@ pub(crate) mod tests {
             for (column, value) in [("parent", "100"), ("basename", "'new'"), ("child_dir", "1"), ("child_file", "1"), ("child_symlink", "1")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.dirents SET {column} = {value} WHERE parent = $1 AND child_dir = $2");
-                let result = sqlx::query(&query).bind(1i64).bind(child_dir.id).execute(&mut transaction).await;
+                let result = sqlx::query(&query).bind(1i64).bind(child_dir.id).execute(&mut *transaction).await;
                 assert_eq!(
                     result.expect_err("expected an error").to_string(),
                     "error returned from database: cannot change parent, basename, or child_*"

@@ -38,7 +38,7 @@ impl Pile {
         let piles = sqlx::query_as!(Pile, r#"
             SELECT id, files_per_cell, hostname, path, fullness_check_ratio
             FROM stash.piles WHERE id = ANY($1)"#, ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(piles)
     }
 }
@@ -72,7 +72,7 @@ impl NewPile {
             INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio)
             VALUES ($1, $2::text, $3, $4)
             RETURNING id"#, self.files_per_cell, self.hostname, self.path, self.fullness_check_ratio
-        ).fetch_one(transaction).await?;
+        ).fetch_one(&mut **transaction).await?;
         assert!(id >= 1);
         Ok(Pile {
             id,
@@ -107,7 +107,7 @@ impl Cell {
             SELECT id, pile_id, "full"
             FROM stash.cells
             WHERE id = ANY($1)"#, cell_ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(cells)
     }
 
@@ -121,7 +121,7 @@ impl Cell {
             SELECT id, pile_id, "full"
             FROM stash.cells
             WHERE pile_id = ANY($1) AND "full" = $2"#, pile_ids, full
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(cells)
     }
 
@@ -131,7 +131,7 @@ impl Cell {
             UPDATE stash.cells
             SET "full" = $1
             WHERE id = $2"#, full, id
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 }
@@ -151,7 +151,7 @@ impl NewCell {
             INSERT INTO stash.cells (pile_id)
             VALUES ($1)
             RETURNING id"#, self.pile_id
-        ).fetch_one(transaction).await?;
+        ).fetch_one(&mut **transaction).await?;
         assert!(id >= 1);
         Ok(Cell {
             id,
@@ -179,7 +179,7 @@ impl Storage {
         sqlx::query!(r#"
             INSERT INTO stash.storage_fofs (file_id, cell_id)
             VALUES ($1, $2)"#, self.file_id, self.cell_id,
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -189,7 +189,7 @@ impl Storage {
         sqlx::query!(r#"
             DELETE FROM stash.storage_fofs
             WHERE file_id = $1 AND cell_id = $2"#, file_id, cell_id
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -204,7 +204,7 @@ impl Storage {
             SELECT file_id, cell_id
             FROM stash.storage_fofs
             WHERE file_id = ANY($1)"#, file_ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(storages)
     }
 }
@@ -251,7 +251,7 @@ impl StorageView {
                 pile_path AS "pile_path!"
             FROM stash.storage_fofs_view
             WHERE file_id = ANY($1)"#, file_ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(storages)
     }
 }

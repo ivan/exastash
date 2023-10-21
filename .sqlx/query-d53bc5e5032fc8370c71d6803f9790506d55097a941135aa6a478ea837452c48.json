@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE stash.gdrive_files\n            SET last_probed = NOW()\n            WHERE id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d53bc5e5032fc8370c71d6803f9790506d55097a941135aa6a478ea837452c48"
+}

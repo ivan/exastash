@@ -22,7 +22,7 @@ impl Storage {
         sqlx::query!(r#"
             INSERT INTO stash.storage_inline (file_id, content_zstd)
             VALUES ($1, $2)"#, &self.file_id, &self.content_zstd
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -34,7 +34,7 @@ impl Storage {
             VALUES ($1, $2)
             ON CONFLICT DO NOTHING"#,
             &self.file_id, &self.content_zstd
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -47,7 +47,7 @@ impl Storage {
         sqlx::query!(r#"
             DELETE FROM stash.storage_inline
             WHERE file_id = ANY($1)"#, file_ids
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -61,7 +61,7 @@ impl Storage {
             SELECT file_id, content_zstd
             FROM stash.storage_inline
             WHERE file_id = ANY($1)"#, file_ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(storages)
     }
 }
@@ -126,7 +126,7 @@ mod tests {
 
             let mut transaction = pool.begin().await?;
             let query = "UPDATE stash.storage_inline SET file_id = 100 WHERE file_id = $1";
-            let result = sqlx::query(query).bind(dummy.id).execute(&mut transaction).await;
+            let result = sqlx::query(query).bind(dummy.id).execute(&mut *transaction).await;
             assert_eq!(result.expect_err("expected an error").to_string(), "error returned from database: cannot change file_id");
 
             Ok(())

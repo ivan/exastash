@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.dirents (parent, basename, child_dir, child_file, child_symlink)\n            VALUES ($1, $2::text, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "95c4d0914b2b2bbf720662abe5145c5b7aef83bd68b1f53d8d246f81f5a8f26c"
+}

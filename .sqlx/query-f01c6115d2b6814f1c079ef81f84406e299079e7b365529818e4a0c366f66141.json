@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.google_service_accounts (\n                owner_id, client_email, client_id, project_id, private_key_id, private_key,\n                auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url\n            )\n            VALUES ($1, $2::text, $3, $4, $5, $6, $7, $8, $9, $10)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f01c6115d2b6814f1c079ef81f84406e299079e7b365529818e4a0c366f66141"
+}

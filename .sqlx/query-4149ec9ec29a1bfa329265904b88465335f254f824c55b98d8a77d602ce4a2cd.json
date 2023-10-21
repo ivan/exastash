@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT file_id, content_zstd\n            FROM stash.storage_inline\n            WHERE file_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "file_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "content_zstd",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4149ec9ec29a1bfa329265904b88465335f254f824c55b98d8a77d602ce4a2cd"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM stash.storage_inline\n            WHERE file_id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a183cbb3ef3cb3f49aaf02e874a1de2d736c669e94a0d7cbec57e432b563988e"
+}

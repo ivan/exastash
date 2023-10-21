@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM stash.dirents\n            WHERE child_dir = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "126581f80e5769443907a9a954c5ca4c0973bbe9f2e30fa35f4adefbbba8534e"
+}

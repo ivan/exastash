@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SET LOCAL synchronous_commit TO OFF",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "aed1d80faf81ee69aa41a26c2218d1c405c4151689c1a8facdc9bddc9b288fb6"
+}

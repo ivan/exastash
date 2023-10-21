@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, pile_id, \"full\"\n            FROM stash.cells\n            WHERE pile_id = ANY($1) AND \"full\" = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "pile_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "full",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4Array",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f993974799a3b855be9e56ca9ffeefa1c4df7898f18e989278124bf3db8723bf"
+}

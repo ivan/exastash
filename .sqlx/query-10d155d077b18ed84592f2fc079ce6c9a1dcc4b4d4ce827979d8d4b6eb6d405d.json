@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SET stash.unsafe_internal_dirent_creation = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "10d155d077b18ed84592f2fc079ce6c9a1dcc4b4d4ce827979d8d4b6eb6d405d"
+}

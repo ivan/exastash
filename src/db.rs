@@ -27,9 +27,9 @@ use crate::util::env_var;
 /// isolation level `REPEATABLE READ`.
 pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u64, search_path: &str) -> Result<PgPool> {
     let search_path = Arc::new(String::from(search_path));
-    let mut options: PgConnectOptions = uri.parse()?;
-    // By default, sqlx logs statements that take > 1 sec as a warning
-    options.log_slow_statements(LevelFilter::Info, Duration::from_secs(5));
+    let options: PgConnectOptions = uri.parse::<PgConnectOptions>()?
+        // By default, sqlx logs statements that take > 1 sec as a warning
+        .log_slow_statements(LevelFilter::Info, Duration::from_secs(5));
     let pool = PgPoolOptions::new()
         .after_connect(move |conn, _metadata| {
             let search_path = search_path.clone();
@@ -82,7 +82,7 @@ pub async fn pgpool() -> PgPool {
 
 /// Return the output of `SELECT nextval(...)` on some PostgreSQL sequence.
 pub async fn nextval(transaction: &mut Transaction<'_, Postgres>, sequence: &str) -> Result<i64> {
-    let row = sqlx::query_scalar_unchecked!("SELECT nextval($1)", sequence).fetch_one(transaction).await?;
+    let row = sqlx::query_scalar_unchecked!("SELECT nextval($1)", sequence).fetch_one(&mut **transaction).await?;
     let id: i64 = row.unwrap();
     Ok(id)
 }
@@ -91,7 +91,7 @@ pub async fn nextval(transaction: &mut Transaction<'_, Postgres>, sequence: &str
 /// faster, but with the increased possibility of losing the most recent
 /// writes on server crashes.
 pub async fn disable_synchronous_commit(transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-    sqlx::query_unchecked!("SET LOCAL synchronous_commit TO OFF").execute(transaction).await?;
+    sqlx::query_unchecked!("SET LOCAL synchronous_commit TO OFF").execute(&mut **transaction).await?;
     Ok(())
 }
 
@@ -103,7 +103,7 @@ pub async fn disable_synchronous_commit(transaction: &mut Transaction<'_, Postgr
 /// materialized view "..." during incremental maintenance` from pg_ivm:
 /// https://github.com/sraoss/pg_ivm#concurrent-transactions
 pub async fn set_isolation_level_read_committed(transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
-    sqlx::query_unchecked!("SET TRANSACTION ISOLATION LEVEL READ COMMITTED").execute(&mut *transaction).await?;
+    sqlx::query_unchecked!("SET TRANSACTION ISOLATION LEVEL READ COMMITTED").execute(&mut **transaction).await?;
     Ok(())
 }
 
@@ -152,7 +152,7 @@ pub fn apply_exastash_ddl(uri: &str) {
 /// frequently because we have a mutual FK set up between dirs and dirents.
 pub async fn assert_cannot_truncate(transaction: &mut Transaction<'_, Postgres>, table: &str) {
     let statement = format!("TRUNCATE {table} CASCADE");
-    let result = sqlx::query(&statement).execute(transaction).await;
+    let result = sqlx::query(&statement).execute(&mut **transaction).await;
     let msg = result.expect_err("expected an error").to_string();
     assert_eq!(msg, "error returned from database: truncate is forbidden");
 }

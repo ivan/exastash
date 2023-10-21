@@ -26,7 +26,7 @@ impl GoogleApplicationSecret {
             INSERT INTO stash.google_application_secrets (domain_id, secret)
             VALUES ($1, $2)"#,
             &self.domain_id, &self.secret
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -35,7 +35,7 @@ impl GoogleApplicationSecret {
         Ok(sqlx::query_as!(GoogleApplicationSecret, r#"
             SELECT domain_id, secret
             FROM stash.google_application_secrets"#
-        ).fetch_all(transaction).await?)
+        ).fetch_all(&mut **transaction).await?)
     }
 
     /// Return a `Vec<GoogleApplicationSecret>` for the corresponding list of `domain_ids`.
@@ -45,7 +45,7 @@ impl GoogleApplicationSecret {
             SELECT domain_id, secret
             FROM stash.google_application_secrets
             WHERE domain_id = ANY($1)"#, domain_ids
-        ).fetch_all(transaction).await?)
+        ).fetch_all(&mut **transaction).await?)
     }
 }
 
@@ -72,7 +72,7 @@ impl GoogleAccessToken {
             INSERT INTO stash.google_access_tokens (owner_id, access_token, refresh_token, expires_at)
             VALUES ($1, $2, $3, $4)"#,
             &self.owner_id, &self.access_token, &self.refresh_token, &self.expires_at
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -82,7 +82,7 @@ impl GoogleAccessToken {
     pub async fn delete(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<()> {
         sqlx::query!(r#"
             DELETE FROM stash.google_access_tokens WHERE owner_id = $1"#, &self.owner_id
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -92,7 +92,7 @@ impl GoogleAccessToken {
             SELECT owner_id, access_token, refresh_token, expires_at
             FROM stash.google_access_tokens
             WHERE expires_at < $1"#, expires_at
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(tokens)
     }
 
@@ -103,7 +103,7 @@ impl GoogleAccessToken {
             SELECT owner_id, access_token, refresh_token, expires_at
             FROM stash.google_access_tokens
             WHERE owner_id = ANY($1)"#, owner_ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(tokens)
     }
 }
@@ -174,7 +174,7 @@ impl GoogleServiceAccount {
             &k.token_uri,
             &k.auth_provider_x509_cert_url.clone().ok_or_else(|| anyhow!("auth_provider_x509_cert_url must not be None"))?,
             &k.client_x509_cert_url.clone().ok_or_else(|| anyhow!("client_x509_cert_url must not be None"))?,
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -191,7 +191,7 @@ impl GoogleServiceAccount {
             ORDER BY random()
             LIMIT $2"#, owner_ids, limit
         )
-            .fetch(transaction)
+            .fetch(&mut **transaction)
             .map(|result| result.map(|row| row.into()))
             .try_collect().await?;
         Ok(accounts)

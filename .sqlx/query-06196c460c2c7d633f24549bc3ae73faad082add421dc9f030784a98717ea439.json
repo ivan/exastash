@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT name, parent, \"full\"\n            FROM stash.gdrive_parents\n            WHERE name = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "parent",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "full",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "06196c460c2c7d633f24549bc3ae73faad082add421dc9f030784a98717ea439"
+}

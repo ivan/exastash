@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE stash.gdrive_parents\n            SET \"full\" = $1\n            WHERE name = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "29873006d4a63948e04ea45edc8c510a97f0f5af6adee5cd134e6cef47b9be5e"
+}

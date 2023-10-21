@@ -12,7 +12,7 @@ pub mod file;
 /// The encryption algorithm used to encrypt the chunks
 #[must_use]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, sqlx::Type)]
-#[sqlx(type_name = "cipher")]
+#[sqlx(type_name = "stash.cipher")]
 pub enum Cipher {
     /// AES-128-CTR
     #[sqlx(rename = "AES_128_CTR")]
@@ -42,7 +42,7 @@ impl GdriveParent {
         sqlx::query!(r#"
             INSERT INTO stash.gdrive_parents (name, parent, "full")
             VALUES ($1, $2, $3)"#, self.name, self.parent, self.full
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -52,7 +52,7 @@ impl GdriveParent {
             SELECT name, parent, "full"
             FROM stash.gdrive_parents
             WHERE name = $1"#, name
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(parents.pop())
     }
 
@@ -62,7 +62,7 @@ impl GdriveParent {
             SELECT name, parent, "full"
             FROM stash.gdrive_parents
             WHERE "full" = false"#
-        ).fetch_optional(transaction).await?;
+        ).fetch_optional(&mut **transaction).await?;
         Ok(maybe_parent)
     }
 
@@ -72,7 +72,7 @@ impl GdriveParent {
             UPDATE stash.gdrive_parents
             SET "full" = $1
             WHERE name = $2"#, full, name
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 }
@@ -103,7 +103,7 @@ impl NewGoogleDomain {
             INSERT INTO stash.google_domains (domain)
             VALUES ($1)
             RETURNING id"#, self.domain
-        ).fetch_one(transaction).await?;
+        ).fetch_one(&mut **transaction).await?;
         Ok(GoogleDomain {
             id,
             domain: self.domain,
@@ -131,7 +131,7 @@ impl GdriveFilePlacement {
         sqlx::query!(r#"
             INSERT INTO stash.gdrive_file_placement (domain, owner, parent)
             VALUES ($1, $2, $3)"#, self.domain, self.owner, self.parent
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -142,7 +142,7 @@ impl GdriveFilePlacement {
             DELETE FROM stash.gdrive_file_placement
             WHERE domain = $1 AND owner = $2 AND parent = $3"#,
             self.domain, self.owner, self.parent
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -156,7 +156,7 @@ impl GdriveFilePlacement {
             WHERE domain = $1
             ORDER BY random()
             LIMIT $2"#, domain, limit
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(placements)
     }
 
@@ -170,7 +170,7 @@ impl GdriveFilePlacement {
             SELECT domain, owner, parent FROM stash.gdrive_file_placement
             WHERE domain = $1 AND owner = $2 AND parent = $3
             FOR UPDATE"#, self.domain, self.owner, self.parent
-        ).fetch_optional(transaction).await?;
+        ).fetch_optional(&mut **transaction).await?;
         Ok(placement)
     }
 }
@@ -222,7 +222,7 @@ impl Storage {
             VALUES ($1, $2, $3, $4, $5)"#,
             self.file_id, self.google_domain, self.cipher as _,
             Uuid::from_bytes(self.cipher_key), &self.gdrive_ids
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -234,7 +234,7 @@ impl Storage {
         }
         sqlx::query!(r#"
             DELETE FROM stash.storage_gdrive WHERE file_id = ANY($1)"#, file_ids
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -250,7 +250,7 @@ impl Storage {
             FROM stash.storage_gdrive
             WHERE file_id = ANY($1)"#, file_ids
         )
-            .fetch(transaction)
+            .fetch(&mut **transaction)
             .map(|result| result.map(|row| row.into()))
             .try_collect().await?;
         Ok(storages)
@@ -427,7 +427,7 @@ pub(crate) mod tests {
             for (column, value) in &pairs {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.storage_gdrive SET {column} = {value} WHERE file_id = $1");
-                let result = sqlx::query(&query).bind(dummy.id).execute(&mut transaction).await;
+                let result = sqlx::query(&query).bind(dummy.id).execute(&mut *transaction).await;
                 assert_eq!(
                     result.expect_err("expected an error").to_string(),
                     "error returned from database: cannot change file_id, google_domain, cipher, cipher_key, or gdrive_ids"

@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT file_id, ia_item, pathname, darked, last_probed\n            FROM stash.storage_internetarchive\n            WHERE file_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "file_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "ia_item",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "pathname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "darked",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "last_probed",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "f007ee5f726fdc4ac7e1411547c2a0620fe1de3f7a8117aaf07b78b8db4a98d7"
+}

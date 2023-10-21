@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT file_id, google_domain, cipher as \"cipher: Cipher\", cipher_key, gdrive_ids\n            FROM stash.storage_gdrive\n            WHERE file_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "file_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "google_domain",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "cipher: Cipher",
+        "type_info": {
+          "Custom": {
+            "name": "cipher",
+            "kind": {
+              "Enum": [
+                "AES_128_CTR",
+                "AES_128_GCM"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "cipher_key",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "gdrive_ids",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9cd3b419dcd3dfc925cd0e464720a5513d8ecb83c1a7adb1d6871bfa69d95fc5"
+}

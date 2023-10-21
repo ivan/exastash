@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.storage_gdrive (file_id, google_domain, cipher, cipher_key, gdrive_ids)\n            VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int2",
+        {
+          "Custom": {
+            "name": "cipher",
+            "kind": {
+              "Enum": [
+                "AES_128_CTR",
+                "AES_128_GCM"
+              ]
+            }
+          }
+        },
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ac4a374438b2c2fb7947bd5a19a517ef310b72022e4dba48eb7c148b452346bb"
+}

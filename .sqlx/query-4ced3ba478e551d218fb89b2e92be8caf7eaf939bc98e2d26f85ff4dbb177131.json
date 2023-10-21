@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, mtime, size, executable, birth_time, birth_version, birth_hostname, b3sum\n            FROM stash.files\n            WHERE id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "mtime",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "size",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "executable",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "birth_time",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "birth_version",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "birth_hostname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "b3sum",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "4ced3ba478e551d218fb89b2e92be8caf7eaf939bc98e2d26f85ff4dbb177131"
+}

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT domain_id, secret\n            FROM stash.google_application_secrets\n            WHERE domain_id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "domain_id",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 1,
+        "name": "secret",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int2Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "9a718f8c44464761d4509022e05549f693d20040769346e98cdcb179302f3ac7"
+}

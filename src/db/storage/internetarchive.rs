@@ -28,7 +28,7 @@ impl Storage {
             INSERT INTO stash.storage_internetarchive (file_id, ia_item, pathname, darked, last_probed)
             VALUES ($1, $2::text, $3::text, $4, $5)"#,
             self.file_id, self.ia_item, self.pathname, self.darked, self.last_probed
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -40,7 +40,7 @@ impl Storage {
         }
         sqlx::query!(r#"
             DELETE FROM stash.storage_internetarchive WHERE file_id = ANY($1)"#, file_ids
-        ).execute(transaction).await?;
+        ).execute(&mut **transaction).await?;
         Ok(())
     }
 
@@ -55,7 +55,7 @@ impl Storage {
             SELECT file_id, ia_item, pathname, darked, last_probed
             FROM stash.storage_internetarchive
             WHERE file_id = ANY($1)"#, file_ids
-        ).fetch_all(transaction).await?;
+        ).fetch_all(&mut **transaction).await?;
         Ok(storages)
     }
 }
@@ -141,7 +141,7 @@ mod tests {
             for (column, value) in [("file_id", "100"), ("ia_item", "'new'"), ("pathname", "'new'")] {
                 let mut transaction = pool.begin().await?;
                 let query = format!("UPDATE stash.storage_internetarchive SET {column} = {value} WHERE file_id = $1");
-                let result = sqlx::query(&query).bind(dummy.id).execute(&mut transaction).await;
+                let result = sqlx::query(&query).bind(dummy.id).execute(&mut *transaction).await;
                 assert_eq!(result.expect_err("expected an error").to_string(), "error returned from database: cannot change file_id, ia_item, or pathname");
             }
 
