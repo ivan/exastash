@@ -2,7 +2,7 @@
 
 #![feature(
     async_closure,
-    generators,
+    coroutines,
     proc_macro_hygiene,
     stmt_expr_attributes,
     lint_reasons,

@@ -30,7 +30,7 @@ futures-async-stream = "0.2"
 gethostname = "0.4.1"
 hex = "0.4"
 hyper = { version = "0.14", features = ["client"] }
-hyper-rustls = { version = "0.23", features = ["webpki-roots"] }
+hyper-rustls = { version = "0.24", features = ["webpki-roots"] }
 libc = "0.2"
 literally = "0.1"
 log = "0.4"
@@ -50,7 +50,7 @@ serde = "1"
 serde_derive = "1"
 serde_json = "1"
 serde-hex = "0.1"
-serial_test = "1"
+serial_test = "2"
 smol_str = "0.1"
 sqlx = { version = "0.6", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "decimal", "uuid", "chrono", "json", "offline"] }
 tempfile = "3"
@@ -58,13 +58,13 @@ tower = { version = "0.4", features = ["util"] }
 thiserror = "1"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "fs", "io-util"] }
 tokio-util = { version = "0.7", features = ["io", "codec", "compat"] }
-toml = "0.7"
+toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = "1"
-yansi = "0.5"
+yansi = "1.0.0-gamma"
 yup-oauth2 = { git = "https://github.com/ludios/yup-oauth2", branch = "prime" }
-zstd = "0.12"
+zstd = "0.13"
 
 [patch.crates-io]
 # Need a matching version for the ring in

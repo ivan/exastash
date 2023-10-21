@@ -1302,14 +1302,14 @@ async fn main() -> Result<()> {
                                 // returned all the inodes we asked for, therefore .unwrap()
                                 let dir = inodes.get(&inode).unwrap().dir().unwrap();
                                 let mtime = dir.mtime.format("%Y-%m-%d %H:%M");
-                                println!("{size:>18} {mtime} {}/", Paint::blue(dirent.basename));
+                                println!("{size:>18} {mtime} {}/", Paint::blue(&dirent.basename));
                             }
                             inode @ InodeId::File(_) => {
                                 let file = inodes.get(&inode).unwrap().file().unwrap();
                                 let size = commaify_i64(file.size);
                                 let mtime = file.mtime.format("%Y-%m-%d %H:%M");
                                 if file.executable {
-                                    println!("{size:>18} {mtime} {}*", Paint::green(dirent.basename).bold());
+                                    println!("{size:>18} {mtime} {}*", Paint::green(&dirent.basename).bold());
                                 } else {
                                     println!("{size:>18} {mtime} {}", dirent.basename);
                                 };
