@@ -4,6 +4,11 @@ set -eu -o pipefail -o verbose
 
 new_version=$1
 
+# Bail out if working directory is not clean
+# https://unix.stackexchange.com/a/394674
+git update-index --really-refresh
+git diff-index --quiet HEAD
+
 last_line=$(rg ';' schema/exastash_versions.sql | tail -n 1)
 current_version_id=$(echo "$last_line" | cut -d , -f 1 | rg -o '[0-9]+')
 new_version_id=$(($current_version_id + 1))
@@ -19,3 +24,7 @@ sed -i -r "s/^INSERT INTO dirs VALUES \(DEFAULT, now\(\), now\(\), $current_vers
 
 # Update Cargo.lock
 cargo test
+
+# Commit and tag, because without this, we frequently forgot to do it ourselves
+git commit -a -m "$new_version"
+git tag "$new_version"
