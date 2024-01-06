@@ -28,3 +28,7 @@ cargo test
 # Commit and tag, because without this, we frequently forgot to do it ourselves
 git commit -a -m "$new_version"
 git tag "$new_version"
+
+echo "Created commit and tag for $new_version. Remember to psql into production and:"
+echo
+echo "INSERT INTO stash.exastash_versions VALUES ($new_version_id, '$new_version');"
