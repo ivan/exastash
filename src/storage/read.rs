@@ -455,7 +455,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     let mut storages = get_storage_views(&[file_id]).await?;
     sort_storage_views_by_priority(&mut storages);
     let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
-    let underlying_stream = match storages.get(0) {
+    let underlying_stream = match storages.first() {
         Some(storage) => read_storage(&file, storage, b3sum.clone()).await?,
         None => bail!("file with id={} has no storage", file_id)
     };

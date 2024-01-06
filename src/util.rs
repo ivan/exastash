@@ -106,7 +106,7 @@ pub(crate) fn utf8_path_to_components(path: &str) -> Vec<String> {
         .skip(1)
         .map(String::from)
         .collect();
-    if parts.get(0).unwrap() == "" {
+    if parts.first().unwrap() == "" {
         parts.pop();
     }
     parts
