@@ -11,7 +11,7 @@ path = "src/main.rs"
 [dependencies]
 aes = "0.8"
 ctr = "0.9"
-axum = { version = "0.6", features = ["macros"] }
+axum = { version = "0.7", features = ["macros"] }
 atomic-counter = "1"
 cipher = "0.4"
 anyhow = "1"
@@ -30,7 +30,7 @@ futures-async-stream = "0.2"
 gethostname = "0.4.1"
 hex = "0.4"
 hyper = { version = "0.14", features = ["client"] }
-hyper-rustls = { version = "0.24", features = ["webpki-roots"] }
+hyper-rustls = { version = "0.25", features = ["webpki-roots"] }
 libc = "0.2"
 literally = "0.1"
 log = "0.4"

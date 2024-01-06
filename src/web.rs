@@ -1,19 +1,17 @@
 //! web server for exastash
 
 use std::net::SocketAddr;
-use hyper::Request;
 use tokio_util::io::ReaderStream;
 use axum::{
     middleware::{self, Next},
     debug_handler,
-    body::StreamBody,
+    body::Body,
     routing::get,
-    extract::{Path, State},
+    extract::{Request, Path, State},
     http::{StatusCode, Uri, HeaderValue},
     response::{Response, IntoResponse},
     Router,
 };
-use tower::ServiceBuilder;
 use tracing::info;
 use std::{
     collections::HashMap,
@@ -158,7 +156,7 @@ async fn fofs_get(
     let fofs_file_size = tokio::fs::metadata(&fname).await?.len();
     let file = tokio::fs::File::open(fname).await?;
     let stream = ReaderStream::new(file);
-    let body = axum::body::boxed(StreamBody::new(stream));
+    let body = Body::from_stream(stream);
     let response = Response::builder()
         .status(StatusCode::OK)
         .header("content-length", fofs_file_size)
@@ -174,7 +172,7 @@ static SERVER: Lazy<HeaderValue> = Lazy::new(|| {
     s.try_into().unwrap()
 });
 
-async fn add_common_headers<B>(req: Request<B>, next: Next<B>) -> Response {
+async fn add_common_headers(req: Request, next: Next) -> Response {
     let mut response = next.run(req).await;
     response.headers_mut().insert("server", SERVER.clone());
     response
@@ -185,22 +183,20 @@ async fn root() -> String {
 }
 
 /// Start a web server with fofs serving capabilities
-pub async fn run(port: u16) -> Result<(), hyper::Error> {
+pub async fn run(port: u16) -> anyhow::Result<()> {
     let state = SharedFofsState::default();
     let app = Router::new()
         .route("/", get(root))
         .route("/fofs/:pile_id/:cell_id/:file_id", get(fofs_get))
         .fallback(fallback)
         .with_state(state)
-        .layer(
-            ServiceBuilder::new()
-                .layer(middleware::from_fn(add_common_headers))
-                .into_inner(),
-        );
+        .layer(middleware::from_fn(add_common_headers));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
+
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
