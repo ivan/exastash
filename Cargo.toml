@@ -21,7 +21,7 @@ bytes = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 crc32c = "0.6"
-custom_debug_derive = "0.5"
+custom_debug_derive = "0.6"
 data-encoding = "2"
 directories = "5"
 filetime = "0.2"
@@ -45,12 +45,12 @@ quick-js = { version = "0.4", features = ["bigint", "chrono", "log"] }
 rand = "0.8"
 regex = { version = "1", default-features = false, features = ["std"] }
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "stream", "json"] }
-ring = { git = "https://github.com/briansmith/ring" } # Until 2896a014de94d670a6913156c9f31d8de8a2323b is in a release
+ring = "0.17"
 serde = "1"
 serde_derive = "1"
 serde_json = "1"
 serde-hex = "0.1"
-serial_test = "2"
+serial_test = "3"
 smol_str = { version = "0.2", features = ["serde"] }
 sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "macros", "postgres", "rust_decimal", "uuid", "chrono", "json"] }
 tempfile = "3"
