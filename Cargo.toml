@@ -66,11 +66,6 @@ yansi = "1.0.0-gamma"
 yup-oauth2 = { git = "https://github.com/ludios/yup-oauth2", branch = "prime" }
 zstd = "0.13"
 
-[patch.crates-io]
-# Need a matching version for the ring in
-# reqwest -> hyper-rustls -> rustls -> ring
-ring = { git = "https://github.com/briansmith/ring" }
-
 [profile.dev]
 # Reduce debug rebuild time
 # https://github.com/rust-gamedev/wg/issues/50#issuecomment-527160611
