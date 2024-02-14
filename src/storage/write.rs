@@ -102,7 +102,7 @@ pub async fn create_gdrive_file_on_domain<S: Stream<Item = std::io::Result<Bytes
     parent: &str,
     filename: &str,
 ) -> Result<GdriveFile> {
-    let access_token_fn = async || -> Result<String> {
+    let access_token_fn = async move || -> Result<String> {
         let mut access_tokens = get_access_tokens(Some(owner_id), domain_id).await?;
         if access_tokens.is_empty() {
             bail!("no access tokens were available for domain_id={} owner_id={}", domain_id, owner_id);

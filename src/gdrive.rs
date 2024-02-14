@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_hex::{SerHex, Strict};
 use serde_json::{json, Value};
 use std::io::Cursor;
-use std::future::Future;
+use std::ops::AsyncFn;
 use byteorder::{BigEndian, ReadBytesExt};
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
@@ -231,16 +231,14 @@ fn is_shared_drive_full_response(json: &Value) -> bool {
     false
 }
 
-pub(crate) async fn create_gdrive_file<S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static, A>(
+pub(crate) async fn create_gdrive_file<S: Stream<Item = std::io::Result<Bytes>> + Send + Sync + 'static>(
     stream: S,
-    access_token_fn: impl Fn() -> A,
+    // TODO: Change `AsyncFn` to `async Fn()` once rust-analyzer supports it
+    access_token_fn: impl AsyncFn() -> Result<String>,
     size: u64,
     parent: &str,
     filename: &str,
-) -> Result<GdriveUploadResponse>
-where
-    A: Future<Output=Result<String>>
-{
+) -> Result<GdriveUploadResponse> {
     let client = reqwest::Client::new();
 
     // https://developers.google.com/drive/api/v3/reference/files/create

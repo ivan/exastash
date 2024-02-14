@@ -2,6 +2,7 @@
 
 #![feature(
     async_closure,
+    async_fn_traits,
     coroutines,
     proc_macro_hygiene,
     stmt_expr_attributes,
