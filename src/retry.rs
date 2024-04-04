@@ -85,8 +85,6 @@ impl <N: MyMul<M, Output=N> + Ord + Copy, M: Copy> Decayer<N, M> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
-    use num::rational::Ratio;
 
     #[test]
     fn test_decayer_u32() {

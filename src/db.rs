@@ -160,7 +160,6 @@ pub async fn assert_cannot_truncate(transaction: &mut Transaction<'_, Postgres>,
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use once_cell::sync::Lazy;
 
     static PRIMARY_POOL_URI: Lazy<String> = Lazy::new(|| {
         let uri = postgres_temp_instance_uri();

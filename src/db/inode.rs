@@ -7,7 +7,6 @@ use chrono::{DateTime, Utc};
 use sqlx::{Postgres, Transaction};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use crate::EXASTASH_VERSION;
 use crate::db;
 use crate::util;
@@ -567,7 +566,6 @@ pub(crate) mod tests {
 
     mod api {
         use super::*;
-        use crate::util;
 
         /// Dir::find_by_ids returns empty Vec when given no ids
         #[tokio::test]

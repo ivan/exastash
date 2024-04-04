@@ -158,7 +158,7 @@ fn parse_natural_number<T: FromStr>(s: &str) -> Result<T, ParseNaturalNumberErro
     s.parse::<T>().map_err(|_| ParseNaturalNumberError)
 }
 
-fn serde_parse_natural_number<'de, D, T: FromStr>(de: D) -> Result<T, D::Error>
+fn serde_parse_natural_number<'de, D, T>(de: D) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
     T: FromStr,

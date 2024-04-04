@@ -11,7 +11,6 @@ use chrono::Utc;
 use tokio::fs;
 use tokio_util::codec::FramedRead;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::path::PathBuf;
 use num::rational::Ratio;
 use sqlx::{Postgres, Transaction};
