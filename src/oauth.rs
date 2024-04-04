@@ -80,7 +80,7 @@ pub async fn refresh_access_tokens(client: &mut PgPool) -> Result<()> {
         .build();
     let hyper_client = hyper::Client::builder().build::<_, hyper::Body>(https);
 
-    let expires_at = Utc::now() + Duration::minutes(expiry_within_minutes);
+    let expires_at = Utc::now() + Duration::try_minutes(expiry_within_minutes).unwrap();
     let tokens = GoogleAccessToken::find_by_expires_at(&mut transaction, expires_at).await?;
     for token in &tokens {
         debug!(?token, "refreshing token");

@@ -299,11 +299,11 @@ mod tests {
 
             let mut transaction = pool.begin().await?;
             assert_eq!(GoogleAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![token.clone()]);
-            assert_eq!(GoogleAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![token.clone()]);
+            assert_eq!(GoogleAccessToken::find_by_expires_at(&mut transaction, now + Duration::try_hours(1).unwrap()).await?, vec![token.clone()]);
 
             token.delete(&mut transaction).await?;
             assert_eq!(GoogleAccessToken::find_by_owner_ids(&mut transaction, &[owner.id]).await?, vec![]);
-            assert_eq!(GoogleAccessToken::find_by_expires_at(&mut transaction, now + Duration::hours(1)).await?, vec![]);
+            assert_eq!(GoogleAccessToken::find_by_expires_at(&mut transaction, now + Duration::try_hours(1).unwrap()).await?, vec![]);
 
             Ok(())
         }
