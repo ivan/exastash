@@ -2,6 +2,7 @@
 // pattern binding `s` is named the same as one of the variants of the type `FindKind`
 #![allow(bindings_with_variant_name)]
 
+use exastash::db::storage::{fofs, gdrive, get_storage_views, StorageView};
 use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
@@ -10,7 +11,7 @@ use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use tokio::fs;
 use tokio_util::codec::FramedRead;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use num::rational::Ratio;
 use sqlx::{Postgres, Transaction};
@@ -824,8 +825,27 @@ async fn main() -> Result<()> {
                     }
                 }
                 FileCommand::Delete { file_id } => {
+                    let storage_views = get_storage_views(&[file_id]).await?;
+                    let mut delete_fofs = HashSet::new();
+                    let mut delete_gdrive = HashSet::new();
+                    let mut delete_inline = false;
+                    for storage in storage_views {
+                        match storage {
+                            StorageView::Gdrive(gdrive::Storage { google_domain, .. }) => {
+                                delete_gdrive.insert(google_domain);
+                            }
+                            StorageView::Fofs(fofs::StorageView { pile_id, .. }) => {
+                                delete_fofs.insert(pile_id);
+                            }
+                            StorageView::Inline(..) => {
+                                delete_inline = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                    let undesired = storage::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
+                    storage::delete::delete_storages(file_id, &undesired).await?;
                     let mut transaction = pool.begin().await?;
-                    // TODO call something in storage::delete so we can delete the file if it has any storages
                     File::delete(&mut transaction, &[file_id]).await?;
                     transaction.commit().await?;
                 }

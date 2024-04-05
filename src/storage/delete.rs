@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use crate::db;
+use crate::gdrive::delete_gdrive_file;
 use crate::util;
 use crate::storage::StoragesDescriptor;
 use tracing::info;
@@ -41,7 +42,23 @@ pub async fn delete_storages(file_id: i64, undesired: &StoragesDescriptor) -> Re
         transaction.commit().await?;
     }
     if !undesired.gdrive.is_empty() {
-        unimplemented!("removing a storage_gdrive");
+        // Get the IDs of the Google Drive files we need to delete
+        let mut transaction = pool.begin().await?;
+        let storages = db::storage::gdrive::Storage::find_by_file_ids(&mut transaction, &[file_id]).await?;
+        let gdrive_ids: Vec<String> = storages.into_iter().flat_map(|s| s.gdrive_ids).collect();
+        transaction.commit().await?; // close read-only transaction
+
+        // Delete the Google Drive files
+        for gdrive_id in &gdrive_ids {
+            delete_gdrive_file(gdrive_id).await?;
+        }
+
+        // Update our database to reflect the lack of Google Drive files
+        let mut transaction = pool.begin().await?;
+        db::storage::gdrive::Storage::delete_by_file_ids(&mut transaction, &[file_id]).await?;
+        let gdrive_ids: Vec<&str> = gdrive_ids.iter().map(AsRef::as_ref).collect();
+        db::storage::gdrive::file::GdriveFile::delete_by_ids(&mut transaction, &gdrive_ids).await?;
+        transaction.commit().await?;
     }
 
     Ok(())

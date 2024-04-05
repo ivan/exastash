@@ -15,7 +15,10 @@ use reqwest::header::HeaderMap;
 use futures::stream::Stream;
 use bytes::Bytes;
 pub use yup_oauth2::AccessToken;
+use crate::db::storage::gdrive::file::GdriveFile;
 use crate::lazy_regex;
+use crate::storage::read::get_access_tokens;
+use crate::db;
 
 pub(crate) fn get_header_value<'a>(response: &'a reqwest::Response, header: &str) -> Result<&'a str> {
     let headers = response.headers();
@@ -192,6 +195,14 @@ pub enum GdriveUploadError {
     CreatedFileHasWrongName(String, String),
 }
 
+/// Reasons why the deletion on Google Drive failed.
+#[allow(missing_docs)]
+#[derive(Debug, Eq, thiserror::Error, PartialEq)]
+pub enum GdriveDeleteError {
+    #[error("expected empty response for delete request, got status={0:?}, body={1:?}")]
+    DeleteRequestNotOk(StatusCode, String),
+}
+
 /// Return `true` if the given JSON response indicates that the shared drive
 /// file limit has been exceeded.
 ///
@@ -305,6 +316,47 @@ pub(crate) async fn create_gdrive_file<S: Stream<Item = std::io::Result<Bytes>> 
     }
 
     Ok(response)
+}
+
+pub(crate) async fn delete_gdrive_file(file_id: &str) -> Result<()> {
+    let pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
+    let mut gdrive_files = GdriveFile::find_by_ids_in_order(&mut transaction, &[file_id]).await?;
+    let gdrive_file = gdrive_files.pop().unwrap();
+    transaction.commit().await?; // close read-only transaction
+
+    // Hack
+    let domain_id = 1;
+    let access_tokens = get_access_tokens(gdrive_file.owner_id, domain_id).await?;
+    if access_tokens.is_empty() {
+        bail!("no access tokens were available for owners associated file_id={:?} (domain_id={})", gdrive_file.id, domain_id);
+    }
+    let tries = 3;
+    let access_tokens_tries = access_tokens.iter().cycle().take(access_tokens.len() * tries);
+
+    let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
+    for access_token in access_tokens_tries {
+        let client = reqwest::Client::new();
+
+        let url = format!("https://www.googleapis.com/drive/v3/files/{file_id}?supportsAllDrives=true");
+        let response = client
+            .delete(url)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .send().await?;
+    
+        let status = response.status();
+        if status == 403 || status == 404 {
+            // Wrong access token, try another
+            continue;
+        }
+        if status == 200 || status == 204 {
+            out = Ok(());
+            break;
+        }
+        let body = response.text().await?;
+        bail!(GdriveDeleteError::DeleteRequestNotOk(status, body));
+    }
+    out
 }
 
 #[cfg(test)]

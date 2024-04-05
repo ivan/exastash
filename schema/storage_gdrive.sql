@@ -117,11 +117,11 @@ CREATE OR REPLACE FUNCTION gdrive_files_not_referenced() RETURNS trigger AS $$
 DECLARE
     file_id_ bigint;
 BEGIN
-    -- TODO: make sure index is actually being used for this
-    file_id_ := (SELECT file_id FROM stash.storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.id] LIMIT 1);
-    IF file_id_ IS NOT NULL THEN
-        RAISE EXCEPTION 'gdrive_files=% is still referenced by storage_gdrive=%', OLD.id, file_id_;
-    END IF;
+--    -- TODO: make sure index is actually being used for this (it's not - ugh)
+--    file_id_ := (SELECT file_id FROM stash.storage_gdrive WHERE gdrive_ids @> ARRAY[OLD.id] LIMIT 1);
+--    IF file_id_ IS NOT NULL THEN
+--        RAISE EXCEPTION 'gdrive_files=% is still referenced by storage_gdrive=%', OLD.id, file_id_;
+--    END IF;
     RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
