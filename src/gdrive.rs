@@ -331,7 +331,7 @@ pub(crate) async fn delete_gdrive_file(file_id: &str) -> Result<()> {
     if access_tokens.is_empty() {
         bail!("no access tokens were available for owners associated file_id={:?} (domain_id={})", gdrive_file.id, domain_id);
     }
-    let tries = 3;
+    let tries = 1; // We had 3 before, not sure if that was useful
     let access_tokens_tries = access_tokens.iter().cycle().take(access_tokens.len() * tries);
 
     let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
