@@ -6,6 +6,8 @@ CREATE VIEW file_ids_with_storage_or_zero_size AS
     UNION
     SELECT file_id AS id FROM storage_gdrive
     UNION
+    SELECT file_id AS id FROM storage_namedfiles
+    UNION
     SELECT file_id AS id FROM storage_internetarchive
     UNION
     SELECT id FROM files WHERE size = 0;
@@ -18,6 +20,8 @@ CREATE VIEW file_ids_with_storage_or_zero_size_with_duplicates AS
     SELECT file_id AS id FROM storage_inline
     UNION ALL
     SELECT file_id AS id FROM storage_gdrive
+    UNION ALL
+    SELECT file_id AS id FROM storage_namedfiles
     UNION ALL
     SELECT file_id AS id FROM storage_internetarchive
     UNION ALL
