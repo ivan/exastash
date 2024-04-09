@@ -455,32 +455,9 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     let mut storages = get_storage_views(&[file_id]).await?;
     sort_storage_views_by_priority(&mut storages);
     let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
-    let underlying_stream = match storages.first() {
+    let stream = match storages.first() {
         Some(storage) => read_storage(&file, storage, b3sum.clone()).await?,
         None => bail!("file with id={} has no storage", file_id)
-    };
-
-    let file_b3sum = file.b3sum;
-    // We only need to wrap the stream with this stream if file.b3sum is unset
-    let stream = if file_b3sum.is_none() {
-        Box::pin(
-            #[try_stream]
-            async move {
-                #[for_await]
-                for frame in underlying_stream {
-                    yield frame?;
-                }
-
-                let mut transaction = pool.begin().await?;
-                let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
-                info!(file_id, new_b3sum = ?hex::encode(computed_hash.as_bytes()), "fixing unset b3sum on file");
-                db::disable_synchronous_commit(&mut transaction).await?;
-                inode::File::set_b3sum(&mut transaction, file_id, computed_hash.as_bytes()).await?;
-                transaction.commit().await?;
-            }
-        )
-    } else {
-        underlying_stream
     };
 
     Ok((stream, file))
