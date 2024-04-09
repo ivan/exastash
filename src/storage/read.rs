@@ -353,7 +353,7 @@ async fn read_storage_without_checks(file: &inode::File, storage: &StorageView) 
             bytes.put(&content[..]);
             Box::pin(stream::iter::<_>(vec![Ok(bytes.copy_to_bytes(bytes.remaining()))]))
         }
-        StorageView::Fofs(fofs_storage) => {
+        StorageView::Fofs(fofs_storage) if fofs_storage.pile_hostname != "ra" => { // TODO XXX configurable list of hostnames to exclude
             info!(id = file.id, pile_id = fofs_storage.pile_id, "reading file from fofs storage");
             stream_fofs_file(file, fofs_storage).await?
         }
@@ -361,7 +361,7 @@ async fn read_storage_without_checks(file: &inode::File, storage: &StorageView) 
             info!(id = file.id, google_domain = gdrive_storage.google_domain, "reading file from gdrive storage");
             stream_gdrive_files(file, gdrive_storage)
         }
-        StorageView::InternetArchive(internetarchive::Storage { .. }) => {
+        _ => {
             unimplemented!()
         }
     })
