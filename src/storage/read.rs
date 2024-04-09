@@ -112,15 +112,6 @@ fn stream_add_validation(
     )
 }
 
-async fn touch_last_probed(file_ids: &[&str]) -> Result<()> {
-    let pool = db::pgpool().await;
-    let mut transaction = pool.begin().await?;
-    db::disable_synchronous_commit(&mut transaction).await?;
-    GdriveFile::touch_last_probed(&mut transaction, file_ids).await?;
-    transaction.commit().await?;
-    Ok(())
-}
-
 /// Returns a Stream of Bytes for a `GdriveFile`, first validating the
 /// response code and `x-goog-hash`.
 pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_id: i16) -> Result<impl Stream<Item = Result<Bytes, Error>>> {
@@ -167,13 +158,6 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
             _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
         };
     }
-    let gdrive_file_id = gdrive_file.id.clone();
-    // Go faster by not .await'ing touch_last_probed
-    tokio::spawn(async move {
-        if let Err(err) = touch_last_probed(&[&gdrive_file_id]).await {
-            error!(?err, "touch_last_probed failed");
-        }
-    });
     out
 }
 
