@@ -60,7 +60,7 @@ static PGPOOL: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::
     let database_uri = env_var("EXASTASH_POSTGRES_URI").unwrap();
     let max_connections = env::var("EXASTASH_POSTGRES_MAX_CONNECTIONS")
         .map(|s| s.parse::<u32>().expect("could not parse EXASTASH_POSTGRES_MAX_CONNECTIONS as a u32"))
-        .unwrap_or(16); // default
+        .unwrap_or(5); // default
     let connect_timeout_sec = env::var("EXASTASH_POSTGRES_CONNECT_TIMEOUT_SEC")
         .map(|s| s.parse::<u64>().expect("could not parse EXASTASH_POSTGRES_CONNECT_TIMEOUT_SEC as a u64"))
         .unwrap_or(30); // default
