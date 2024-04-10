@@ -8,7 +8,7 @@ use crate::storage::StoragesDescriptor;
 use tracing::info;
 
 /// Delete storages for a file and remove them to the database.
-pub async fn delete_storages(file_id: i64, undesired: &StoragesDescriptor) -> Result<()> {
+pub async fn delete_storages(file_id: i64, undesired: &StoragesDescriptor, delete_google_drive_files: bool) -> Result<()> {
     if undesired.is_empty() {
         return Ok(());
     }
@@ -48,12 +48,14 @@ pub async fn delete_storages(file_id: i64, undesired: &StoragesDescriptor) -> Re
         let gdrive_ids: Vec<String> = storages.into_iter().flat_map(|s| s.gdrive_ids).collect();
         transaction.commit().await?; // close read-only transaction
 
-        // Delete the Google Drive files
-        for gdrive_id in &gdrive_ids {
-            delete_gdrive_file(gdrive_id).await?;
+        if delete_google_drive_files {
+            // Delete the Google Drive files
+            for gdrive_id in &gdrive_ids {
+                delete_gdrive_file(gdrive_id).await?;
+            }
         }
 
-        // Update our database to reflect the lack of Google Drive files
+        // Update our database
         let mut transaction = pool.begin().await?;
         db::storage::gdrive::Storage::delete_by_file_ids(&mut transaction, &[file_id]).await?;
         let gdrive_ids: Vec<&str> = gdrive_ids.iter().map(AsRef::as_ref).collect();

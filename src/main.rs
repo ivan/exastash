@@ -821,7 +821,10 @@ async fn main() -> Result<()> {
                     let delete_gdrive = delete_gdrive.into_iter().collect();
                     let undesired = storage::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
                     for file_id in file_ids {
-                        storage::delete::delete_storages(file_id, &undesired).await?;
+                        // We seem to not be able to delete stuff from our shared drives,
+                        // and we'll be fully deleted by Google soon anyway...
+                        let delete_google_drive_files = false;
+                        storage::delete::delete_storages(file_id, &undesired, delete_google_drive_files).await?;
                     }
                 }
                 FileCommand::Delete { file_id } => {
@@ -844,7 +847,10 @@ async fn main() -> Result<()> {
                         }
                     }
                     let undesired = storage::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
-                    storage::delete::delete_storages(file_id, &undesired).await?;
+                    // We seem to not be able to delete stuff from our shared drives,
+                    // and we'll be fully deleted by Google soon anyway...
+                    let delete_google_drive_files = false;
+                    storage::delete::delete_storages(file_id, &undesired, delete_google_drive_files).await?;
                     let mut transaction = pool.begin().await?;
                     File::delete(&mut transaction, &[file_id]).await?;
                     transaction.commit().await?;
