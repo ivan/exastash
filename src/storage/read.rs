@@ -12,11 +12,12 @@ use reqwest::StatusCode;
 use aes::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
 use aes::cipher::generic_array::GenericArray;
 use futures_async_stream::try_stream;
+use std::env;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use crate::blake3::Blake3HashingStream;
 use crate::db;
-use crate::db::inode;
+use crate::db::inode::{self, File};
 use crate::db::storage::{get_storage_views, StorageView, fofs, inline, gdrive, internetarchive};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::db::google_auth::{GoogleAccessToken, GoogleServiceAccount};
@@ -402,7 +403,11 @@ pub async fn read_storage(file: &inode::File, storage: &StorageView, b3sum: Arc<
 }
 
 /// Sort a slice of StorageView by priority, best first
-fn sort_storage_views_by_priority(storages: &mut [StorageView]) {
+fn sort_storage_views_by_priority(storages: &mut [StorageView], file: &File) {
+    let disprefer_fofs_size_threshold: i64 = env::var("EXASTASH_DISPREFER_FOFS_SIZE_THRESHOLD")
+        .map(|s| s.parse::<i64>().expect("could not parse EXASTASH_DISPREFER_FOFS_SIZE_THRESHOLD as a i64"))
+        .unwrap_or(2_000_000); // default
+
     storages.sort_by_cached_key(|storage| {
         match storage {
             // Prefer inline because it already has the file content
@@ -413,6 +418,8 @@ fn sort_storage_views_by_priority(storages: &mut [StorageView]) {
                 match pile_hostname {
                     s if s == "ra" => 10, // not publicly reachable & has offline drives
                     s if s == &util::get_hostname() => 1,
+                    _ if disprefer_fofs_size_threshold == -1 => 2,
+                    _ if file.size >= disprefer_fofs_size_threshold => 10,
                     _ => 2,
                 }
             },
@@ -441,7 +448,7 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
     }
 
     let mut storages = get_storage_views(&[file_id]).await?;
-    sort_storage_views_by_priority(&mut storages);
+    sort_storage_views_by_priority(&mut storages, &file);
     let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
     let stream = match storages.first() {
         Some(storage) => read_storage(&file, storage, b3sum.clone()).await?,
