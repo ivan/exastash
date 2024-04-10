@@ -149,11 +149,11 @@ enum FileCommand {
         delete_gdrive: Vec<i16>,
     },
 
-    /// Delete a file and all of its storages
+    /// Delete files and all of their storages
     #[clap(name = "delete")]
     Delete {
         #[clap(name = "FILE_ID")]
-        file_id: i64,
+        file_ids: Vec<i64>,
     },
 
     /// Print info in JSON format for zero or more files
@@ -827,33 +827,35 @@ async fn main() -> Result<()> {
                         storage::delete::delete_storages(file_id, &undesired, delete_google_drive_files).await?;
                     }
                 }
-                FileCommand::Delete { file_id } => {
-                    let storage_views = get_storage_views(&[file_id]).await?;
-                    let mut delete_fofs = HashSet::new();
-                    let mut delete_gdrive = HashSet::new();
-                    let mut delete_inline = false;
-                    for storage in storage_views {
-                        match storage {
-                            StorageView::Gdrive(gdrive::Storage { google_domain, .. }) => {
-                                delete_gdrive.insert(google_domain);
+                FileCommand::Delete { file_ids } => {
+                    for file_id in file_ids {
+                        let storage_views = get_storage_views(&[file_id]).await?;
+                        let mut delete_fofs = HashSet::new();
+                        let mut delete_gdrive = HashSet::new();
+                        let mut delete_inline = false;
+                        for storage in storage_views {
+                            match storage {
+                                StorageView::Gdrive(gdrive::Storage { google_domain, .. }) => {
+                                    delete_gdrive.insert(google_domain);
+                                }
+                                StorageView::Fofs(fofs::StorageView { pile_id, .. }) => {
+                                    delete_fofs.insert(pile_id);
+                                }
+                                StorageView::Inline(..) => {
+                                    delete_inline = true;
+                                }
+                                _ => {}
                             }
-                            StorageView::Fofs(fofs::StorageView { pile_id, .. }) => {
-                                delete_fofs.insert(pile_id);
-                            }
-                            StorageView::Inline(..) => {
-                                delete_inline = true;
-                            }
-                            _ => {}
                         }
+                        let undesired = storage::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
+                        // We seem to not be able to delete stuff from our shared drives,
+                        // and we'll be fully deleted by Google soon anyway...
+                        let delete_google_drive_files = false;
+                        storage::delete::delete_storages(file_id, &undesired, delete_google_drive_files).await?;
+                        let mut transaction = pool.begin().await?;
+                        File::delete(&mut transaction, &[file_id]).await?;
+                        transaction.commit().await?;
                     }
-                    let undesired = storage::StoragesDescriptor { inline: delete_inline, fofs: delete_fofs, gdrive: delete_gdrive };
-                    // We seem to not be able to delete stuff from our shared drives,
-                    // and we'll be fully deleted by Google soon anyway...
-                    let delete_google_drive_files = false;
-                    storage::delete::delete_storages(file_id, &undesired, delete_google_drive_files).await?;
-                    let mut transaction = pool.begin().await?;
-                    File::delete(&mut transaction, &[file_id]).await?;
-                    transaction.commit().await?;
                 }
                 FileCommand::Info { ids } => {
                     let mut transaction = pool.begin().await?;
