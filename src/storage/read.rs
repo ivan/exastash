@@ -2,7 +2,7 @@
 
 use anyhow::{Result, Error, anyhow, bail, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
-use tracing::{info, debug, error};
+use tracing::{info, debug};
 use futures::stream::{self, Stream, BoxStream, TryStreamExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 use tokio::io::AsyncReadExt;
