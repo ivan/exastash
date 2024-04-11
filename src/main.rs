@@ -2,7 +2,7 @@
 // pattern binding `s` is named the same as one of the variants of the type `FindKind`
 #![allow(bindings_with_variant_name)]
 
-use exastash::db::storage::{fofs, gdrive, get_storage_views, StorageView};
+use exastash::db::storage::{fofs, gdrive, get_storage_views, namedfiles, StorageView};
 use tracing::info;
 use yansi::Paint;
 use async_recursion::async_recursion;
@@ -338,6 +338,10 @@ enum StorageCommand {
     /// gdrive storage
     #[clap(subcommand, name = "gdrive")]
     Gdrive(GdriveStorageCommand),
+
+    /// namedfiles storage
+    #[clap(subcommand, name = "namedfiles")]
+    NamedFiles(NamedFilesStorageCommand),
 }
 
 #[derive(Subcommand, Debug)]
@@ -349,6 +353,25 @@ enum GdriveStorageCommand {
     /// gdrive file placement commands
     #[clap(subcommand, name = "placement")]
     Placement(PlacementCommand),
+}
+
+#[derive(Subcommand, Debug)]
+enum NamedFilesStorageCommand {
+    /// Create a storage_namedfiles entity in the database. This does not check whether the underlying file actually exists
+    #[clap(name = "create")]
+    Create {
+        /// File id
+        #[clap(name = "FILE_ID")]
+        file_id: i64,
+
+        /// namedfiles location
+        #[clap(name = "LOCATION")]
+        location: String,
+
+        /// namedfiles pathname
+        #[clap(name = "PATHNAME")]
+        pathname: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -1016,6 +1039,21 @@ async fn main() -> Result<()> {
         }
         ExastashCommand::Storage(command) => {
             match command {
+                StorageCommand::NamedFiles(command) => {
+                    match command {
+                        NamedFilesStorageCommand::Create { file_id, location, pathname } => {
+                            let mut transaction = pool.begin().await?;
+                            let storage = namedfiles::Storage {
+                                file_id,
+                                location,
+                                pathname,
+                                last_probed: None,
+                            };
+                            storage.create(&mut transaction).await?;
+                            transaction.commit().await?;
+                        }
+                    }
+                }
                 StorageCommand::Gdrive(command) => {
                     match command {
                         GdriveStorageCommand::Placement(command) => {
