@@ -3,6 +3,7 @@
 pub mod fofs;
 pub mod inline;
 pub mod gdrive;
+pub mod namedfiles;
 pub mod internetarchive;
 
 use crate::db;
@@ -23,6 +24,9 @@ pub enum Storage {
     /// A storage entity backed by Google Drive
     #[serde(rename = "gdrive")]
     Gdrive(gdrive::Storage),
+    /// A storage entity backed by a file at some location
+    #[serde(rename = "namedfiles")]
+    NamedFiles(namedfiles::Storage),
     /// A storage entity backed by a file accessible at Internet Archive
     #[serde(rename = "internetarchive")]
     InternetArchive(internetarchive::Storage),
@@ -42,6 +46,9 @@ pub enum StorageView {
     /// A storage entity backed by Google Drive
     #[serde(rename = "gdrive")]
     Gdrive(gdrive::Storage),
+    /// A storage entity backed by a file at some location
+    #[serde(rename = "namedfiles")]
+    NamedFiles(namedfiles::Storage),
     /// A storage entity backed by a file accessible at Internet Archive
     #[serde(rename = "internetarchive")]
     InternetArchive(internetarchive::Storage),
@@ -63,10 +70,11 @@ macro_rules! find_by_file_ids {
 pub async fn get_storages(file_ids: &[i64]) -> Result<Vec<Storage>> {
     let pool = db::pgpool().await;
 
-    let (fofs, inline, gdrive, internetarchive) = try_join!(
+    let (fofs, inline, gdrive, namedfiles, internetarchive) = try_join!(
         find_by_file_ids!(pool, inline::Storage,          Storage::Inline,          file_ids),
         find_by_file_ids!(pool, fofs::Storage,            Storage::Fofs,            file_ids),
         find_by_file_ids!(pool, gdrive::Storage,          Storage::Gdrive,          file_ids),
+        find_by_file_ids!(pool, namedfiles::Storage,      Storage::NamedFiles,      file_ids),
         find_by_file_ids!(pool, internetarchive::Storage, Storage::InternetArchive, file_ids)
     )?;
 
@@ -74,6 +82,7 @@ pub async fn get_storages(file_ids: &[i64]) -> Result<Vec<Storage>> {
         &inline[..],
         &fofs[..],
         &gdrive[..],
+        &namedfiles[..],
         &internetarchive[..],
     ].concat())
 }
@@ -82,10 +91,11 @@ pub async fn get_storages(file_ids: &[i64]) -> Result<Vec<Storage>> {
 pub async fn get_storage_views(file_ids: &[i64]) -> Result<Vec<StorageView>> {
     let pool = db::pgpool().await;
 
-    let (fofs, inline, gdrive, internetarchive) = try_join!(
+    let (fofs, inline, gdrive, namedfiles, internetarchive) = try_join!(
         find_by_file_ids!(pool, inline::Storage,          StorageView::Inline,          file_ids),
         find_by_file_ids!(pool, fofs::StorageView,        StorageView::Fofs,            file_ids),
         find_by_file_ids!(pool, gdrive::Storage,          StorageView::Gdrive,          file_ids),
+        find_by_file_ids!(pool, namedfiles::Storage,      StorageView::NamedFiles,      file_ids),
         find_by_file_ids!(pool, internetarchive::Storage, StorageView::InternetArchive, file_ids)
     )?;
 
@@ -93,6 +103,7 @@ pub async fn get_storage_views(file_ids: &[i64]) -> Result<Vec<StorageView>> {
         &inline[..],
         &fofs[..],
         &gdrive[..],
+        &namedfiles[..],
         &internetarchive[..],
     ].concat())
 }
@@ -128,12 +139,19 @@ mod tests {
 
             let mut transaction = pool.begin().await?;
 
-            // internetarchive
             let dummy = create_dummy_file(&mut transaction).await?;
+
+            // internetarchive
             let storage1 = internetarchive::Storage { file_id: dummy.id, ia_item: "item1".into(), pathname: "path1".into(), darked: false, last_probed: None };
             storage1.create(&mut transaction).await?;
             let storage2 = internetarchive::Storage { file_id: dummy.id, ia_item: "item2".into(), pathname: "path2".into(), darked: true, last_probed: None };
             storage2.create(&mut transaction).await?;
+
+            // namedfiles
+            let storage6 = namedfiles::Storage { file_id: dummy.id, location: "loc1".into(), pathname: "path1".into(), last_probed: None };
+            storage6.create(&mut transaction).await?;
+            let storage7 = namedfiles::Storage { file_id: dummy.id, location: "loc2".into(), pathname: "path2".into(), last_probed: None };
+            storage7.create(&mut transaction).await?;
 
             // gdrive
             let gdrive_file = gdrive::file::GdriveFile { id: "I".repeat(28), owner_id: None, md5: [0; 16], crc32c: 0, size: 1, last_probed: None };
@@ -157,6 +175,8 @@ mod tests {
                 Storage::Fofs(storage5),
                 Storage::Inline(storage4),
                 Storage::Gdrive(storage3),
+                Storage::NamedFiles(storage6),
+                Storage::NamedFiles(storage7),
                 Storage::InternetArchive(storage1),
                 Storage::InternetArchive(storage2),
             ]);

@@ -344,6 +344,9 @@ pub async fn desired_storages_without_those_that_already_exist(file_id: i64, des
             StorageView::InternetArchive { .. } => {
                 // StoragesDescriptor doesn't have internetarchive
             }
+            StorageView::NamedFiles { .. } => {
+                // StoragesDescriptor doesn't have namedfiles
+            }
         }
     }
     Ok(desired)

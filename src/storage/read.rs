@@ -18,7 +18,7 @@ use parking_lot::Mutex;
 use crate::blake3::Blake3HashingStream;
 use crate::db;
 use crate::db::inode::{self, File};
-use crate::db::storage::{get_storage_views, StorageView, fofs, inline, gdrive, internetarchive};
+use crate::db::storage::{fofs, gdrive, get_storage_views, inline, internetarchive, namedfiles, StorageView};
 use crate::db::storage::gdrive::file::{GdriveFile, GdriveOwner};
 use crate::db::google_auth::{GoogleAccessToken, GoogleServiceAccount};
 use crate::util;
@@ -365,6 +365,9 @@ async fn read_storage_without_checks(file: &inode::File, storage: &StorageView) 
         StorageView::InternetArchive(internetarchive::Storage { .. }) => {
             unimplemented!()
         }
+        StorageView::NamedFiles(namedfiles::Storage { .. }) => {
+            unimplemented!()
+        }
     })
 }
 
@@ -419,13 +422,14 @@ fn sort_storage_views_by_priority(storages: &mut [StorageView], file: &File) {
                     s if s == "ra" => 10, // not publicly reachable & has offline drives
                     s if s == &util::get_hostname() => 1,
                     _ if disprefer_fofs_size_threshold == -1 => 2,
-                    _ if file.size >= disprefer_fofs_size_threshold => 10,
+                    _ if file.size >= disprefer_fofs_size_threshold => 9,
                     _ => 2,
                 }
             },
             // Prefer gdrive over internetarchive because internetarchive is very slow now
             StorageView::Gdrive { .. } => 3,
-            StorageView::InternetArchive(internetarchive::Storage { .. }) => 4,
+            StorageView::NamedFiles(namedfiles::Storage { .. }) => 4,
+            StorageView::InternetArchive(internetarchive::Storage { .. }) => 5,
         }
     });
 }
