@@ -409,7 +409,7 @@ pub async fn read_storage(file: &inode::File, storage: &StorageView, b3sum: Arc<
 fn sort_storage_views_by_priority(storages: &mut [StorageView], file: &File) {
     let disprefer_fofs_size_threshold: i64 = env::var("EXASTASH_DISPREFER_FOFS_SIZE_THRESHOLD")
         .map(|s| s.parse::<i64>().expect("could not parse EXASTASH_DISPREFER_FOFS_SIZE_THRESHOLD as a i64"))
-        .unwrap_or(2_000_000); // default
+        .unwrap_or(-1); // default
 
     storages.sort_by_cached_key(|storage| {
         match storage {
