@@ -420,6 +420,7 @@ fn sort_storage_views_by_priority(storages: &mut [StorageView], file: &File) {
             StorageView::Fofs(fofs::StorageView { pile_hostname, .. }) => {
                 match pile_hostname {
                     s if s == "ra" => 10, // not publicly reachable & has offline drives
+                    s if s == "kal" => 10, // not publicly reachable & has offline drives
                     s if s == &util::get_hostname() => 1,
                     _ if disprefer_fofs_size_threshold == -1 => 2,
                     _ if file.size >= disprefer_fofs_size_threshold => 9,
