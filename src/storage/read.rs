@@ -152,8 +152,10 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
             StatusCode::NOT_FOUND |
             StatusCode::INTERNAL_SERVER_ERROR |
             StatusCode::SERVICE_UNAVAILABLE => {
-                debug!(file_id = ?gdrive_file.id, code = %response.status(), "Google responded with unfavorable HTTP status code, \
-                        trying another access token if available");
+                let status = response.status();
+                let body = response.text().await?;
+                debug!(file_id = ?gdrive_file.id, code = ?status, access_token = ?access_token, body = body,
+                    "Google responded with unfavorable HTTP status code, trying another access token if available");
                 continue;
             }
             _ => bail!("Google responded with HTTP status code {} for file_id={:?}", response.status(), gdrive_file.id),
