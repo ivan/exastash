@@ -99,6 +99,9 @@ impl GoogleAccessToken {
     /// Return a `Vec<GoogleAccessToken>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32]) -> Result<Vec<GoogleAccessToken>> {
+        if owner_ids.is_empty() || owner_ids == [6] { // Hack - `6` is my service accounts
+            return Ok(vec![]);
+        }
         let tokens = sqlx::query_as!(GoogleAccessToken, r#"
             SELECT owner_id, access_token, refresh_token, expires_at
             FROM stash.google_access_tokens
