@@ -53,7 +53,7 @@ pub async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<
     // Always try a random service account first, because we have more service
     // accounts than regular accounts, thus making us less likely to run into daily
     // per-account transfer limits.
-    for service_account in GoogleServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(2)).await? {
+    for service_account in GoogleServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(1)).await? {
         let auth = yup_oauth2::ServiceAccountAuthenticator::builder(service_account.key).build().await?;
         let scopes = &["https://www.googleapis.com/auth/drive"];
         let token = auth.token(scopes).await?;
