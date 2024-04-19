@@ -361,6 +361,13 @@ async fn read_storage_without_checks(file: &inode::File, storage: &StorageView) 
             stream_fofs_file(file, fofs_storage).await?
         }
         StorageView::Gdrive(gdrive_storage) => {
+            let no_gdrive: i64 = env::var("EXASTASH_NO_GDRIVE")
+                .map(|s| s.parse::<i64>().expect("could not parse EXASTASH_NO_GDRIVE as a i64"))
+                .unwrap_or(0); // default
+            if no_gdrive != 0 {
+                bail!("bailing out instead of reading from gdrive because EXASTASH_NO_GDRIVE is set and not 0");
+            }
+
             info!(id = file.id, google_domain = gdrive_storage.google_domain, "reading file from gdrive storage");
             stream_gdrive_files(file, gdrive_storage)
         }
