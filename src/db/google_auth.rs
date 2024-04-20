@@ -230,16 +230,27 @@ impl GoogleServiceAccount {
             return Ok(());
         }
 
-        // The `IS DISTINCT FROM` clause is there to avoid unnecessary writes
-        // on the PostgreSQL server when the value is already the desired value
-        sqlx::query!(r#"
-            UPDATE stash.google_service_accounts_stats
-            SET last_over_quota_time = $1
-            WHERE
-                client_email = $2 AND
-                last_over_quota_time IS DISTINCT FROM $1
-            "#, last_over_quota_time, client_email
-        ).execute(&mut **transaction).await?;
+        debug!("setting last_over_quota_time={:?} for client_email={:?}", last_over_quota_time, client_email);
+
+        if last_over_quota_time.is_none() {
+            // IS NOT NULL to avoid unnecessary writes on the PostgreSQL server
+            sqlx::query!(r#"
+                UPDATE stash.google_service_accounts_stats
+                SET last_over_quota_time = $1
+                WHERE
+                    client_email = $2 AND
+                    last_over_quota_time IS NOT NULL
+                "#, last_over_quota_time, client_email
+            ).execute(&mut **transaction).await?;
+        } else {
+            sqlx::query!(r#"
+                UPDATE stash.google_service_accounts_stats
+                SET last_over_quota_time = $1
+                WHERE
+                    client_email = $2
+                "#, last_over_quota_time, client_email
+            ).execute(&mut **transaction).await?;
+        }
         Ok(())
     }
 }

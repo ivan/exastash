@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE stash.google_service_accounts_stats\n                SET last_over_quota_time = $1\n                WHERE\n                    client_email = $2 AND\n                    last_over_quota_time IS NOT NULL\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "592385ce58aa575d218b81f73173e18fbfb1885fa8ed47cead91e6e547caa6cb"
+}
