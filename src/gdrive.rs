@@ -335,7 +335,7 @@ pub(crate) async fn delete_gdrive_file(file_id: &str) -> Result<()> {
     let access_tokens_tries = access_tokens.iter().cycle().take(access_tokens.len() * tries);
 
     let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
-    for access_token in access_tokens_tries {
+    for (access_token, _service_account) in access_tokens_tries {
         let client = reqwest::Client::new();
 
         let url = format!("https://www.googleapis.com/drive/v3/files/{file_id}?supportsAllDrives=true");

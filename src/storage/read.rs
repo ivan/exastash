@@ -2,6 +2,7 @@
 
 use anyhow::{Result, Error, anyhow, bail, ensure};
 use bytes::{Bytes, BytesMut, Buf, BufMut};
+use chrono::Utc;
 use tracing::{info, debug};
 use futures::stream::{self, Stream, BoxStream, TryStreamExt};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
@@ -33,7 +34,7 @@ type Aes128Ctr = ctr::Ctr64BE<aes::Aes128>;
 ///
 /// If `owner_id` is `None`, this can return more than one token, and all tokens may
 /// need to be tried.
-pub async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<Vec<String>> {
+pub async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<Vec<(String, Option<GoogleServiceAccount>)>> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
 
@@ -54,14 +55,14 @@ pub async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<
     // accounts than regular accounts, thus making us less likely to run into daily
     // per-account transfer limits.
     for service_account in GoogleServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(1)).await? {
-        let auth = yup_oauth2::ServiceAccountAuthenticator::builder(service_account.key).build().await?;
+        let auth = yup_oauth2::ServiceAccountAuthenticator::builder(service_account.clone().key).build().await?;
         let scopes = &["https://www.googleapis.com/auth/drive"];
         let token = auth.token(scopes).await?;
-        tokens.push(token.as_str().to_string());
+        tokens.push((token.as_str().to_string(), Some(service_account)));
     }
 
     for token in GoogleAccessToken::find_by_owner_ids(&mut transaction, &owner_ids).await? {
-        tokens.push(token.access_token);
+        tokens.push((token.access_token, None));
     }
 
     transaction.commit().await?; // close read-only transaction
@@ -124,7 +125,7 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
     let access_tokens_tries = access_tokens.iter().cycle().take(access_tokens.len() * tries);
 
     let mut out = Err(anyhow!("Google did not respond with an OK response after trying all access tokens"));
-    for access_token in access_tokens_tries {
+    for (access_token, service_account) in access_tokens_tries {
         debug!(?access_token, "trying access token");
         let response = request_gdrive_file(&gdrive_file.id, access_token).await?;
         let headers = response.headers();
@@ -141,6 +142,15 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
                 if goog_crc32c != gdrive_file.crc32c {
                     bail!("Google sent crc32c={} but we expected crc32c={}", goog_crc32c, gdrive_file.crc32c);
                 }
+
+                // Success with a service account; store that information
+                if let Some(service_account) = service_account {
+                    let pool = db::pgpool().await;
+                    let mut transaction = pool.begin().await?;
+                    GoogleServiceAccount::set_last_over_quota_time(&mut transaction, &service_account.key.client_email, None).await?;
+                    transaction.commit().await?;
+                }
+
                 out = Ok(stream_add_validation(gdrive_file, response.bytes_stream()));
                 break;
             },
@@ -152,6 +162,16 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
             StatusCode::NOT_FOUND |
             StatusCode::INTERNAL_SERVER_ERROR |
             StatusCode::SERVICE_UNAVAILABLE => {
+                // Over daily quota on a service account; store that information
+                if response.status() == StatusCode::FORBIDDEN {
+                    if let Some(service_account) = service_account {
+                        let pool = db::pgpool().await;
+                        let mut transaction = pool.begin().await?;
+                        GoogleServiceAccount::set_last_over_quota_time(&mut transaction, &service_account.key.client_email, Some(Utc::now())).await?;
+                        transaction.commit().await?;
+                    }
+                }
+
                 let status = response.status();
                 let body = response.text().await?;
                 debug!(file_id = ?gdrive_file.id, code = ?status, access_token = ?access_token, body = body,

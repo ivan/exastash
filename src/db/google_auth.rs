@@ -219,10 +219,15 @@ impl GoogleServiceAccount {
 
     /// Set `last_over_quota_time` for a particular service account
     pub async fn set_last_over_quota_time(transaction: &mut Transaction<'_, Postgres>, client_email: &str, last_over_quota_time: Option<DateTime<Utc>>) -> Result<()> {
+        // The `IS DISTINCT FROM` clause is there to avoid unnecessary writes
+        // on the PostgreSQL server when the value is already the desired value
         sqlx::query!(r#"
             UPDATE stash.google_service_accounts_stats
             SET last_over_quota_time = $1
-            WHERE client_email = $2"#, last_over_quota_time, client_email
+            WHERE
+                client_email = $2 AND
+                last_over_quota_time IS DISTINCT FROM $1
+            "#, last_over_quota_time, client_email
         ).execute(&mut **transaction).await?;
         Ok(())
     }

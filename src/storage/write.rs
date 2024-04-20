@@ -107,7 +107,7 @@ pub async fn create_gdrive_file_on_domain<S: Stream<Item = std::io::Result<Bytes
         if access_tokens.is_empty() {
             bail!("no access tokens were available for domain_id={} owner_id={}", domain_id, owner_id);
         }
-        let access_token = access_tokens.pop().unwrap();
+        let (access_token, _service_account) = access_tokens.pop().unwrap();
         Ok(access_token)
     };
 
