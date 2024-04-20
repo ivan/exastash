@@ -48,13 +48,17 @@ pub async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<
 
     let mut tokens = vec![];
 
+    let service_accounts_to_try: i64 = env::var("EXASTASH_SERVICE_ACCOUNTS_TO_TRY")
+        .map(|s| s.parse::<i64>().expect("could not parse EXASTASH_SERVICE_ACCOUNTS_TO_TRY as a i64"))
+        .unwrap_or(1); // default
+
     // Regardless of file owner, service accounts are presumed to have been granted
     // read access to all or most files on the domain.
     //
     // Always try a random service account first, because we have more service
     // accounts than regular accounts, thus making us less likely to run into daily
     // per-account transfer limits.
-    for service_account in GoogleServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(1)).await? {
+    for service_account in GoogleServiceAccount::find_by_owner_ids(&mut transaction, &all_owner_ids, Some(service_accounts_to_try)).await? {
         let auth = yup_oauth2::ServiceAccountAuthenticator::builder(service_account.clone().key).build().await?;
         let scopes = &["https://www.googleapis.com/auth/drive"];
         let token = auth.token(scopes).await?;
