@@ -144,11 +144,13 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
                 }
 
                 // Success with a service account; store that information
-                if let Some(service_account) = service_account {
-                    let pool = db::pgpool().await;
-                    let mut transaction = pool.begin().await?;
-                    GoogleServiceAccount::set_last_over_quota_time(&mut transaction, &service_account.key.client_email, None).await?;
-                    transaction.commit().await?;
+                if let Some(service_account) = service_account.clone() {
+                    tokio::spawn(async move {
+                        let pool = db::pgpool().await;
+                        let mut transaction = pool.begin().await.unwrap();
+                        GoogleServiceAccount::set_last_over_quota_time(&mut transaction, &service_account.key.client_email, None).await.unwrap();
+                        transaction.commit().await.unwrap();
+                    });
                 }
 
                 out = Ok(stream_add_validation(gdrive_file, response.bytes_stream()));
@@ -164,11 +166,13 @@ pub async fn stream_gdrive_file(gdrive_file: &gdrive::file::GdriveFile, domain_i
             StatusCode::SERVICE_UNAVAILABLE => {
                 // Over daily quota on a service account; store that information
                 if response.status() == StatusCode::FORBIDDEN {
-                    if let Some(service_account) = service_account {
-                        let pool = db::pgpool().await;
-                        let mut transaction = pool.begin().await?;
-                        GoogleServiceAccount::set_last_over_quota_time(&mut transaction, &service_account.key.client_email, Some(Utc::now())).await?;
-                        transaction.commit().await?;
+                    if let Some(service_account) = service_account.clone() {
+                        tokio::spawn(async move {
+                            let pool = db::pgpool().await;
+                            let mut transaction = pool.begin().await.unwrap();
+                            GoogleServiceAccount::set_last_over_quota_time(&mut transaction, &service_account.key.client_email, Some(Utc::now())).await.unwrap();
+                            transaction.commit().await.unwrap();
+                        });
                     }
                 }
 
