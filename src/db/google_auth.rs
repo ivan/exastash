@@ -1,8 +1,11 @@
 //! CRUD operations for Google OAuth 2.0 and service account entities in PostgreSQL
 
+use std::env;
+
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
+use tracing::debug;
 use yup_oauth2::ServiceAccountKey;
 use sqlx::{Postgres, Transaction};
 use custom_debug_derive::Debug as CustomDebug;
@@ -219,6 +222,14 @@ impl GoogleServiceAccount {
 
     /// Set `last_over_quota_time` for a particular service account
     pub async fn set_last_over_quota_time(transaction: &mut Transaction<'_, Postgres>, client_email: &str, last_over_quota_time: Option<DateTime<Utc>>) -> Result<()> {
+        let rw_postgres: i64 = env::var("EXASTASH_RW_POSTGRES")
+            .map(|s| s.parse::<i64>().expect("could not parse EXASTASH_RW_POSTGRES as a i64"))
+            .unwrap_or(0); // default
+        if rw_postgres != 1 {
+            debug!("set_last_over_quota_time: skipping write because EXASTASH_RW_POSTGRES=1 is not set");
+            return Ok(());
+        }
+
         // The `IS DISTINCT FROM` clause is there to avoid unnecessary writes
         // on the PostgreSQL server when the value is already the desired value
         sqlx::query!(r#"
