@@ -119,10 +119,13 @@ pub struct GoogleServiceAccount {
     /// The key for this service account
     #[debug(with = "elide")]
     pub key: ServiceAccountKey,
+    /// The time we were last over quota with this account, or None
+    /// if the last request indicated it was not over quota.
+    pub last_over_quota_time: Option<DateTime<Utc>>,
 }
 
-impl From<GoogleServiceAccountRow> for GoogleServiceAccount {
-    fn from(row: GoogleServiceAccountRow) -> Self {
+impl From<GoogleServiceAccountViewRow> for GoogleServiceAccount {
+    fn from(row: GoogleServiceAccountViewRow) -> Self {
         GoogleServiceAccount {
             owner_id:                        row.owner_id,
             key: ServiceAccountKey {
@@ -135,14 +138,15 @@ impl From<GoogleServiceAccountRow> for GoogleServiceAccount {
                 token_uri:                   row.token_uri,
                 auth_provider_x509_cert_url: Some(row.auth_provider_x509_cert_url),
                 client_x509_cert_url:        Some(row.client_x509_cert_url),
-                key_type:                    Some("service_account".into())
-            }
+                key_type:                    Some("service_account".into()),
+            },
+            last_over_quota_time:            row.last_over_quota_time,
         }
     }
 }
 
 #[derive(Debug)]
-struct GoogleServiceAccountRow {
+struct GoogleServiceAccountViewRow {
     /// The gdrive_owner this service account is for
     owner_id: i32,
     client_email: String,
@@ -154,6 +158,7 @@ struct GoogleServiceAccountRow {
     token_uri: String,
     auth_provider_x509_cert_url: String,
     client_x509_cert_url: String,
+    last_over_quota_time: Option<DateTime<Utc>>,
 }
 
 impl GoogleServiceAccount {
@@ -183,21 +188,43 @@ impl GoogleServiceAccount {
 
     /// Return a `Vec<GoogleServiceAccount>` for the corresponding list of `owner_ids`.
     /// There is no error on missing owners.
-    /// Always returns rows in a random order.
+    /// Returns service accounts least-likely to be over quota first, sorted randomly.
     /// If limit is not `None`, returns max `N` rows.
     pub async fn find_by_owner_ids(transaction: &mut Transaction<'_, Postgres>, owner_ids: &[i32], limit: Option<i64>) -> Result<Vec<GoogleServiceAccount>> {
-        let accounts = sqlx::query_as!(GoogleServiceAccountRow, r#"
-            SELECT owner_id, client_email, client_id, project_id, private_key_id, private_key,
-                   auth_uri, token_uri, auth_provider_x509_cert_url, client_x509_cert_url
-            FROM stash.google_service_accounts
+        // All but one of the columns should be NOT NULL, but PostgreSQL doesn't
+        // have the necessary NULL tracking for views.
+        let accounts = sqlx::query_as!(GoogleServiceAccountViewRow, r#"
+            SELECT
+                owner_id AS "owner_id!",
+                client_email AS "client_email!",
+                client_id AS "client_id!",
+                project_id AS "project_id!",
+                private_key_id AS "private_key_id!",
+                private_key AS "private_key!",
+                auth_uri AS "auth_uri!",
+                token_uri AS "token_uri!",
+                auth_provider_x509_cert_url AS "auth_provider_x509_cert_url!",
+                client_x509_cert_url AS "client_x509_cert_url!",
+                last_over_quota_time
+            FROM stash.google_service_accounts_view
             WHERE owner_id = ANY($1)
-            ORDER BY random()
+            ORDER BY (last_over_quota_time, random()) NULLS FIRST
             LIMIT $2"#, owner_ids, limit
         )
             .fetch(&mut **transaction)
             .map(|result| result.map(|row| row.into()))
             .try_collect().await?;
         Ok(accounts)
+    }
+
+    /// Set `last_over_quota_time` for a particular service account
+    pub async fn set_last_over_quota_time(transaction: &mut Transaction<'_, Postgres>, client_email: &str, last_over_quota_time: Option<DateTime<Utc>>) -> Result<()> {
+        sqlx::query!(r#"
+            UPDATE stash.google_service_accounts_stats
+            SET last_over_quota_time = $1
+            WHERE client_email = $2"#, last_over_quota_time, client_email
+        ).execute(&mut **transaction).await?;
+        Ok(())
     }
 }
 
@@ -355,7 +382,7 @@ mod tests {
             let mut transaction = pool.begin().await?;
             let domain = create_dummy_domain(&mut transaction).await?;
             let owner = create_dummy_owner(&mut transaction, domain.id).await?;
-            let account = GoogleServiceAccount { owner_id: owner.id, key: dummy_service_account_key() };
+            let account = GoogleServiceAccount { owner_id: owner.id, key: dummy_service_account_key(), last_over_quota_time: None };
             account.create(&mut transaction).await?;
             transaction.commit().await?;
 
@@ -370,8 +397,8 @@ mod tests {
 
         #[test]
         fn test_debug_elision() {
-            let account = GoogleServiceAccount { owner_id: 1, key: dummy_service_account_key() };
-            assert_eq!(format!("{account:?}"), "GoogleServiceAccount { owner_id: 1, key: ... }");
+            let account = GoogleServiceAccount { owner_id: 1, key: dummy_service_account_key(), last_over_quota_time: None };
+            assert_eq!(format!("{account:?}"), "GoogleServiceAccount { owner_id: 1, key: ..., last_over_quota_time: None }");
         }
     }
 }

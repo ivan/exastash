@@ -1022,7 +1022,7 @@ async fn main() -> Result<()> {
                             let key: ServiceAccountKey = serde_json::from_slice(&content)?;
                             assert_eq!(key.key_type, Some("service_account".into()));
                             let mut transaction = pool.begin().await?;
-                            GoogleServiceAccount { owner_id, key }.create(&mut transaction).await?;
+                            GoogleServiceAccount { owner_id, key, last_over_quota_time: None }.create(&mut transaction).await?;
                             transaction.commit().await?;
                         }
                     }

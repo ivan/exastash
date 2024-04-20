@@ -66,3 +66,20 @@ CREATE TRIGGER google_service_accounts_update
 CREATE TRIGGER google_service_accounts_forbid_truncate
     BEFORE TRUNCATE ON google_service_accounts
     EXECUTE FUNCTION raise_exception('truncate is forbidden');
+
+
+
+CREATE TABLE google_service_accounts_stats (
+    client_email          email        PRIMARY KEY,
+    -- Set back to NULL when not over quota
+    last_over_quota_time  timestamptz
+);
+
+
+
+CREATE VIEW google_service_accounts_view AS
+    SELECT
+        google_service_accounts.*,
+        last_over_quota_time
+    FROM stash.google_service_accounts
+    LEFT JOIN stash.google_service_accounts_stats ON google_service_accounts_stats.client_email = google_service_accounts.client_email;

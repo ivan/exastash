@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                owner_id AS \"owner_id!\",\n                client_email AS \"client_email!\",\n                client_id AS \"client_id!\",\n                project_id AS \"project_id!\",\n                private_key_id AS \"private_key_id!\",\n                private_key AS \"private_key!\",\n                auth_uri AS \"auth_uri!\",\n                token_uri AS \"token_uri!\",\n                auth_provider_x509_cert_url AS \"auth_provider_x509_cert_url!\",\n                client_x509_cert_url AS \"client_x509_cert_url!\",\n                last_over_quota_time\n            FROM stash.google_service_accounts_view\n            WHERE owner_id = ANY($1)\n            ORDER BY (last_over_quota_time, random()) NULLS FIRST\n            LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "owner_id!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "client_email!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "client_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "project_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "private_key_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "private_key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "auth_uri!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "token_uri!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "auth_provider_x509_cert_url!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "client_x509_cert_url!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "last_over_quota_time",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4Array",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d2bcdfb609672fe14800dc84b002e358372f5c83f15eeb14470077d07d1e7b0e"
+}
