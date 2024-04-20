@@ -211,7 +211,7 @@ impl GoogleServiceAccount {
                 last_over_quota_time
             FROM stash.google_service_accounts_view
             WHERE owner_id = ANY($1)
-            ORDER BY (last_over_quota_time, random()) NULLS FIRST
+            ORDER BY (COALESCE(last_over_quota_time, '1970-01-01'::timestamptz), random())
             LIMIT $2"#, owner_ids, limit
         )
             .fetch(&mut **transaction)
