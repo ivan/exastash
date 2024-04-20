@@ -493,9 +493,13 @@ pub async fn read(file_id: i64) -> Result<(ReadStream, inode::File)> {
         None => bail!("file with id={} has no storage", file_id)
     };
 
+    let rw_postgres: i64 = env::var("EXASTASH_RW_POSTGRES")
+        .map(|s| s.parse::<i64>().expect("could not parse EXASTASH_RW_POSTGRES as a i64"))
+        .unwrap_or(0); // default
+
     let file_b3sum = file.b3sum;
-    // We only need to wrap the stream with this stream if file.b3sum is unset
-    let stream = if file_b3sum.is_none() {
+    // We only need to wrap the stream with this stream if file.b3sum is unset (and rw_postgres == 1)
+    let stream = if file_b3sum.is_none() && rw_postgres == 1 {
         Box::pin(
             #[try_stream]
             async move {
