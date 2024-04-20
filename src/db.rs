@@ -23,8 +23,7 @@ use std::path::Path;
 use crate::util::env_var;
 
 /// Return a `PgPool` that connects to the given `postgres://` URI,
-/// and starts all transactions in `search_path` = search_path and with
-/// isolation level `REPEATABLE READ`.
+/// and starts all transactions in `search_path` = search_path
 pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u64, search_path: &str) -> Result<PgPool> {
     let search_path = Arc::new(String::from(search_path));
     let options: PgConnectOptions = uri.parse::<PgConnectOptions>()?
@@ -36,10 +35,6 @@ pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u6
             Box::pin(async move {
                 let stmt = format!("SET search_path TO {search_path}");
                 conn.execute(stmt.as_str()).await?;
-
-                // We generally want point-in-time consistency, e.g. when we do separate
-                // reads on files and a storage table
-                conn.execute("SET default_transaction_isolation TO 'repeatable read'").await?;
 
                 Ok(())
             })
