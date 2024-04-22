@@ -46,4 +46,4 @@ pub mod storage;
 
 /// Rows in database will be created with birth_version set to this value.
 /// See `exastash_versions.sql`.
-pub const EXASTASH_VERSION: i16 = 134;
+pub const EXASTASH_VERSION: i16 = 135;
