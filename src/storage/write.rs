@@ -377,6 +377,7 @@ pub async fn add_storages<A: AsyncRead + Send + Sync + Unpin + 'static>(
             .into_iter()
             .map(|pile| (pile.id, pile))
             .collect();
+        transaction.commit().await?; // close read-only transaction
         for pile_id in &pile_ids {
             if !piles.contains_key(pile_id) {
                 bail!("while adding fofs storage, a fofs pile with id={} was not found", pile_id);
