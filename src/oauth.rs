@@ -33,7 +33,7 @@ pub async fn create_access_token(transaction: &mut Transaction<'_, Postgres>, ow
     }
     let secret = secrets[0].secret["installed"].clone();
     let app_secret: ApplicationSecret = serde_json::from_value(secret)?;
-    let auth = InstalledFlowAuthenticator::builder(app_secret, InstalledFlowReturnMethod::Interactive)
+    let auth = InstalledFlowAuthenticator::builder(app_secret, InstalledFlowReturnMethod::HTTPRedirect)
         .build().await
         .unwrap();
     let scopes = &["https://www.googleapis.com/auth/drive"];
