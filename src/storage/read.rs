@@ -16,6 +16,8 @@ use futures_async_stream::try_stream;
 use std::env;
 use std::sync::Arc;
 use parking_lot::Mutex;
+use rand::thread_rng;
+use rand::seq::SliceRandom;
 use crate::blake3::Blake3HashingStream;
 use crate::db;
 use crate::db::inode::{self, File};
@@ -72,7 +74,9 @@ pub async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<
         tokens.push((token.as_str().to_string(), Some(service_account)));
     }
 
-    for token in GoogleAccessToken::find_by_owner_ids(&mut transaction, &owner_ids).await? {
+    let mut regular_account_tokens = GoogleAccessToken::find_by_owner_ids(&mut transaction, &owner_ids).await?;
+    regular_account_tokens.shuffle(&mut thread_rng());
+    for token in regular_account_tokens {
         tokens.push((token.access_token, None));
     }
 
