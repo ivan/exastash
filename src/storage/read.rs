@@ -38,11 +38,18 @@ pub async fn get_access_tokens(owner_id: Option<i32>, domain_id: i16) -> Result<
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
 
+    let try_regular_accounts_too: i64 = env::var("EXASTASH_TRY_REGULAR_ACCOUNTS_TOO")
+        .map(|s| s.parse::<i64>().expect("could not parse EXASTASH_TRY_REGULAR_ACCOUNTS_TOO as a i64"))
+        .unwrap_or(0); // default
+    let try_regular_accounts_too = try_regular_accounts_too == 1;
+
     let all_owners = GdriveOwner::find_by_domain_ids(&mut transaction, &[domain_id]).await?;
     let all_owner_ids: Vec<_> = all_owners.iter().map(|owner| owner.id).collect();
     let owner_ids = match owner_id {
         // Old files in our database have no recorded owner, so we may need to try all owners.
         None => all_owner_ids.clone(),
+        // Useful if we're over-quota on all the service accounts
+        Some(6) if try_regular_accounts_too => all_owner_ids.clone(),
         Some(id) => vec![id],
     };
 
