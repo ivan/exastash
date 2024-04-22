@@ -117,6 +117,7 @@ async fn get_fofs_pile_path(pile_id: i32) -> Result<SmolStr, Error> {
     let pool = db::pgpool().await;
     let mut transaction = pool.begin().await?;
     let mut piles = db::storage::fofs::Pile::find_by_ids(&mut transaction, &[pile_id]).await?;
+    transaction.commit().await?; // close read-only transaction
     let pile = match piles.pop() {
         Some(pile) => pile,
         None => return Err(Error::PileNotFound),
