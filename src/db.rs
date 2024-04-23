@@ -7,9 +7,7 @@ pub mod traversal;
 pub mod google_auth;
 
 use anyhow::Result;
-use sqlx::Executor;
 use log::LevelFilter;
-use std::sync::Arc;
 use sqlx::postgres::{PgPool, PgPoolOptions, PgConnectOptions};
 use sqlx::{ConnectOptions, Postgres, Transaction};
 use futures::future::{FutureExt, Shared};
@@ -22,23 +20,12 @@ use std::env;
 use std::path::Path;
 use crate::util::env_var;
 
-/// Return a `PgPool` that connects to the given `postgres://` URI,
-/// and starts all transactions in `search_path` = search_path
-pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u64, search_path: &str) -> Result<PgPool> {
-    let search_path = Arc::new(String::from(search_path));
+/// Return a `PgPool` that connects to the given `postgres://` URI
+pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u64) -> Result<PgPool> {
     let options: PgConnectOptions = uri.parse::<PgConnectOptions>()?
         // By default, sqlx logs statements that take > 1 sec as a warning
         .log_slow_statements(LevelFilter::Info, Duration::from_secs(5));
     let pool = PgPoolOptions::new()
-        .after_connect(move |conn, _metadata| {
-            let search_path = search_path.clone();
-            Box::pin(async move {
-                let stmt = format!("SET search_path TO {search_path}");
-                conn.execute(stmt.as_str()).await?;
-
-                Ok(())
-            })
-        })
         .acquire_timeout(Duration::from_secs(connect_timeout_sec))
         .max_connections(max_connections)
         .connect_with(options).await?;
@@ -60,7 +47,7 @@ static PGPOOL: Lazy<Shared<Pin<Box<dyn Future<Output=PgPool> + Send>>>> = Lazy::
         .map(|s| s.parse::<u64>().expect("could not parse EXASTASH_POSTGRES_CONNECT_TIMEOUT_SEC as a u64"))
         .unwrap_or(30); // default
 
-    new_pgpool(&database_uri, max_connections, connect_timeout_sec, "public").await.unwrap()
+    new_pgpool(&database_uri, max_connections, connect_timeout_sec).await.unwrap()
 }.boxed().shared());
 
 /// Return the global `PgPool`. It must not be used in more than one tokio runtime.
@@ -165,7 +152,7 @@ pub mod tests {
     /// Return a new `PgPool` connected to the `pg_tmp` for most tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_primary_pool() -> PgPool {
-        new_pgpool(&PRIMARY_POOL_URI, 16, 30, "public").await.unwrap()
+        new_pgpool(&PRIMARY_POOL_URI, 16, 30).await.unwrap()
     }
 
     /// PgPool Future initialized once by the first caller
@@ -178,6 +165,6 @@ pub mod tests {
     /// Return a new `PgPool` connected to the pg_tmp for `TRUNCATE` tests.
     /// We do not return a shared `PgPool` because each `#[tokio::test]` has its own tokio runtime.
     pub(crate) async fn new_secondary_pool() -> PgPool {
-        new_pgpool(&SECONDARY_POOL_URI, 16, 30, "public").await.unwrap()
+        new_pgpool(&SECONDARY_POOL_URI, 16, 30).await.unwrap()
     }
 }
