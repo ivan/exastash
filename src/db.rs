@@ -27,6 +27,7 @@ pub async fn new_pgpool(uri: &str, max_connections: u32, connect_timeout_sec: u6
         .log_slow_statements(LevelFilter::Info, Duration::from_secs(5));
     let pool = PgPoolOptions::new()
         .acquire_timeout(Duration::from_secs(connect_timeout_sec))
+        .idle_timeout(Duration::from_secs(1)) // Reduce useless open sessions on the server
         .max_connections(max_connections)
         .connect_with(options).await?;
     Ok(pool)
