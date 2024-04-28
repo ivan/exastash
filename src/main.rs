@@ -2,6 +2,7 @@
 // pattern binding `s` is named the same as one of the variants of the type `FindKind`
 #![allow(bindings_with_variant_name)]
 
+use exastash::db::storage::fofs::backfill_b3sums;
 use exastash::db::storage::{fofs, gdrive, get_storage_views, namedfiles, StorageView};
 use tracing::info;
 use yansi::Paint;
@@ -16,7 +17,7 @@ use std::path::PathBuf;
 use num::rational::Ratio;
 use sqlx::{Postgres, Transaction};
 use tracing_subscriber::EnvFilter;
-use exastash::util::{FixedReadSizeDecoder, commaify_i64};
+use exastash::util::{commaify_i64, get_hostname, FixedReadSizeDecoder};
 use serde_json::json;
 use exastash::db;
 use exastash::db::storage::gdrive::{file::GdriveFile, GdriveFilePlacement};
@@ -342,6 +343,10 @@ enum StorageCommand {
     /// namedfiles storage
     #[clap(subcommand, name = "namedfiles")]
     NamedFiles(NamedFilesStorageCommand),
+
+    /// fofs storage
+    #[clap(subcommand, name = "fofs")]
+    Fofs(FofsStorageCommand),
 }
 
 #[derive(Subcommand, Debug)]
@@ -372,6 +377,14 @@ enum NamedFilesStorageCommand {
         #[clap(name = "PATHNAME")]
         pathname: String,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum FofsStorageCommand {
+    /// For any files stored on this host for which b3sums are unset in
+    /// the database, set the b3sums based on the fofs files.
+    #[clap(name = "backfill-b3sums")]
+    BackfillB3sums,
 }
 
 #[derive(Subcommand, Debug)]
@@ -1051,6 +1064,14 @@ async fn main() -> Result<()> {
                             };
                             storage.create(&mut transaction).await?;
                             transaction.commit().await?;
+                        }
+                    }
+                }
+                StorageCommand::Fofs(command) => {
+                    match command {
+                        FofsStorageCommand::BackfillB3sums => {
+                            let hostname = get_hostname();
+                            backfill_b3sums(&hostname).await?;
                         }
                     }
                 }

@@ -1,9 +1,17 @@
 //! CRUD operations for storage_fofs entities in PostgreSQL
 
+use std::sync::Arc;
+
 use anyhow::Result;
+use futures_async_stream::for_await;
+use parking_lot::Mutex;
 use sqlx::{Postgres, Transaction};
 use sqlx::types::Decimal;
 use serde::Serialize;
+use tracing::info;
+use crate::blake3::Blake3HashingStream;
+use crate::storage::read::read_storage;
+use crate::db::{self, inode, storage};
 
 /// A pile entity
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
@@ -254,4 +262,52 @@ impl StorageView {
         ).fetch_all(&mut **transaction).await?;
         Ok(storages)
     }
+
+    /// Get all fofs storage entities for which there is no b3sum set, on a particular host
+    pub async fn find_by_missing_b3sum_and_hostname(transaction: &mut Transaction<'_, Postgres>, hostname: &str) -> Result<Vec<StorageView>> {
+        let storages = sqlx::query_as!(StorageView, r#"
+            SELECT
+                file_id AS "file_id!",
+                cell_id AS "cell_id!",
+                pile_id AS "pile_id!",
+                files_per_cell AS "files_per_cell!",
+                pile_hostname AS "pile_hostname!",
+                pile_path AS "pile_path!"
+            FROM stash.storage_fofs_view
+            JOIN stash.files ON files.id = file_id
+            WHERE pile_hostname = $1 AND b3sum IS NULL"#, hostname
+        ).fetch_all(&mut **transaction).await?;
+        Ok(storages)
+    }
+}
+
+
+
+/// Fix all unset b3sums in the database, based on the fofs files we have on a particular host
+pub async fn backfill_b3sums(hostname: &str) -> Result<()> {
+    let pool = db::pgpool().await;
+    let mut transaction = pool.begin().await?;
+    let storage_views = StorageView::find_by_missing_b3sum_and_hostname(&mut transaction, hostname).await?;
+    transaction.commit().await?; // close read-only transaction
+
+    for storage in storage_views {
+        let mut transaction = pool.begin().await?;
+        let file = inode::File::find_by_ids(&mut transaction, &[storage.file_id]).await?.pop().unwrap();
+        let file_id = file.id;
+
+        let b3sum = Arc::new(Mutex::new(blake3::Hasher::new()));
+        let storage_enum = storage::StorageView::Fofs(storage);
+        let underlying_stream = read_storage(&file, &storage_enum, b3sum.clone()).await?;
+        let hashing_stream = Blake3HashingStream::new(underlying_stream, b3sum.clone());
+        #[for_await]
+        for _frame in hashing_stream {
+            // Just advance the stream to the end
+        }
+        let computed_hash = blake3::Hasher::finalize(&b3sum.lock().clone());
+
+        info!(file_id, new_b3sum = ?hex::encode(computed_hash.as_bytes()), "fixing unset b3sum on file");
+        inode::File::set_b3sum(&mut transaction, file_id, computed_hash.as_bytes()).await?;
+        transaction.commit().await?;
+    }
+    Ok(())
 }
