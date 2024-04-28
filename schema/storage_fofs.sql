@@ -21,6 +21,8 @@ CREATE TABLE piles (
     fullness_check_ratio  numeric   NOT NULL CHECK (fullness_check_ratio >= 0 AND fullness_check_ratio <= 1)
 );
 
+CREATE INDEX ON piles (hostname);
+
 CREATE TRIGGER piles_check_update
     BEFORE UPDATE ON piles
     FOR EACH ROW
