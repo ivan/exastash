@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.google_application_secrets (domain_id, secret)\n            VALUES ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int2",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fcb05bd2cadea4b91f8106f6eded3dd19351ff121d19098a0073f3e1356a7cf3"
+}
