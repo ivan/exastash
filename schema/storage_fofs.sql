@@ -76,6 +76,9 @@ CREATE TABLE storage_fofs (
     PRIMARY KEY (file_id, cell_id)
 );
 
+-- Because we have an FK from `stash.cells`
+CREATE INDEX ON storage_fofs (cell_id);
+
 CREATE TRIGGER storage_fofs_check_update
     BEFORE UPDATE ON storage_fofs
     FOR EACH ROW
