@@ -786,7 +786,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
 name = "exastash"
-version = "3.9.8"
+version = "3.9.9"
 dependencies = [
  "aes",
  "anyhow",
