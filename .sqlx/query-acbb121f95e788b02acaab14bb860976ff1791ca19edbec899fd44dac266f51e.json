@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                file_id AS \"file_id!\",\n                cell_id AS \"cell_id!\",\n                pile_id AS \"pile_id!\",\n                files_per_cell AS \"files_per_cell!\",\n                pile_hostname AS \"pile_hostname!\",\n                pile_path AS \"pile_path!\"\n            FROM stash.storage_fofs_view\n            WHERE file_id = ANY($1)",
+  "query": "\n            SELECT\n                file_id AS \"file_id!\",\n                cell_id AS \"cell_id!\",\n                pile_id AS \"pile_id!\",\n                files_per_cell AS \"files_per_cell!\",\n                pile_hostname AS \"pile_hostname!\",\n                pile_path AS \"pile_path!\",\n                offline AS \"offline!\"\n            FROM stash.storage_fofs_view\n            WHERE file_id = ANY($1)",
   "describe": {
     "columns": [
       {
@@ -32,6 +32,11 @@
         "ordinal": 5,
         "name": "pile_path!",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "offline!",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -45,8 +50,9 @@
       true,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "80a1c9b1d71be7673b817e590d225d856013e17fbbef9edc857b44366a04f464"
+  "hash": "acbb121f95e788b02acaab14bb860976ff1791ca19edbec899fd44dac266f51e"
 }

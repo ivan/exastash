@@ -18,7 +18,9 @@ CREATE TABLE piles (
     --
     -- For files_per_cell = 10000, a typical value for fullness_check_ratio is 0.01,
     -- thus causing ~100 listdir calls on a 10000-sized cell as it grows to capacity.
-    fullness_check_ratio  numeric   NOT NULL CHECK (fullness_check_ratio >= 0 AND fullness_check_ratio <= 1)
+    fullness_check_ratio  numeric   NOT NULL CHECK (fullness_check_ratio >= 0 AND fullness_check_ratio <= 1),
+    -- Whether the pile is on a drive is normally expected to be offline
+    offline               boolean   NOT NULL
 );
 
 CREATE INDEX ON piles (hostname);
@@ -100,7 +102,8 @@ CREATE VIEW storage_fofs_view AS
         pile_id, "full" AS cell_full,
         files_per_cell,
         hostname AS pile_hostname,
-        "path" AS pile_path
+        "path" AS pile_path,
+        offline
     FROM stash.storage_fofs
     LEFT JOIN stash.cells ON cells.id = cell_id
     LEFT JOIN stash.piles ON piles.id = pile_id;

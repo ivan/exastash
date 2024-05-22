@@ -28,6 +28,8 @@ pub struct Pile {
     /// For files_per_cell = 10000, a typical value for fullness_check_ratio is 0.01,
     /// thus causing ~100 listdir calls on a 10000-sized cell as it grows to capacity.
     pub fullness_check_ratio: Decimal,
+    /// Whether the pile is on a drive that is normally expected to be offline
+    pub offline: bool,
 }
 
 impl Pile {
@@ -38,7 +40,7 @@ impl Pile {
             return Ok(vec![]);
         }
         let piles = sqlx::query_as!(Pile, r#"
-            SELECT id, files_per_cell, hostname, path, fullness_check_ratio
+            SELECT id, files_per_cell, hostname, path, fullness_check_ratio, offline
             FROM stash.piles WHERE id = ANY($1)"#, ids
         ).fetch_all(&mut **transaction).await?;
         Ok(piles)
@@ -64,6 +66,8 @@ pub struct NewPile {
     /// For files_per_cell = 10000, a typical value for fullness_check_ratio is 0.01,
     /// thus causing ~100 listdir calls on a 10000-sized cell as it grows to capacity.
     pub fullness_check_ratio: Decimal,
+    /// Whether the pile is on a drive that is normally expected to be offline
+    pub offline: bool,
 }
 
 impl NewPile {
@@ -71,9 +75,9 @@ impl NewPile {
     /// Does not commit the transaction, you must do so yourself.
     pub async fn create(&self, transaction: &mut Transaction<'_, Postgres>) -> Result<Pile> {
         let id = sqlx::query_scalar!(r#"
-            INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio)
-            VALUES ($1, $2::text, $3, $4)
-            RETURNING id"#, self.files_per_cell, self.hostname, self.path, self.fullness_check_ratio
+            INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio, offline)
+            VALUES ($1, $2::text, $3, $4, $5)
+            RETURNING id"#, self.files_per_cell, self.hostname, self.path, self.fullness_check_ratio, self.offline
         ).fetch_one(&mut **transaction).await?;
         assert!(id >= 1);
         Ok(Pile {
@@ -82,6 +86,7 @@ impl NewPile {
             hostname: self.hostname.clone(),
             path: self.path.clone(),
             fullness_check_ratio: self.fullness_check_ratio,
+            offline: self.offline,
         })
     }
 }
@@ -230,6 +235,8 @@ pub struct StorageView {
     pub pile_hostname: String,
     /// The absolute path to the root directory of the pile on the machine
     pub pile_path: String,
+    /// Whether the pile is on a drive that is normally expected to be offline
+    pub offline: bool,
 }
 
 impl StorageView {
@@ -250,7 +257,8 @@ impl StorageView {
                 pile_id AS "pile_id!",
                 files_per_cell AS "files_per_cell!",
                 pile_hostname AS "pile_hostname!",
-                pile_path AS "pile_path!"
+                pile_path AS "pile_path!",
+                offline AS "offline!"
             FROM stash.storage_fofs_view
             WHERE file_id = ANY($1)"#, file_ids
         ).fetch_all(&mut **transaction).await?;
@@ -266,7 +274,8 @@ impl StorageView {
                 pile_id AS "pile_id!",
                 files_per_cell AS "files_per_cell!",
                 pile_hostname AS "pile_hostname!",
-                pile_path AS "pile_path!"
+                pile_path AS "pile_path!",
+                offline AS "offline!"
             FROM stash.storage_fofs_view
             JOIN stash.files ON files.id = file_id
             WHERE pile_hostname = $1 AND b3sum IS NULL"#, hostname

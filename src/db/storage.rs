@@ -165,7 +165,7 @@ mod tests {
             storage4.create(&mut transaction).await?;
 
             // fofs
-            let pile = fofs::NewPile { files_per_cell: 10, hostname: "localhost".into(), path: "/tmp/fake-fofs".into(), fullness_check_ratio: 1.into() }.create(&mut transaction).await?;
+            let pile = fofs::NewPile { files_per_cell: 10, hostname: "localhost".into(), path: "/tmp/fake-fofs".into(), fullness_check_ratio: 1.into(), offline: false }.create(&mut transaction).await?;
             let cell = fofs::NewCell { pile_id: pile.id }.create(&mut transaction).await?;
             let storage5 = fofs::Storage { file_id: dummy.id, cell_id: cell.id };
             storage5.create(&mut transaction).await?;

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                file_id AS \"file_id!\",\n                cell_id AS \"cell_id!\",\n                pile_id AS \"pile_id!\",\n                files_per_cell AS \"files_per_cell!\",\n                pile_hostname AS \"pile_hostname!\",\n                pile_path AS \"pile_path!\"\n            FROM stash.storage_fofs_view\n            JOIN stash.files ON files.id = file_id\n            WHERE pile_hostname = $1 AND b3sum IS NULL",
+  "query": "\n            SELECT\n                file_id AS \"file_id!\",\n                cell_id AS \"cell_id!\",\n                pile_id AS \"pile_id!\",\n                files_per_cell AS \"files_per_cell!\",\n                pile_hostname AS \"pile_hostname!\",\n                pile_path AS \"pile_path!\",\n                offline AS \"offline!\"\n            FROM stash.storage_fofs_view\n            JOIN stash.files ON files.id = file_id\n            WHERE pile_hostname = $1 AND b3sum IS NULL",
   "describe": {
     "columns": [
       {
@@ -32,6 +32,11 @@
         "ordinal": 5,
         "name": "pile_path!",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "offline!",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -45,8 +50,9 @@
       true,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "8f1d2a89cfa362c35ffce557ea4fd0476b18f6002ecd6366b2a4c8b4d346088e"
+  "hash": "bcf16af2dfa66a9bc838b06cbb9ccccbefe1d6ca1d67874ddb42c9dbcbc0b940"
 }

@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO stash.piles (files_per_cell, hostname, path, fullness_check_ratio, offline)\n            VALUES ($1, $2::text, $3, $4, $5)\n            RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Numeric",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2a214a8abe3d5cfbcbc9400ad6b47d1aadf7199651e2a88fb6dc8eae98d0e6f8"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, files_per_cell, hostname, path, fullness_check_ratio\n            FROM stash.piles WHERE id = ANY($1)",
+  "query": "\n            SELECT id, files_per_cell, hostname, path, fullness_check_ratio, offline\n            FROM stash.piles WHERE id = ANY($1)",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,11 @@
         "ordinal": 4,
         "name": "fullness_check_ratio",
         "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "offline",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -39,8 +44,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "f18b45bd5439dcffdf18f24339dd75aa30b6a1e3c9879fefaec04f41a9cea62b"
+  "hash": "9b818c01de4da507330db8a6aa239309450596b35aa13f37453958f1db5aa51b"
 }
