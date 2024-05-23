@@ -455,6 +455,7 @@ pub async fn read_storage(file: &inode::File, storage: &StorageView, b3sum: Arc<
 
 /// Sort a slice of StorageView by priority, best first
 fn sort_storage_views_by_priority(storages: &mut [StorageView], file: &File) {
+    // Mechanism to avoid preferring fofs over gdrive, to preserve upstream and IO on fofs machines while gdrive is still alive
     let disprefer_fofs_size_threshold: i64 = env::var("EXASTASH_DISPREFER_FOFS_SIZE_THRESHOLD")
         .map(|s| s.parse::<i64>().expect("could not parse EXASTASH_DISPREFER_FOFS_SIZE_THRESHOLD as a i64"))
         .unwrap_or(-1); // default
