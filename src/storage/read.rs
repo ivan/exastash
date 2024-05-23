@@ -464,12 +464,12 @@ fn sort_storage_views_by_priority(storages: &mut [StorageView], file: &File) {
         match storage {
             // Prefer inline because it already has the file content
             StorageView::Inline(inline::Storage { .. }) => 0,
-            // Prefer fofs over gdrive to reduce unnecessary API calls to Google.
+            // Avoid fofs if the pile is marked offline.
+            // Normally, prefer fofs over gdrive to reduce unnecessary API calls to Google.
             // Prefer localhost fofs over other fofs.
-            StorageView::Fofs(fofs::StorageView { pile_hostname, .. }) => {
+            StorageView::Fofs(fofs::StorageView { pile_hostname, offline, .. }) => {
                 match pile_hostname {
-                    s if s == "ra" => 10, // not publicly reachable & has offline drives
-                    s if s == "kal" => 10, // not publicly reachable & has offline drives
+                    _ if *offline => 10,
                     s if s == &util::get_hostname() => 1,
                     _ if disprefer_fofs_size_threshold == -1 => 2,
                     _ if file.size >= disprefer_fofs_size_threshold => 9,
