@@ -478,8 +478,8 @@ fn sort_storage_views_by_priority(storages: &mut [StorageView], file: &File) {
             },
             // Prefer gdrive over internetarchive because internetarchive is very slow now
             StorageView::Gdrive { .. } => 3,
-            StorageView::NamedFiles(namedfiles::Storage { .. }) => 4,
             StorageView::InternetArchive(internetarchive::Storage { .. }) => 5,
+            StorageView::NamedFiles(namedfiles::Storage { .. }) => 100,
         }
     });
 }
